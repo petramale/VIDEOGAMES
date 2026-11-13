@@ -1,0 +1,14 @@
+{
+  "descrizione": "Librerie open-source incluse nello Studio Videogiochi. Nessuna viene scaricata durante la compilazione.",
+  "librerie": [
+    { "nome": "raylib", "versione": "5.5", "licenza": "zlib", "cartella": "librerie/raylib", "licenza_file": "librerie/raylib/LICENSE", "uso": "grafica, audio, input, finestra" },
+    { "nome": "GLFW", "versione": "3.4", "licenza": "zlib", "cartella": "librerie/raylib/src/external/glfw", "licenza_file": "librerie/raylib/src/external/glfw/LICENSE.md", "uso": "finestra e tastiera (dentro raylib)" },
+    { "nome": "miniaudio", "versione": "0.11.21", "licenza": "MIT-0 / pubblico dominio", "cartella": "librerie/raylib/src/external", "licenza_file": "librerie/raylib/src/external/miniaudio.h", "uso": "uscita audio (dentro raylib)" },
+    { "nome": "stb_image", "versione": "2.30", "licenza": "MIT / pubblico dominio", "cartella": "librerie/raylib/src/external", "licenza_file": "librerie/raylib/src/external/stb_image.h", "uso": "lettura immagini (dentro raylib)" },
+    { "nome": "nlohmann/json", "versione": "3.11.3", "licenza": "MIT", "cartella": "librerie/nlohmann", "licenza_file": "librerie/nlohmann/LICENSE.MIT", "uso": "file JSON e dialogo con Claude" }
+  ],
+  "sistema": [
+    { "nome": "WinHTTP", "uso": "collegamento HTTPS a Claude", "nota": "fa parte di Windows" },
+    { "nome": "OpenGL, GDI, WinMM", "uso": "grafica e audio di base", "nota": "fanno parte di Windows" }
+  ]
+}

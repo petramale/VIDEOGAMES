@@ -1,0 +1,160 @@
+#include "claude.h"
+#include "sistema.h"
+#include "json.hpp"
+#include <fstream>
+#include <iterator>
+
+using nlohmann::json;
+
+static std::string LeggiRiga(const std::string& percorso) {
+    std::ifstream f(percorso);
+    std::string s;
+    if (f) std::getline(f, s);
+    while (!s.empty() && (s.back() == '\r' || s.back() == ' ')) s.pop_back();
+    return s;
+}
+
+ConfigClaude ConfigClaude::Carica() {
+    ConfigClaude c;
+    c.chiave = LeggiVariabileAmbiente("ANTHROPIC_API_KEY");
+    std::string dir = CartellaEseguibile();
+    if (c.chiave.empty()) c.chiave = LeggiRiga(dir + "/claude_chiave.txt");
+    std::string m = LeggiRiga(dir + "/claude_modello.txt");
+    if (!m.empty()) c.modello = m;
+    return c;
+}
+
+std::string Claude::PromptSistema(TipoRichiesta tipo) {
+    std::string base =
+        "Sei l'assistente creativo di uno studio per creare videogiochi 2D in pixel art. "
+        "Rispondi SOLO con un oggetto JSON valido: niente testo prima o dopo, niente blocchi di codice. ";
+    if (tipo == TipoRichiesta::Sprite) {
+        return base +
+            "Crea uno sprite animato in pixel art con questo formato: "
+            "{\"nome\": string, \"fps\": numero tra 2 e 10, "
+            "\"palette\": {un carattere: \"#rrggbb\"}, \"fotogrammi\": [[righe di testo]]}. "
+            "Regole: 16x16 pixel, da 2 a 4 fotogrammi tutti della stessa misura, al massimo 10 colori, "
+            "il carattere '.' e' trasparente e non va nella palette, contorno scuro di 1 pixel, "
+            "luci e ombre per dare volume, animazione fluida e piena di personalita'.";
+    }
+    return base +
+        "Crea un livello per un gioco a piattaforme con questo formato: {\"nome\": string, \"righe\": [stringhe]}. "
+        "Legenda: '#' terra, '=' pietra, '-' piattaforma attraversabile dal basso, '^' spine, ' ' vuoto, "
+        "'P' partenza (una sola), 'F' bandiera d'arrivo (una sola), 'o' moneta, 'g' gemma, 'm' molla, "
+        "'c' forziere, 'k' lanterna di controllo, 'e' slime, 'b' pipistrello. "
+        "Regole: esattamente 15 righe tutte lunghe uguali, tra 60 e 160 colonne; le ultime 3 righe sono il terreno; "
+        "gli oggetti stanno su una cella vuota appena sopra un appoggio; il personaggio salta al massimo 4 tile "
+        "in alto e 5 in lungo (con la molla 8 in alto): ogni tratto deve essere raggiungibile; "
+        "buche larghe al massimo 4; difficolta' crescente e qualche segreto.";
+}
+
+void Claude::Invia(const ConfigClaude& cfg, TipoRichiesta tipo, const std::string& descrizione) {
+    json corpo = {
+        { "model", cfg.modello },
+        { "max_tokens", 8000 },
+        { "system", PromptSistema(tipo) },
+        { "messages", json::array({ { { "role", "user" }, { "content", descrizione } } }) },
+    };
+    std::string intestazioni =
+        "content-type: application/json\r\n"
+        "anthropic-version: 2023-06-01\r\n"
+        "x-api-key: " + cfg.chiave + "\r\n";
+    HttpAvviaPost("api.anthropic.com", "/v1/messages", intestazioni, corpo.dump());
+}
+
+int Claude::Stato() const { return HttpStato(); }
+
+std::string Claude::Risultato() const {
+    std::string r = HttpRisposta();
+    if (HttpStato() != 2) return r;
+    json j = json::parse(r, nullptr, false);
+    if (j.is_discarded() || !j.contains("content")) return "risposta inattesa dal server";
+    std::string testo;
+    for (auto& blocco : j["content"])
+        if (blocco.value("type", "") == "text") testo += blocco.value("text", "");
+    return EstraiJson(testo);
+}
+
+std::string Claude::EstraiJson(const std::string& testo) {
+    size_t a = testo.find('{'), b = testo.rfind('}');
+    if (a == std::string::npos || b == std::string::npos || b < a) return testo;
+    return testo.substr(a, b - a + 1);
+}
+
+bool Claude::LivelloDaJson(const std::string& testoJson, std::string& testo, std::string& nome, std::string& errore) {
+    json j = json::parse(testoJson, nullptr, false);
+    if (j.is_discarded() || !j.contains("righe") || !j["righe"].is_array()) { errore = "manca l'elenco delle righe"; return false; }
+    nome = j.value("nome", std::string("Livello di Claude"));
+    testo.clear();
+    for (auto& r : j["righe"]) {
+        if (!r.is_string()) { errore = "riga non valida"; return false; }
+        testo += r.get<std::string>() + "\n";
+    }
+    return true;
+}
+
+// Risposte d'esempio, per provare lo studio anche senza internet o chiave API.
+const char* Claude::EsempioSprite() {
+    return R"({
+  "nome": "Fantasmino",
+  "fps": 4,
+  "palette": { "k": "#1a1426", "w": "#f0f4ff", "b": "#a9b8ff", "p": "#ff7aa8", "s": "#ffffff" },
+  "fotogrammi": [
+    ["................",
+     ".....kkkkkk.....",
+     "....kwwwwwwk....",
+     "...kwswwwwwwk...",
+     "..kwswwwwwwwwk..",
+     "..kwwkwwwwkwwk..",
+     "..kwwkwwwwkwwk..",
+     "..kwpwwwwwwpwk..",
+     "..kwwwwkkwwwwk..",
+     "..kwwwwwwwwwwk..",
+     "..kbwwwwwwwwbk..",
+     "..kbbwwwwwwbbk..",
+     "..kbbbbbbbbbbk..",
+     "..kbkbbkkbbkbk..",
+     "..kk.kk..kk.kk..",
+     "................"],
+    ["................",
+     "................",
+     ".....kkkkkk.....",
+     "....kwwwwwwk....",
+     "...kwswwwwwwk...",
+     "..kwswwwwwwwwk..",
+     "..kwwkwwwwkwwk..",
+     "..kwwkwwwwkwwk..",
+     "..kwpwwwwwwpwk..",
+     "..kwwwwkkwwwwk..",
+     "..kbwwwwwwwwbk..",
+     "..kbbwwwwwwbbk..",
+     "..kbbbbbbbbbbk..",
+     "..kkbbkbbkbbkk..",
+     "...kk.kkkk.kk...",
+     "................"]
+  ]
+})";
+}
+
+const char* Claude::EsempioLivello() {
+    return R"({
+  "nome": "Il ponte delle lanterne",
+  "righe": [
+    "                                                                      ",
+    "                                                                      ",
+    "                                                                      ",
+    "                                     g                                ",
+    "                                    ---                               ",
+    "                   ooo                           b                    ",
+    "                  -----                                               ",
+    "                              b             ooooo                     ",
+    "          o o                              -------                    ",
+    "         -----          k                                 ===    F    ",
+    "                       ---       ===               e    =====  ====   ",
+    "  P          m   e           e   ===  ^^^  c          =======  ====   ",
+    "##################   ##############################################   ",
+    "##################   ##############################################   ",
+    "##################   ##############################################   "
+  ]
+})";
+}
