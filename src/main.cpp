@@ -13,6 +13,7 @@
 #include "claude.h"
 #include "editor.h"
 #include "gioco.h"
+#include "interfaccia.h"
 #include "librerie.h"
 #include "pacchetto.h"
 #include "periferiche.h"
@@ -953,6 +954,14 @@ bool Presentazione(const std::string& riga1, const std::string& riga2, float dur
     return false;
 }
 
+// File accanto all'eseguibile con lo stesso nome e un'altra estensione (es. Gioco.opzioni).
+std::string FileAccanto(const std::string& estensione) {
+    std::string p = PercorsoEseguibile();
+    size_t barra = p.find_last_of("/\\"), punto = p.find_last_of('.');
+    if (punto != std::string::npos && (barra == std::string::npos || punto > barra)) p = p.substr(0, punto);
+    return p + estensione;
+}
+
 int GiocaPacchetto(const DatiGioco& dati) {
     SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT);
     InitWindow(VW * 2, VH * 2, dati.titolo.c_str());
@@ -963,6 +972,8 @@ int GiocaPacchetto(const DatiGioco& dati) {
     gInput.Carica();
     gAudio.Inizializza();
     gAudio.ApplicaFile(dati.file);   // musiche ed effetti caricati da file nello studio
+    const std::string opzioni = FileAccanto(".opzioni");
+    CaricaOpzioniAudio(opzioni);
     gAudio.MusicaAttiva(true);
     RenderTexture2D schermo = LoadRenderTexture(VW, VH);
     Gioco gioco;
@@ -987,6 +998,7 @@ int GiocaPacchetto(const DatiGioco& dati) {
         BeginDrawing();
         ClearBackground(BLACK);
         DisegnaSchermo(schermo, area);
+        PulsanteAudio(AngoloAudio(area, true), opzioni);
         EndDrawing();
     }
     UnloadRenderTexture(schermo);
@@ -1032,6 +1044,8 @@ int main(int argc, char** argv) {
     CaricaRisorse();
     gInput.Carica();
     gAudio.Inizializza();
+    const std::string opzioni = CartellaEseguibile() + "/studio.opzioni";
+    CaricaOpzioniAudio(opzioni);
     gAudio.MusicaAttiva(true);
     RenderTexture2D schermo = LoadRenderTexture(VW, VH);
 
@@ -1058,6 +1072,7 @@ int main(int argc, char** argv) {
         DisegnaSchermo(schermo, area);
         studio.DisegnaSopra(area);
         if (studio.ChatVisibile()) studio.editor.DisegnaChat(chat);
+        PulsanteAudio(studio.ChatVisibile() ? Rectangle{ chat.x + chat.width - 50, chat.y + 8, 40, 40 } : AngoloAudio(area, false), opzioni);
         EndDrawing();
     }
     UnloadRenderTexture(schermo);

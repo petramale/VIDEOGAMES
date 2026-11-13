@@ -5,3 +5,4 @@ bin/
 Makefile.win
 *.layout
 claude_chiave.txt
+*.opzioni

@@ -649,7 +649,7 @@ void Editor::DisegnaChat(Rectangle p) {
     DrawText("C", (int)p.x + 24, (int)p.y + 18, 20, WHITE);
     DrawText("Chat con Claude", (int)p.x + 54, (int)p.y + 10, dim, WHITE);
     DrawText(cfg.chiave.empty() ? "chiave API non trovata" : ("modello " + cfg.modello).c_str(), (int)p.x + 54, (int)p.y + 34, 16, Hex(0xa898c0));
-    DrawText("F3 chiude", (int)(p.x + p.width - 90), (int)p.y + 34, 16, Hex(0x6a5a80));
+    DrawText("F3 chiude", (int)(p.x + p.width - 140), (int)p.y + 34, 16, Hex(0x6a5a80));
 
     float inputH = 110;
     Rectangle area = { p.x + 12, p.y + 64, p.width - 24, p.height - 64 - inputH - 12 };
