@@ -276,12 +276,193 @@ void Audio::ComponiBrano() {
     for (auto& c : brano) c = std::tanh(c * 1.1f) * 0.9f; // saturazione morbida, niente distorsione dura
 }
 
+const std::vector<const char*>& Audio::Brani() {
+    static const std::vector<const char*> nomi = {
+        "La valle delle gemme", "Caverna misteriosa", "Corsa nel deserto", "Ghiaccio di cristallo", "Battaglia col boss",
+        "Viaggio spaziale", "Notte dei fantasmi", "Allegra avventura", "Enigma", "Vittoria finale" };
+    return nomi;
+}
+
+// Compositore automatico: dato uno stile (tempo, scala, accordi, timbri, ritmo) scrive
+// melodia, basso, arpeggi, pad e batteria. Lo stesso stile da' sempre lo stesso brano.
+void Audio::ComponiStile(int n) {
+    struct Stile { float bpm; int tonica; int scala[7]; int giro[8]; Onda guida; float duty; int batteria; bool arpeggio; float eco; unsigned seme; };
+    static const Stile stili[] = {
+        { 132, 57, { 0, 2, 3, 5, 7, 8, 10 }, { 0, 5, 2, 6, 0, 5, 4, 4 }, Onda::Quadra, 0.25f, 1, true, 0.32f, 1 },
+        { 96, 50, { 0, 2, 3, 5, 7, 8, 10 }, { 0, 0, 5, 5, 3, 3, 4, 4 }, Onda::Triangolo, 0.5f, 0, true, 0.45f, 7 },        // caverna
+        { 150, 52, { 0, 1, 4, 5, 7, 8, 10 }, { 0, 1, 0, 1, 5, 4, 1, 0 }, Onda::Quadra, 0.125f, 2, true, 0.2f, 11 },      // deserto
+        { 110, 60, { 0, 2, 4, 5, 7, 9, 11 }, { 0, 5, 3, 4, 0, 5, 1, 4 }, Onda::Seno, 0.5f, 1, true, 0.4f, 23 },           // ghiaccio
+        { 160, 48, { 0, 2, 3, 5, 7, 8, 11 }, { 0, 0, 5, 4, 0, 0, 5, 4 }, Onda::Dente, 0.5f, 2, true, 0.15f, 31 },         // boss
+        { 124, 53, { 0, 2, 4, 6, 7, 9, 11 }, { 0, 1, 0, 1, 5, 4, 3, 4 }, Onda::Dente, 0.5f, 1, true, 0.4f, 41 },          // spazio
+        { 90, 57, { 0, 2, 3, 5, 7, 8, 11 }, { 0, 3, 0, 4, 5, 3, 4, 4 }, Onda::Triangolo, 0.5f, 0, false, 0.5f, 53 },      // fantasmi
+        { 140, 55, { 0, 2, 4, 5, 7, 9, 11 }, { 0, 3, 4, 0, 5, 3, 4, 4 }, Onda::Quadra, 0.25f, 1, true, 0.25f, 61 },       // allegra
+        { 100, 52, { 0, 2, 3, 5, 7, 8, 10 }, { 0, 5, 3, 6, 0, 5, 3, 4 }, Onda::Seno, 0.5f, 0, true, 0.35f, 71 },          // enigma
+        { 120, 50, { 0, 2, 4, 5, 7, 9, 11 }, { 0, 4, 5, 3, 0, 4, 3, 4 }, Onda::Quadra, 0.5f, 1, true, 0.3f, 83 },         // vittoria
+    };
+    const Stile& st = stili[n];
+    bpm = st.bpm;
+    const float battito = 60.0f / bpm, ottavo = battito / 2, battuta = battito * 4;
+    const int battute = 16;
+    durata = battute * battuta;
+    size_t len = (size_t)(durata * SR);
+    brano.assign(len, 0.0f);
+    std::vector<float> melodia(len, 0.0f);
+    note.clear();
+    Rng rng; rng.s = st.seme * 2654435761u + 17;
+    auto Dado = [&](int k) { return (int)((rng.Prossimo() * 0.5f + 0.5f) * k * 0.9999f); };
+    // Grado della scala -> nota MIDI (anche oltre l'ottava).
+    auto Grado = [&](int g, int base) { int o = (int)std::floor(g / 7.0f); int r = g - o * 7; return base + st.scala[r] + 12 * o; };
+
+    auto Inviluppo = [](float t, float d, float a, float dec, float sus, float rel) {
+        if (t < a) return t / a;
+        if (t < a + dec) return 1 - (1 - sus) * (t - a) / dec;
+        if (t < d) return sus;
+        return std::max(0.0f, sus * (1 - (t - d) / rel));
+    };
+    auto Nota = [&](std::vector<float>& dest, float inizio, float dur, float freq, Onda onda, float duty, float vol,
+                    float a, float dec, float sus, float rel, float vibrato) {
+        Oscillatore osc;
+        size_t s0 = (size_t)(inizio * SR);
+        size_t l = (size_t)((dur + rel) * SR);
+        for (size_t k = 0; k < l; k++) {
+            float t = (float)k / SR;
+            float vib = t > 0.12f ? vibrato * std::sin(2 * PI * 5.5f * t) : 0;
+            dest[(s0 + k) % dest.size()] += osc.Passo(onda, freq * (1 + vib), duty) * Inviluppo(t, dur, a, dec, sus, rel) * vol;
+        }
+    };
+    // Ritmi della melodia in ottavi (somma 8): il compositore ne sceglie uno per battuta.
+    static const std::vector<std::vector<int>> ritmi = { { 2, 2, 2, 2 }, { 3, 1, 2, 2 }, { 1, 1, 2, 1, 1, 2 }, { 2, 1, 1, 4 },
+                                                         { 4, 2, 2 }, { 1, 1, 1, 1, 2, 2 }, { 3, 3, 2 }, { 2, 2, 4 } };
+    int frase[4][6];      // gradi della frase (si ripete variata nella seconda meta')
+    int ritmoFrase[4];
+    int grado = 4;        // parte dalla quinta
+    for (int b = 0; b < 4; b++) {
+        ritmoFrase[b] = Dado((int)ritmi.size());
+        for (int k = 0; k < 6; k++) {
+            int passo = Dado(5) - 2;            // movimento per gradi congiunti, ogni tanto un salto
+            if (Dado(6) == 0) passo *= 2;
+            grado = (int)Limita((float)(grado + passo), 0, 9);
+            frase[b][k] = grado;
+        }
+    }
+
+    for (int giro = 0; giro < 2; giro++) {
+        for (int b = 0; b < 8; b++) {
+            float t0 = (giro * 8 + b) * battuta;
+            int radiceGrado = st.giro[b];
+            int radice = Grado(radiceGrado, st.tonica), terza = Grado(radiceGrado + 2, st.tonica), quinta = Grado(radiceGrado + 4, st.tonica);
+            // Melodia: la frase di 4 battute, ripetuta e trasposta sull'accordo; l'ultima battuta chiude sulla tonica.
+            const std::vector<int>& ritmo = ritmi[ritmoFrase[b % 4]];
+            float t = t0;
+            bool ultima = b == 7;
+            for (size_t k = 0; k < (ultima ? 1 : ritmo.size()); k++) {
+                int g = frase[b % 4][k % 6] + (b >= 4 ? (k % 2 ? 1 : 0) : 0);
+                // sui tempi forti si appoggia su una nota dell'accordo
+                if (k == 0) { int vicino = radiceGrado + ((g - radiceGrado) / 2) * 2; g = vicino; }
+                int m = ultima ? Grado(7, st.tonica) : Grado(g, st.tonica + 12);
+                float d = ultima ? battuta * 0.75f : ritmo[k] * ottavo;
+                if (!(Dado(9) == 0 && k > 0)) { // qualche pausa per respirare
+                    Nota(melodia, t, d * 0.9f, Midi(m), st.guida, st.duty, st.guida == Onda::Dente ? 0.12f : 0.19f, 0.01f, 0.08f, 0.7f, 0.08f, 0.004f);
+                    if (giro == 1) Nota(melodia, t, d * 0.9f, Midi(m + 12), Onda::Quadra, 0.125f, 0.05f, 0.01f, 0.08f, 0.6f, 0.08f, 0.004f);
+                    note.push_back({ 0, t, d, m });
+                }
+                t += d;
+            }
+            // Basso.
+            int passi = st.batteria == 2 ? 8 : 4;
+            for (int i = 0; i < passi; i++) {
+                float dur = battuta / passi;
+                int m = radice - 12 + ((st.batteria == 2 && i % 2) ? 12 : 0);
+                Nota(brano, t0 + i * dur, dur * 0.8f, Midi(m), Onda::Triangolo, 0.5f, 0.42f, 0.005f, 0.05f, 0.8f, 0.03f, 0);
+                note.push_back({ 1, t0 + i * dur, dur, m });
+            }
+            // Arpeggio.
+            if (st.arpeggio) {
+                int arp[4] = { radice + 12, terza + 12, quinta + 12, terza + 12 };
+                int quanti = st.bpm > 120 ? 16 : 8;
+                float passo = battuta / quanti;
+                for (int i = 0; i < quanti; i++) {
+                    int m = arp[i % 4] + (giro == 1 && i >= quanti / 2 ? 12 : 0);
+                    Nota(brano, t0 + i * passo, passo * 0.7f, Midi(m), n == 3 ? Onda::Seno : Onda::Quadra, 0.125f, n == 3 ? 0.07f : 0.045f, 0.002f, 0.03f, 0.5f, 0.02f, 0);
+                    if (i % 2 == 0) note.push_back({ 2, t0 + i * passo, passo, m });
+                }
+            }
+            // Pad.
+            for (int m : { radice, terza, quinta })
+                Nota(brano, t0, battuta * 0.95f, Midi(m), Onda::Triangolo, 0.5f, 0.04f, 0.3f, 0.2f, 0.8f, 0.3f, 0.003f);
+            // Batteria: 0 solo charleston leggero, 1 base, 2 incalzante.
+            for (int i = 0; i < 8; i++) {
+                float tt = t0 + i * ottavo;
+                size_t s0 = (size_t)(tt * SR);
+                bool cassa = st.batteria > 0 && ((i == 0 || i == 4) || (st.batteria == 2 && (i == 3 || i == 6)));
+                bool rullante = st.batteria > 0 && (i == 2 || i == 6);
+                if (cassa) {
+                    float fase = 0;
+                    for (int k = 0; k < SR / 6; k++) {
+                        float tk = (float)k / SR;
+                        fase += (45 + 120 * std::exp(-tk * 30)) / SR;
+                        brano[(s0 + k) % len] += std::sin(fase * 2 * PI) * std::exp(-tk * 14) * 0.7f;
+                    }
+                    note.push_back({ 3, tt, ottavo, 36 });
+                }
+                if (rullante) {
+                    Rng r;
+                    for (int k = 0; k < SR / 5; k++) {
+                        float tk = (float)k / SR;
+                        brano[(s0 + k) % len] += r.Prossimo() * std::exp(-tk * 18) * 0.3f + std::sin(2 * PI * 185 * tk) * std::exp(-tk * 30) * 0.28f;
+                    }
+                    note.push_back({ 3, tt, ottavo, 38 });
+                }
+                Rng r; r.s = 99 + i;
+                float prec = 0, lungo = (i % 2 == 1) ? 0.08f : 0.03f, vol = st.batteria == 0 ? 0.035f : 0.06f;
+                for (int k = 0; k < (int)(lungo * SR); k++) {
+                    float x = r.Prossimo(), alto = x - prec; prec = x;
+                    brano[(s0 + k) % len] += alto * std::exp(-(float)k / SR * (i % 2 ? 30.0f : 90.0f)) * vol;
+                }
+            }
+        }
+    }
+    size_t ritardo = (size_t)(battito * 0.75f * SR);
+    for (size_t i = 0; i < len; i++) {
+        brano[i] += melodia[i];
+        brano[(i + ritardo) % len] += melodia[i] * st.eco;
+        brano[(i + 2 * ritardo) % len] += melodia[i] * st.eco * 0.4f;
+    }
+    for (auto& c : brano) c = std::tanh(c * 1.1f) * 0.9f;
+}
+
+void Audio::ScegliBrano(int n) {
+    n = (int)Limita((float)n, 0, (float)Brani().size() - 1);
+    if (n == branoAttuale && !brano.empty()) return;
+    auto it = archivio.find(n);
+    Composizione c;
+    if (it != archivio.end()) c = it->second;
+    else {
+        // Si compone in variabili a parte: il brano che sta suonando non viene toccato.
+        std::vector<float> vecchio; std::vector<EventoNota> vecchieNote; float vd = durata, vb = bpm;
+        {
+            std::lock_guard<std::mutex> g(blocco);
+            vecchio.swap(brano); vecchieNote.swap(note);
+            if (n == 0) ComponiBrano(); else ComponiStile(n);
+            c = { brano, note, durata, bpm };
+            brano.swap(vecchio); note.swap(vecchieNote); durata = vd; bpm = vb;
+        }
+        archivio[n] = c;
+    }
+    std::lock_guard<std::mutex> g(blocco);
+    brano = c.brano; note = c.note; durata = c.durata; bpm = c.bpm;
+    posizione.store(0);
+    branoAttuale = n;
+}
+
 void Audio::Callback(void* buffer, unsigned int frame) {
     short* out = (short*)buffer;
     Audio& a = gAudio;
+    std::unique_lock<std::mutex> g(a.blocco, std::try_to_lock);
+    if (!g.owns_lock()) { std::memset(out, 0, frame * sizeof(short)); return; }
     unsigned long pos = a.posizione.load();
     size_t n = a.brano.size();
-    float vol = (a.musicaAttiva && !a.musicaFile) ? a.volumeMusica : 0.0f;
+    float vol = (a.musicaAttiva && !a.musicaFile && !a.muto) ? a.volumeMusica : 0.0f;
     for (unsigned int i = 0; i < frame; i++) {
         out[i] = n ? (short)(a.brano[(pos + i) % n] * vol * 32000) : 0;
     }
@@ -292,6 +473,7 @@ void Audio::Prepara() {
     if (preparato) return;
     for (int i = 0; i < (int)Effetto::Totale; i++) campioniEffetti[i] = RenderEffetto(DefinisciEffetto((Effetto)i));
     ComponiBrano();
+    archivio[0] = { brano, note, durata, bpm };
     preparato = true;
 }
 
@@ -333,9 +515,9 @@ void Audio::Chiudi() {
 }
 
 void Audio::Suona(Effetto e, float volume) {
-    if (!pronto) return;
+    if (!pronto || muto) return;
     Sound& s = suoni[(int)e];
-    SetSoundVolume(s, volume);
+    SetSoundVolume(s, volume * volumeEffetti);
     SetSoundPitch(s, 1.0f + Casuale(-0.03f, 0.03f)); // piccola variazione: meno ripetitivo
     PlaySound(s);
 }
@@ -352,7 +534,7 @@ float Audio::Campione(long indice) const {
 
 void Audio::Aggiorna(float dt) {
     if (musicaFile) {
-        SetMusicVolume(musica, musicaAttiva ? volumeMusica : 0.0f);
+        SetMusicVolume(musica, (musicaAttiva && !muto) ? volumeMusica : 0.0f);
         UpdateMusicStream(musica);
         return;
     }

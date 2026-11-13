@@ -4,6 +4,52 @@
 #include <cstdlib>
 #include <sstream>
 
+const char* NomeModello(Modello m) {
+    switch (m) {
+        case Modello::Platform: return "Platform";
+        case Modello::Sparatutto: return "Sparatutto";
+        case Modello::Labirinto: return "Labirinto";
+        case Modello::Puzzle: return "Puzzle";
+        default: return "";
+    }
+}
+
+const char* ChiaveModello(Modello m) {
+    switch (m) {
+        case Modello::Sparatutto: return "sparatutto";
+        case Modello::Labirinto: return "labirinto";
+        case Modello::Puzzle: return "puzzle";
+        default: return "platform";
+    }
+}
+
+std::vector<std::string> DividiLivelli(const std::string& testoGioco) {
+    std::vector<std::string> out(1);
+    std::istringstream ss(testoGioco);
+    std::string r;
+    while (std::getline(ss, r)) {
+        std::string pulita = r;
+        if (!pulita.empty() && pulita.back() == '\r') pulita.pop_back();
+        if (pulita == ";;") { out.emplace_back(); continue; }
+        out.back() += r + "\n";
+    }
+    // Toglie le sezioni vuote (per esempio un ";;" finale).
+    std::vector<std::string> pieni;
+    for (auto& l : out) if (l.find_first_not_of(" \r\n") != std::string::npos) pieni.push_back(l);
+    return pieni;
+}
+
+std::string UnisciLivelli(const std::vector<std::string>& livelli) {
+    std::string t;
+    for (size_t i = 0; i < livelli.size(); i++) { if (i) t += ";;\n"; t += livelli[i]; }
+    return t;
+}
+
+const TestoCartello* Progetto::Testo(int numero) const {
+    for (auto& t : testi) if (t.numero == numero) return &t;
+    return nullptr;
+}
+
 std::string ColoreInTesto(Color c) { return TextFormat("#%02x%02x%02x", c.r, c.g, c.b); }
 
 bool TestoInColore(const std::string& s, Color& c) {
@@ -32,9 +78,29 @@ void Progetto::Ridimensiona(int larghezza) {
 bool Progetto::LeggiImpostazioni(const std::string& testo) {
     std::istringstream ss(testo);
     std::string riga;
+    bool trovata = false;
     while (std::getline(ss, riga)) {
         if (riga.empty() || riga[0] != ';') continue;
         if (!riga.empty() && riga.back() == '\r') riga.pop_back();
+        if (riga.rfind(";testo", 0) == 0) {
+            // ;testo 3 Testo in italiano | English text
+            TestoCartello t;
+            std::string resto = riga.substr(6);
+            size_t i = resto.find_first_not_of(' ');
+            if (i == std::string::npos) continue;
+            t.numero = std::atoi(resto.c_str() + i);
+            if (t.numero < 1 || t.numero > 9) continue;
+            size_t inizio = resto.find(' ', i);
+            std::string corpo = inizio == std::string::npos ? "" : resto.substr(inizio + 1);
+            size_t barra = corpo.find(" | ");
+            t.it = corpo.substr(0, barra);
+            t.en = barra == std::string::npos ? t.it : corpo.substr(barra + 3);
+            for (auto& v : testi) if (v.numero == t.numero) { v = t; t.numero = 0; }
+            if (t.numero) testi.push_back(t);
+            continue;
+        }
+        if (trovata || riga.rfind(";;", 0) == 0) continue;
+        trovata = true;
         // titolo= va per ultimo: prende tutto il resto della riga, spazi compresi.
         size_t t = riga.find("titolo=");
         if (t != std::string::npos) { titolo = riga.substr(t + 7); riga = riga.substr(0, t); }
@@ -57,10 +123,13 @@ bool Progetto::LeggiImpostazioni(const std::string& testo) {
             else if (k == "mantello") TestoInColore(v, eroe.mantello);
             else if (k == "pantaloni") TestoInColore(v, eroe.pantaloni);
             else if (k == "scarpe") TestoInColore(v, eroe.scarpe);
+            else if (k == "zoom") zoom = Limita(f, 0.75f, 2.5f);
+            else if (k == "musica") musica = (int)Limita(f, 0, 99);
+            else if (k == "modello")
+                for (int m = 0; m < (int)Modello::Totale; m++) if (v == ChiaveModello((Modello)m)) modello = (Modello)m;
         }
-        return true;
     }
-    return false;
+    return trovata;
 }
 
 bool Progetto::DaTesto(const std::string& testo, std::string& errore) {
@@ -85,12 +154,13 @@ bool Progetto::DaTesto(const std::string& testo, std::string& errore) {
 }
 
 std::string Progetto::Testo() const {
-    std::string t = TextFormat(";tema=%d ora=%.2f gravita=%.0f salto=%.0f velocita=%.0f molla=%.0f", tema, ora,
-                               fisica.gravita, fisica.salto, fisica.velocita, fisica.molla);
+    std::string t = TextFormat(";modello=%s tema=%d ora=%.2f gravita=%.0f salto=%.0f velocita=%.0f molla=%.0f zoom=%.2f musica=%d",
+                               ChiaveModello(modello), tema, ora, fisica.gravita, fisica.salto, fisica.velocita, fisica.molla, zoom, musica);
     t += " pelle=" + ColoreInTesto(eroe.pelle) + " capelli=" + ColoreInTesto(eroe.capelli) +
          " maglia=" + ColoreInTesto(eroe.maglia) + " mantello=" + ColoreInTesto(eroe.mantello) +
          " pantaloni=" + ColoreInTesto(eroe.pantaloni) + " scarpe=" + ColoreInTesto(eroe.scarpe) +
          " titolo=" + titolo + "\n";
+    for (auto& tc : testi) t += ";testo " + std::to_string(tc.numero) + " " + tc.it + " | " + tc.en + "\n";
     for (auto& r : righe) t += r + "\n";
     return t;
 }
@@ -98,6 +168,12 @@ std::string Progetto::Testo() const {
 std::string Progetto::Json() const {
     nlohmann::json j;
     j["titolo"] = titolo;
+    j["modello"] = ChiaveModello(modello);
+    j["zoom"] = zoom;
+    j["musica"] = musica;
+    nlohmann::json tj = nlohmann::json::array();
+    for (auto& tc : testi) tj.push_back({ { "numero", tc.numero }, { "it", tc.it }, { "en", tc.en } });
+    j["testi"] = tj;
     j["scenario"] = { { "tema", tema }, { "nome_tema", Sfondo::Temi()[tema].nome }, { "ora", ora } };
     j["fisica"] = { { "gravita", fisica.gravita }, { "salto", fisica.salto }, { "velocita", fisica.velocita }, { "molla", fisica.molla } };
     j["eroe"] = { { "pelle", ColoreInTesto(eroe.pelle) }, { "capelli", ColoreInTesto(eroe.capelli) },

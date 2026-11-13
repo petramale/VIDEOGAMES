@@ -21,6 +21,13 @@ Rectangle BoxOggetto(const Oggetto& o) {
         case TipoOggetto::Slime: return { x - 6, y - 10, 12, 10 };
         case TipoOggetto::Pipistrello: return { x - 6, y - 4, 12, 8 };
         case TipoOggetto::Bandiera: return { x - 4, y - 48, 16, 48 };
+        case TipoOggetto::Cuore: return { x - 6, y - 6, 12, 12 };
+        case TipoOggetto::Cartello: return { x - 10, y - 18, 20, 18 };
+        case TipoOggetto::Porta: return { x - 8, y - 28, 16, 28 };
+        case TipoOggetto::Fantasma: return { x - 6, y - 7, 12, 14 };
+        case TipoOggetto::Torretta: return { x - 7, y - 12, 14, 12 };
+        case TipoOggetto::Boss: return { x - 14, y - 28, 28, 28 };
+        case TipoOggetto::Cassa: return { x - 7, y - 7, 14, 14 };
     }
     return { x, y, 0, 0 };
 }
@@ -29,10 +36,13 @@ Rectangle BoxOggetto(const Oggetto& o) {
 Comandi Comandi::DaPeriferiche() {
     Comandi c;
     c.asse = gInput.Asse();
+    c.asseY = (gInput.Tenuto(Azione::Giu) ? 1.0f : 0.0f) - (gInput.Tenuto(Azione::Su) ? 1.0f : 0.0f);
+    if (std::fabs(gInput.LevettaY()) > gInput.m.zonaMorta) c.asseY = Limita(gInput.LevettaY(), -1, 1);
     c.salto = gInput.Tenuto(Azione::Salto);
     c.saltoPremuto = gInput.Premuto(Azione::Salto);
+    c.annulla = IsKeyPressed(KEY_Z) || IsKeyPressed(KEY_BACKSPACE);
     if (gInput.m.mouseNelGioco) {
-        if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) { c.mouseGuida = true; c.mouseX = gInput.Mouse().x; }
+        if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) { c.mouseGuida = true; c.mouseX = gInput.Mouse().x; c.mouseY = gInput.Mouse().y; }
         if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) c.salto = true;
         if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) c.saltoPremuto = true;
     }
@@ -43,18 +53,39 @@ bool Gioco::Carica(const std::string& testoLivello, std::string& errore) {
     if (!livello.Carica(testoLivello, errore)) return false;
     sorgente = testoLivello;
     Progetto p;
-    if (p.LeggiImpostazioni(testoLivello)) { // il livello porta con se' scenario, fisica ed eroe
+    if (p.LeggiImpostazioni(testoLivello)) { // il livello porta con se' scenario, fisica, eroe e regole
         sfondo.tema = p.tema; sfondo.ora = p.ora; fisica = p.fisica; eroe.aspetto = p.eroe;
+        modello = p.modello; zoomBase = p.zoom; musica = p.musica;
+        if (!p.titolo.empty()) titolo = p.titolo;
     }
+    testi = p.testi;
     oggetti = livello.Oggetti();
     particelle.Svuota();
+    proiettili.clear();
+    storiaPuzzle.clear(); storiaEroe.clear();
+    gemmeTotali = 0; bossIndice = -1; cartello = -1; mosse = 0; punteggio = 0;
+    tSparo = 0; tFineScorrimento = 0; fineScorrimento = false;
+    energia = energiaMax;
+    for (auto& o : oggetti) {
+        if (o.tipo == TipoOggetto::Gemma) gemmeTotali++;
+        if (o.tipo == TipoOggetto::Boss && modello == Modello::Sparatutto) o.numero = 30;
+    }
     AspettoEroe aspetto = eroe.aspetto;
     eroe = Eroe{};
     eroe.aspetto = aspetto;
     eroe.pos = livello.Partenza();
     checkpoint = eroe.pos;
     monete = gemme = 0; vite = 3; tempo = 0; vinto = finito = false; tFine = 0;
-    camX = eroe.pos.x - VW / 2.0f;
+    if (modello == Modello::Puzzle || modello == Modello::Labirinto) {
+        // Visti dall'alto: l'eroe sta al centro della sua casella.
+        eroe.pos = { std::floor(eroe.pos.x / TILE) * TILE + TILE / 2.0f, std::floor((eroe.pos.y - 1) / TILE) * TILE + TILE - 2.0f };
+        checkpoint = eroe.pos;
+    }
+    if (modello == Modello::Sparatutto) { eroe.pos.y -= 8; checkpoint = eroe.pos; }
+    zoom = zoomBase;
+    camX = modello == Modello::Sparatutto ? 0 : eroe.pos.x - VW / 2.0f;
+    camY = livello.Altezza() * (float)TILE - VH;
+    AggiornaTelecamera(1);
     return true;
 }
 
@@ -90,18 +121,25 @@ void Gioco::MuoviConCollisioni(Vector2& pos, Vector2& vel, float w, float hgt, f
 }
 
 void Gioco::Ferisci(float spintaX) {
-    if (eroe.lampeggio > 0 || vinto) return;
-    vite--;
+    if (eroe.lampeggio > 0 || vinto || finito) return;
+    energia--;
     gAudio.Suona(Effetto::Colpo);
     scossa = 0.35f;
     eroe.lampeggio = 1.6f;
-    eroe.vel = { spintaX, -200 };
-    eroe.CambiaStato(StatoEroe::Colpito);
+    if (modello == Modello::Platform) { eroe.vel = { spintaX, -200 }; eroe.CambiaStato(StatoEroe::Colpito); }
     particelle.Emetti({ eroe.pos.x, eroe.pos.y - 10 }, 14, Hex(0xff4060), 90, 0.5f, 200, 2, true);
-    if (vite <= 0) { finito = true; tFine = 0; gAudio.Suona(Effetto::Esplosione); }
+    if (energia <= 0) {
+        // Finita l'energia si perde una vita e si riparte dall'ultimo punto di controllo.
+        vite--;
+        if (vite <= 0) { finito = true; tFine = 0; gAudio.Suona(Effetto::Esplosione); return; }
+        energia = energiaMax;
+        particelle.Esplosione({ eroe.pos.x, eroe.pos.y - 10 }, Hex(0xff4060));
+        Rinasci();
+    }
 }
 
 void Gioco::Rinasci() {
+    if (modello == Modello::Sparatutto) { eroe.pos = { camX + 60, VH * 0.4f + camY }; eroe.vel = { 0, 0 }; eroe.lampeggio = 2; return; }
     eroe.pos = checkpoint;
     eroe.vel = { 0, 0 };
     eroe.lampeggio = 1.2f;
@@ -167,8 +205,10 @@ void Gioco::Fisica(float dt, const Comandi& c) {
         for (int tx = (int)(box.x / TILE); tx <= (int)((box.x + box.width) / TILE); tx++)
             if (livello.Spina(tx, ty) && eroe.pos.y > ty * TILE + 6) Ferisci(-eroe.dir * 120.0f);
     if (eroe.pos.y > livello.Altezza() * TILE + 40 && !finito) {
+        eroe.lampeggio = 0;
+        energia = 1;            // cadere nel vuoto costa una vita intera
         Ferisci(0);
-        if (!finito) Rinasci();
+        if (!finito && eroe.pos.y > livello.Altezza() * TILE) Rinasci();
     }
     eroe.AggiornaAnimazione(dt);
 }
@@ -180,7 +220,9 @@ void Gioco::AggiornaOggetti(float dt) {
         o.t += dt;
         switch (o.tipo) {
             case TipoOggetto::Moneta: case TipoOggetto::Gemma: {
-                if (o.fisica) {
+                if (o.fisica && (modello == Modello::Labirinto || modello == Modello::Puzzle || modello == Modello::Sparatutto)) {
+                    o.pos.x += o.vel.x * dt * 0.3f; o.pos.y += o.vel.y * dt * 0.1f; o.vel.x *= 1 - dt * 3; o.vel.y *= 1 - dt * 3;
+                } else if (o.fisica) {
                     bool terra;
                     o.vel.y = std::min(o.vel.y + fisica.gravita * dt, CADUTA_MAX);
                     o.vel.x *= 1 - dt * 1.5f;
@@ -191,6 +233,7 @@ void Gioco::AggiornaOggetti(float dt) {
                 Rectangle r = BoxOggetto(o);
                 if (Sovrappone(box, r)) {
                     o.attivo = false;
+                    punteggio += o.tipo == TipoOggetto::Moneta ? 10 : 50;
                     if (o.tipo == TipoOggetto::Moneta) { monete++; gAudio.Suona(Effetto::Moneta, 0.8f); particelle.Scintille(o.pos, Hex(0xffd23f)); }
                     else { gemme++; gAudio.Suona(Effetto::Gemma); particelle.Esplosione(o.pos, Hex(0x5ef0ff)); scossa = 0.12f; }
                 }
@@ -240,7 +283,14 @@ void Gioco::AggiornaOggetti(float dt) {
             case TipoOggetto::Slime: case TipoOggetto::Pipistrello: {
                 if (o.stato > 0) { o.stato += dt; if (o.stato > 0.4f) o.attivo = false; break; } // schiacciato
                 Rectangle r;
-                if (o.tipo == TipoOggetto::Slime) {
+                if (o.tipo == TipoOggetto::Slime && modello != Modello::Platform) {
+                    // Labirinto e sparatutto: va avanti e indietro finche' trova un muro.
+                    int davanti = (int)std::floor((o.pos.x + o.dir * 8) / TILE);
+                    if (livello.Solido(davanti, (int)std::floor((o.pos.y - 4) / TILE))) o.dir = -o.dir;
+                    o.pos.x += o.dir * 30 * dt;
+                    if (modello == Modello::Sparatutto) o.pos.y = o.origine.y + std::sin(o.t * 2) * 10;
+                    r = BoxOggetto(o);
+                } else if (o.tipo == TipoOggetto::Slime) {
                     // Pattuglia: cambia direzione contro i muri o sull'orlo del vuoto.
                     int davanti = (int)std::floor((o.pos.x + o.dir * 7) / TILE);
                     int sotto = (int)std::floor((o.pos.y + 2) / TILE);
@@ -257,23 +307,83 @@ void Gioco::AggiornaOggetti(float dt) {
                     r = BoxOggetto(o);
                 }
                 if (Sovrappone(box, r)) {
-                    bool dallAlto = eroe.vel.y > 40 && eroe.pos.y < r.y + r.height * 0.6f;
+                    bool dallAlto = modello == Modello::Platform && eroe.vel.y > 40 && eroe.pos.y < r.y + r.height * 0.6f;
                     if (dallAlto) {
-                        o.stato = 0.01f;
+                        Colpito(o, 1);
                         eroe.vel.y = -RIMBALZO;
                         saltoTagliato = false;
-                        gAudio.Suona(Effetto::Esplosione, 0.5f);
-                        particelle.Esplosione({ o.pos.x, r.y + 4 }, o.tipo == TipoOggetto::Slime ? Hex(0x7cff6a) : Hex(0xb07cff));
-                        scossa = 0.15f;
                     } else {
                         Ferisci(eroe.pos.x < o.pos.x ? -150.0f : 150.0f);
                     }
                 }
                 break;
             }
+            case TipoOggetto::Fantasma: {
+                if (o.stato > 0) { o.stato += dt; if (o.stato > 0.4f) o.attivo = false; break; }
+                // Insegue l'eroe quando e' vicino, attraversando i muri. Rallenta se lo guardi (platform).
+                Vector2 d = { eroe.pos.x - o.pos.x, eroe.pos.y - 10 - o.pos.y };
+                float dist = std::sqrt(d.x * d.x + d.y * d.y);
+                if (dist < 210 && dist > 1) {
+                    bool guardato = modello == Modello::Platform && (eroe.dir > 0) == (d.x < 0);
+                    float v = guardato ? 12.0f : 42.0f;
+                    o.pos.x += d.x / dist * v * dt;
+                    o.pos.y += d.y / dist * v * dt + std::sin(o.t * 3) * 6 * dt;
+                    o.dir = d.x > 0 ? 1 : -1;
+                    o.vel.x = guardato ? 1.0f : 0.0f; // per il disegno: si copre gli occhi
+                }
+                if (Sovrappone(box, BoxOggetto(o))) Ferisci(eroe.pos.x < o.pos.x ? -150.0f : 150.0f);
+                break;
+            }
+            case TipoOggetto::Torretta: {
+                if (o.stato > 0) { o.stato += dt; if (o.stato > 0.4f) o.attivo = false; break; }
+                Vector2 bocca = { o.pos.x, o.pos.y - 9 };
+                float dx = eroe.pos.x - bocca.x, dy = eroe.pos.y - 10 - bocca.y;
+                o.dir = dx > 0 ? 1 : -1;
+                o.vel.x = std::atan2(dy, dx); // angolo della canna, per il disegno
+                o.vel.y -= dt;
+                if (std::fabs(dx) < 230 && std::fabs(dy) < 160 && o.vel.y <= 0) {
+                    o.vel.y = 2.2f;
+                    Spara(bocca, { eroe.pos.x, eroe.pos.y - 10 }, 105, false, Hex(0xff7a3a));
+                }
+                Rectangle r = BoxOggetto(o);
+                if (Sovrappone(box, r)) {
+                    if (modello == Modello::Platform && eroe.vel.y > 40 && eroe.pos.y < r.y + 6) { Colpito(o, 1); eroe.vel.y = -RIMBALZO; }
+                    else Ferisci(eroe.pos.x < o.pos.x ? -150.0f : 150.0f);
+                }
+                break;
+            }
+            case TipoOggetto::Boss: AggiornaBoss(o, dt, box); break;
+            case TipoOggetto::Cuore: {
+                if (Sovrappone(box, BoxOggetto(o))) {
+                    o.attivo = false;
+                    if (energia < energiaMax) energia++; else if (vite < 9) vite++;
+                    punteggio += 25;
+                    gAudio.Suona(Effetto::Gemma, 0.7f);
+                    particelle.Scintille(o.pos, Hex(0xff5c8a));
+                }
+                break;
+            }
+            case TipoOggetto::Cartello:
+                if (Sovrappone(box, BoxOggetto(o))) cartello = o.numero;
+                break;
+            case TipoOggetto::Porta: {
+                o.stato = UscitaAperta() ? std::min(1.0f, o.stato + dt * 2) : 0.0f;
+                if (!vinto && UscitaAperta() && Sovrappone(box, BoxOggetto(o))) {
+                    vinto = true; tFine = 0;
+                    gAudio.Suona(Effetto::Vittoria);
+                }
+                break;
+            }
+            case TipoOggetto::Cassa: {
+                // Nel puzzle la cassa scivola verso la sua casella; altrove e' solo decorazione.
+                o.pos.x += (o.origine.x - o.pos.x) * Limita(dt * 18, 0, 1);
+                o.pos.y += (o.origine.y - o.pos.y) * Limita(dt * 18, 0, 1);
+                o.stato = livello.Bersaglio((int)(o.origine.x / TILE), (int)(o.origine.y / TILE)) ? 1.0f : 0.0f;
+                break;
+            }
             case TipoOggetto::Bandiera: {
                 Rectangle r = BoxOggetto(o);
-                if (!vinto && Sovrappone(box, r)) {
+                if (!vinto && UscitaAperta() && Sovrappone(box, r)) {
                     vinto = true; tFine = 0;
                     gAudio.Suona(Effetto::Vittoria);
                 }
@@ -289,8 +399,15 @@ void Gioco::Aggiorna(float dt, const Comandi& c) {
     if (!vinto && !finito) tempo += dt;
     if (cicloGiorno) sfondo.ora = std::fmod(sfondo.ora + dt / 240.0f, 1.0f);
     sfondo.Aggiorna(dt);
-    Fisica(dt, c);
+    cartello = -1;
+    switch (modello) {
+        case Modello::Labirinto: FisicaLabirinto(dt, c); break;
+        case Modello::Puzzle: FisicaPuzzle(dt, c); break;
+        case Modello::Sparatutto: FisicaSparatutto(dt, c); break;
+        default: Fisica(dt, c); break;
+    }
     AggiornaOggetti(dt);
+    AggiornaProiettili(dt);
     particelle.Aggiorna(dt);
     if (vinto || finito) tFine += dt;
 
@@ -300,12 +417,37 @@ void Gioco::Aggiorna(float dt, const Comandi& c) {
         particelle.Esplosione({ camX + Casuale(60, VW - 60), camY + Casuale(30, 120) }, colori[GetRandomValue(0, 4)]);
     }
 
-    // Telecamera morbida che guarda un po' avanti nella direzione di marcia.
-    float obiettivoX = eroe.pos.x - VW / 2.0f + eroe.dir * 40 + eroe.vel.x * 0.2f;
-    camX += (obiettivoX - camX) * Limita(dt * 4, 0, 1);
-    camX = Limita(camX, 0, std::max(0.0f, livello.Larghezza() * (float)TILE - VW));
-    camY = livello.Altezza() * (float)TILE - VH;
+    AggiornaTelecamera(dt);
     if (scossa > 0) scossa -= dt;
+}
+
+void Gioco::AggiornaTelecamera(float dt) {
+    // Zoom: si avvicina un po' per festeggiare la vittoria.
+    float zoomVoluto = zoomBase * (vinto ? 1.25f : 1.0f);
+    zoom += (zoomVoluto - zoom) * Limita(dt * 2, 0, 1);
+    float mezzaW = VW / (2 * zoom), mezzaH = VH / (2 * zoom);
+    float larg = livello.Larghezza() * (float)TILE, alt = livello.Altezza() * (float)TILE;
+    // Centro desiderato, poi bloccato ai bordi del livello.
+    float cx, cy;
+    if (modello == Modello::Sparatutto) {
+        cx = camX + VW / 2.0f;
+        if (!vinto && !finito) cx += fisica.velocita * 0.35f * dt;
+    } else {
+        cx = eroe.pos.x + (modello == Modello::Platform ? eroe.dir * 40 + eroe.vel.x * 0.2f : 0);
+        cx = (camX + VW / 2.0f) + (cx - (camX + VW / 2.0f)) * Limita(dt * 4, 0, 1);
+    }
+    float voluto = modello == Modello::Platform ? eroe.pos.y - 30 : eroe.pos.y - 8;
+    cy = (camY + VH / 2.0f) + (voluto - (camY + VH / 2.0f)) * Limita(dt * 4, 0, 1);
+    float loX = mezzaW, hiX = larg - mezzaW;
+    cx = loX > hiX ? larg / 2 : Limita(cx, loX, hiX);
+    float loY = mezzaH, hiY = alt - mezzaH;
+    // Livello piu' basso dello schermo: si appoggia al fondo (il cielo sta sopra).
+    cy = loY > hiY ? alt - mezzaH : Limita(cy, loY, hiY);
+    if (modello == Modello::Sparatutto) {
+        fineScorrimento = cx >= hiX - 0.5f;
+    }
+    camX = cx - VW / 2.0f;
+    camY = cy - VH / 2.0f;
 }
 
 void DisegnaOggetto(const Oggetto& o, float camX, float camY, float tempoVisivo, bool vinto) {
@@ -415,6 +557,94 @@ void DisegnaOggetto(const Oggetto& o, float camX, float camY, float tempoVisivo,
             }
             break;
         }
+        case TipoOggetto::Cuore: {
+            float cy = y + std::sin(t * 3) * 1.5f, p = 1 + std::sin(t * 6) * 0.08f;
+            BeginBlendMode(BLEND_ADDITIVE);
+            DrawCircleV({ x, cy }, 9, ConAlfa(Hex(0xff3f6a), 0.15f));
+            EndBlendMode();
+            DrawCircleV({ x - 2.5f * p, cy - 1 }, 3 * p, Hex(0xff3f6a));
+            DrawCircleV({ x + 2.5f * p, cy - 1 }, 3 * p, Hex(0xff3f6a));
+            DrawTriangle({ x - 5.5f * p, cy }, { x, cy + 6 * p }, { x + 5.5f * p, cy }, Hex(0xff3f6a));
+            DrawPixel((int)x - 3, (int)cy - 2, Hex(0xffc0d0));
+            break;
+        }
+        case TipoOggetto::Cartello: {
+            DrawRectangle((int)x - 1, (int)y - 10, 2, 10, Hex(0x5a3418));
+            DrawRectangle((int)x - 9, (int)y - 18, 18, 10, Hex(0xb8844a));
+            DrawRectangleLines((int)x - 9, (int)y - 18, 18, 10, Hex(0x6a4020));
+            DrawRectangle((int)x - 6, (int)y - 15, 12, 1, Hex(0x6a4020));
+            DrawRectangle((int)x - 6, (int)y - 12, 9, 1, Hex(0x6a4020));
+            float b = 0.5f + 0.5f * std::sin(tempoVisivo * 4 + o.numero);
+            DrawText("!", (int)x - 1, (int)(y - 30 - b * 2), 10, ConAlfa(Hex(0xffd23f), 0.5f + b * 0.5f));
+            break;
+        }
+        case TipoOggetto::Porta: {
+            float apertura = o.stato;
+            DrawRectangle((int)x - 10, (int)y - 30, 20, 30, Hex(0x4a4f66));
+            DrawRectangle((int)x - 8, (int)y - 28, 16, 28, Hex(0x1a1020));
+            if (apertura > 0) {
+                BeginBlendMode(BLEND_ADDITIVE);
+                DrawRectangle((int)x - 8, (int)y - 28, 16, 28, ConAlfa(Hex(0xffd080), 0.35f * apertura));
+                DrawCircleV({ x, y - 14 }, 18, ConAlfa(Hex(0xffb347), 0.12f * apertura));
+                EndBlendMode();
+            }
+            float anta = 16 * (1 - apertura * 0.8f);
+            DrawRectangle((int)x - 8, (int)y - 28, (int)anta, 28, Hex(0x8a4a1c));
+            DrawRectangle((int)x - 8, (int)y - 28, (int)anta, 1, Hex(0xc07a3a));
+            DrawRectangle((int)(x - 8 + anta - 3), (int)y - 15, 2, 2, Hex(0xffd23f));
+            if (apertura <= 0) { DrawRectangle((int)x - 3, (int)y - 18, 6, 6, Hex(0xffd23f)); DrawRectangle((int)x - 1, (int)y - 16, 2, 3, Hex(0x3a2a10)); }
+            break;
+        }
+        case TipoOggetto::Fantasma: {
+            float scala = o.stato > 0 ? 1 - o.stato / 0.4f : 1;
+            float alfa = 0.75f + 0.2f * std::sin(t * 5);
+            Color c = ConAlfa(Hex(0xe0ecff), alfa * scala);
+            DrawCircleV({ x, y - 2 }, 6 * scala, c);
+            DrawRectangle((int)(x - 6 * scala), (int)y - 2, (int)(12 * scala), (int)(7 * scala), c);
+            for (int i = 0; i < 3; i++) DrawCircleV({ x - 4 * scala + i * 4 * scala, y + 5 * scala + std::sin(t * 8 + i) }, 2 * scala, c);
+            if (o.vel.x > 0) DrawRectangle((int)x - 4, (int)y - 4, 8, 3, Hex(0xb8c8e8)); // si copre gli occhi
+            else { DrawRectangle((int)x - 3 + o.dir, (int)y - 4, 2, 3, Hex(0x202040)); DrawRectangle((int)x + 1 + o.dir, (int)y - 4, 2, 3, Hex(0x202040)); }
+            break;
+        }
+        case TipoOggetto::Torretta: {
+            float scala = o.stato > 0 ? 1 - o.stato / 0.4f : 1;
+            DrawRectangle((int)x - 7, (int)(y - 6 * scala), 14, (int)(6 * scala), Hex(0x4a4f66));
+            DrawCircleV({ x, y - 7 * scala }, 6 * scala, Hex(0x6f7590));
+            Vector2 punta = { x + std::cos(o.vel.x) * 10 * scala, y - 9 + std::sin(o.vel.x) * 10 * scala };
+            DrawLineEx({ x, y - 9 }, punta, 3, Hex(0x3a3e52));
+            float carica = Limita(1 - o.vel.y / 2.2f, 0, 1);
+            DrawCircleV({ x, y - 8 }, 2, Mescola(Hex(0x602010), Hex(0xff7a3a), carica));
+            break;
+        }
+        case TipoOggetto::Boss: {
+            bool lampo = o.stato > 0 && std::fmod(o.stato, 0.2f) < 0.1f;
+            float respiro = std::sin(t * 3) * 1.5f;
+            Color corpo = lampo ? WHITE : Hex(0x7a2a8a), ombra = lampo ? WHITE : Hex(0x4a1a5a);
+            DrawEllipse((int)x, (int)y, 14, 2, Hex(0x000000, 80));
+            DrawRectangleRounded({ x - 14, y - 26 - respiro, 28, 26 + respiro }, 0.4f, 6, corpo);
+            DrawRectangleRounded({ x - 14, y - 10, 28, 10 }, 0.4f, 6, ombra);
+            // corna e occhi che guardano l'eroe
+            DrawTriangle({ x - 12, y - 24 - respiro }, { x - 16, y - 34 - respiro }, { x - 6, y - 26 - respiro }, Hex(0xe8e0c8));
+            DrawTriangle({ x + 6, y - 26 - respiro }, { x + 16, y - 34 - respiro }, { x + 12, y - 24 - respiro }, Hex(0xe8e0c8));
+            float oc = o.dir * 3;
+            DrawRectangle((int)(x - 8 + oc), (int)(y - 20 - respiro), 5, 5, Hex(0xffd23f));
+            DrawRectangle((int)(x + 3 + oc), (int)(y - 20 - respiro), 5, 5, Hex(0xffd23f));
+            DrawRectangle((int)(x - 6 + oc + o.dir), (int)(y - 18 - respiro), 2, 2, BLACK);
+            DrawRectangle((int)(x + 5 + oc + o.dir), (int)(y - 18 - respiro), 2, 2, BLACK);
+            for (int i = 0; i < 4; i++) DrawTriangle({ x - 8 + i * 4.0f, y - 10 }, { x - 6 + i * 4.0f, y - 7 }, { x - 4 + i * 4.0f, y - 10 }, WHITE);
+            break;
+        }
+        case TipoOggetto::Cassa: {
+            bool aPosto = o.stato > 0;
+            Color legno = aPosto ? Hex(0xd8a020) : Hex(0xa86a30);
+            DrawRectangle((int)x - 7, (int)y - 7, 14, 14, legno);
+            DrawRectangleLines((int)x - 7, (int)y - 7, 14, 14, Hex(0x5a3418));
+            DrawLine((int)x - 6, (int)y - 6, (int)x + 6, (int)y + 6, Hex(0x6a4020));
+            DrawLine((int)x + 6, (int)y - 6, (int)x - 6, (int)y + 6, Hex(0x6a4020));
+            DrawRectangle((int)x - 7, (int)y + 7, 14, 2, Hex(0x000000, 70));
+            if (aPosto) { BeginBlendMode(BLEND_ADDITIVE); DrawRectangle((int)x - 8, (int)y - 8, 16, 16, ConAlfa(Hex(0xffd23f), 0.2f)); EndBlendMode(); }
+            break;
+        }
     }
 }
 
@@ -437,33 +667,59 @@ void Gioco::DisegnaOggettoConInfo(const Oggetto& o) const {
 
 void Gioco::DisegnaHud() const {
     DrawRectangle(0, 0, VW, 18, Hex(0x0b0e22, 170));
-    // Cuori.
-    for (int i = 0; i < 3; i++) {
-        Color c = i < vite ? Hex(0xff3f6a) : Hex(0x3a3050);
+    // Energia (cuori) e vite.
+    for (int i = 0; i < energiaMax; i++) {
+        Color c = i < energia ? Hex(0xff3f6a) : Hex(0x3a3050);
         int hx = 6 + i * 13;
         DrawCircle(hx + 3, 7, 3, c); DrawCircle(hx + 7, 7, 3, c);
         DrawTriangle({ (float)hx, 8 }, { (float)hx + 5, 14 }, { (float)hx + 10, 8 }, c);
     }
-    DrawEllipse(56, 9, 4, 5, Hex(0xffd23f));
-    Scritta(TextFormat("%02d", monete), 64, 4, 10, WHITE);
-    DrawTriangle({ 92, 4 }, { 88, 9 }, { 96, 9 }, Hex(0x9ff6ff));
-    DrawTriangle({ 88, 9 }, { 92, 15 }, { 96, 9 }, Hex(0x2aa8e0));
-    Scritta(TextFormat("%d", gemme), 100, 4, 10, WHITE);
+    int x = 8 + energiaMax * 13;
+    Scritta(TextFormat("x%d", vite), x, 4, 10, Hex(0xffc0d0));
+    x += 22;
+    DrawEllipse(x + 4, 9, 4, 5, Hex(0xffd23f));
+    Scritta(TextFormat("%02d", monete), x + 11, 4, 10, WHITE);
+    x += 34;
+    DrawTriangle({ (float)x + 4, 4 }, { (float)x, 9 }, { (float)x + 8, 9 }, Hex(0x9ff6ff));
+    DrawTriangle({ (float)x, 9 }, { (float)x + 4, 15 }, { (float)x + 8, 9 }, Hex(0x2aa8e0));
+    if (modello == Modello::Labirinto) Scritta(TextFormat("%d/%d", gemme, gemmeTotali), x + 12, 4, 10, gemme >= gemmeTotali ? Hex(0x8cff6a) : WHITE);
+    else Scritta(TextFormat("%d", gemme), x + 12, 4, 10, WHITE);
     ScrittaCentrata(titolo.c_str(), VW / 2, 4, 10, Hex(0xfff3c0));
+    if (modello == Modello::Puzzle) Scritta(TextFormat("%s %d", lingua == 1 ? "Moves" : "Mosse", mosse), VW - 150, 4, 10, Hex(0xc8d0f0));
+    Scritta(TextFormat("%06d", punteggio), VW - 96, 4, 10, Hex(0xffd23f));
     Scritta(TextFormat("%02d:%02d", (int)tempo / 60, (int)tempo % 60), VW - 36, 4, 10, WHITE);
 
+    // Barra del boss.
+    if (bossIndice >= 0 && bossIndice < (int)oggetti.size() && oggetti[bossIndice].attivo && !oggetti[bossIndice].sconfitto) {
+        const Oggetto& b = oggetti[bossIndice];
+        float k = b.numero / (modello == Modello::Sparatutto ? 30.0f : 9.0f);
+        Rectangle r = { VW / 2.0f - 90, 22, 180, 7 };
+        DrawRectangleRec(r, Hex(0x1a0a20, 220));
+        DrawRectangle((int)r.x + 1, (int)r.y + 1, (int)((r.width - 2) * k), 5, Mescola(Hex(0xff3f6a), Hex(0xffd23f), 1 - k));
+        DrawRectangleLinesEx(r, 1, Hex(0xffd2b8));
+        ScrittaCentrata("BOSS", VW / 2, 31, 10, Hex(0xffd2b8));
+    }
+    DisegnaCartello();
+    if (mostraFps) {
+        DrawRectangle(4, 22, 120, 40, Hex(0x000000, 160));
+        DrawText(TextFormat("FPS %d", GetFPS()), 8, 25, 10, Hex(0x8cff6a));
+        DrawText(TextFormat("oggetti %d  colpi %d", (int)oggetti.size(), (int)proiettili.size()), 8, 37, 10, WHITE);
+        DrawText(TextFormat("eroe %d,%d  zoom %.2f", (int)eroe.pos.x, (int)eroe.pos.y, zoom), 8, 49, 10, WHITE);
+    }
+
+    if (!mostraEsito) return;
     if (vinto) {
         float k = Limita(tFine * 2, 0, 1);
         DrawRectangle(0, VH / 2 - 30, VW, 60, Hex(0x0b0e22, (unsigned char)(170 * k)));
-        ScrittaCentrata("LIVELLO COMPLETATO!", VW / 2, VH / 2 - 20, 20, Mescola(BLANK, Hex(0xffd23f), k));
-        ScrittaCentrata(TextFormat("Monete %d   Gemme %d   Tempo %02d:%02d", monete, gemme, (int)tempo / 60, (int)tempo % 60),
-                        VW / 2, VH / 2 + 6, 10, Mescola(BLANK, WHITE, k));
+        ScrittaCentrata(lingua == 1 ? "LEVEL COMPLETE!" : "LIVELLO COMPLETATO!", VW / 2, VH / 2 - 20, 20, Mescola(BLANK, Hex(0xffd23f), k));
+        ScrittaCentrata(TextFormat("%s %d   %s %02d:%02d", lingua == 1 ? "Score" : "Punti", punteggio, lingua == 1 ? "Time" : "Tempo",
+                                   (int)tempo / 60, (int)tempo % 60), VW / 2, VH / 2 + 6, 10, Mescola(BLANK, WHITE, k));
         if (!crediti.empty()) ScrittaCentrata(crediti.c_str(), VW / 2, VH / 2 + 40, 10, Mescola(BLANK, Hex(0xc8d0f0), k));
     } else if (finito) {
         float k = Limita(tFine * 2, 0, 1);
         DrawRectangle(0, 0, VW, VH, Hex(0x200010, (unsigned char)(150 * k)));
         ScrittaCentrata("GAME OVER", VW / 2, VH / 2 - 20, 20, Mescola(BLANK, Hex(0xff3f6a), k));
-        ScrittaCentrata("Premi R per riprovare", VW / 2, VH / 2 + 6, 10, Mescola(BLANK, WHITE, k));
+        ScrittaCentrata(lingua == 1 ? "Press R to retry" : "Premi R per riprovare", VW / 2, VH / 2 + 6, 10, Mescola(BLANK, WHITE, k));
     }
 }
 
@@ -472,34 +728,54 @@ void Gioco::Disegna() {
     if (scossa > 0) { sx = Casuale(-2, 2) * scossa * 8; sy = Casuale(-2, 2) * scossa * 8; }
     float cx = camX + sx, cy = camY + sy;
     float notte = sfondo.Notte();
+    bool dallAlto = modello == Modello::Labirinto || modello == Modello::Puzzle;
 
-    sfondo.Disegna(cx);
-    livello.Disegna(cx, cy, tempoVisivo, notte);
+    if (!dallAlto) sfondo.Disegna(cx);
+    // Lo zoom ingrandisce attorno al centro dello schermo; lo sfondo resta fermo.
+    Camera2D schermo{};
+    schermo.offset = { VW / 2.0f, VH / 2.0f }; schermo.target = { VW / 2.0f, VH / 2.0f }; schermo.zoom = zoom;
+    BeginMode2D(schermo);
+    if (dallAlto) livello.DisegnaPavimento(cx, cy, sfondo.tema);
+    livello.Disegna(cx, cy, tempoVisivo, dallAlto ? 0.0f : notte, dallAlto);
 
     float salvaX = camX, salvaY = camY;
     camX = cx; camY = cy;
     for (const auto& o : oggetti) if (o.attivo) DisegnaOggettoConInfo(o);
 
-    Eroe e = eroe;
-    e.pos = { std::round(eroe.pos.x - cx), std::round(eroe.pos.y - cy) };
-    DrawEllipse((int)e.pos.x, (int)e.pos.y, 5, 1, Hex(0x000000, 70));
-    e.Disegna(tempoVisivo);
+    Vector2 p = { std::round(eroe.pos.x - cx), std::round(eroe.pos.y - cy) };
+    if (modello == Modello::Sparatutto) DisegnaNave(p);
+    else {
+        Eroe e = eroe;
+        e.pos = p;
+        DrawEllipse((int)e.pos.x, (int)e.pos.y, 5, 1, Hex(0x000000, 70));
+        e.Disegna(tempoVisivo);
+    }
     if (mostraCollisioni) {
-        Rectangle b = e.Box();
+        Rectangle b = eroe.Box();
+        b.x -= cx; b.y -= cy;
         DrawRectangleLinesEx(b, 1, Hex(0x00ffcc));
         DrawText(NomeStato(eroe.stato), (int)b.x - 10, (int)b.y - 12, 10, Hex(0x00ffcc));
     }
+    // Proiettili luminosi.
+    BeginBlendMode(BLEND_ADDITIVE);
+    for (const auto& q : proiettili) DrawCircleV({ q.pos.x - cx, q.pos.y - cy }, q.amico ? 4.0f : 5.0f, ConAlfa(q.colore, 0.3f));
+    EndBlendMode();
+    for (const auto& q : proiettili) {
+        if (q.amico) DrawRectangle((int)(q.pos.x - cx) - 4, (int)(q.pos.y - cy) - 1, 8, 2, WHITE);
+        else DrawCircleV({ q.pos.x - cx, q.pos.y - cy }, 2, Mescola(q.colore, WHITE, 0.4f));
+    }
+    EndMode2D();
 
-    // Particelle nel sistema di riferimento dello schermo.
+    // Particelle nel sistema di riferimento del mondo, con lo stesso zoom.
     Camera2D cam{};
-    cam.offset = { 0, 0 }; cam.target = { cx, cy }; cam.zoom = 1;
+    cam.offset = { VW / 2.0f, VH / 2.0f }; cam.target = { cx + VW / 2.0f, cy + VH / 2.0f }; cam.zoom = zoom;
     BeginMode2D(cam);
     particelle.Disegna();
     EndMode2D();
     camX = salvaX; camY = salvaY;
 
     // Atmosfera notturna: vignettatura scura ai bordi.
-    if (notte > 0.05f) {
+    if (notte > 0.05f && !dallAlto) {
         DrawRectangleGradientV(0, 0, VW, 60, Hex(0x05081c, (unsigned char)(120 * notte)), BLANK);
         DrawRectangleGradientH(0, 0, 50, VH, Hex(0x05081c, (unsigned char)(100 * notte)), BLANK);
         DrawRectangleGradientH(VW - 50, 0, 50, VH, BLANK, Hex(0x05081c, (unsigned char)(100 * notte)));

@@ -51,7 +51,8 @@ std::string Claude::PromptSistema(TipoRichiesta tipo) {
 void Claude::Invia(const ConfigClaude& cfg, TipoRichiesta tipo, const std::string& descrizione) {
     json corpo = {
         { "model", cfg.modello },
-        { "max_tokens", 8000 },
+        { "max_tokens", 16000 },
+        { "output_config", { { "effort", "low" } } },
         { "system", PromptSistema(tipo) },
         { "messages", json::array({ { { "role", "user" }, { "content", descrizione } } }) },
     };
@@ -67,18 +68,64 @@ int Claude::Stato() const { return HttpStato(); }
 std::string Claude::Risultato() const {
     std::string r = HttpRisposta();
     if (HttpStato() != 2) return r;
-    json j = json::parse(r, nullptr, false);
-    if (j.is_discarded() || !j.contains("content")) return "risposta inattesa dal server";
-    std::string testo;
-    for (auto& blocco : j["content"])
-        if (blocco.value("type", "") == "text") testo += blocco.value("text", "");
-    return EstraiJson(testo);
+    std::string j, errore;
+    if (!EstraiRisposta(r, j, errore)) { const_cast<Claude*>(this)->ultimoErrore = errore; return errore; }
+    const_cast<Claude*>(this)->ultimoErrore.clear();
+    return j;
 }
 
 std::string Claude::EstraiJson(const std::string& testo) {
-    size_t a = testo.find('{'), b = testo.rfind('}');
-    if (a == std::string::npos || b == std::string::npos || b < a) return testo;
-    return testo.substr(a, b - a + 1);
+    // Primo oggetto JSON completo: si contano le graffe, ignorando quelle dentro le stringhe.
+    size_t a = testo.find('{');
+    while (a != std::string::npos) {
+        int livello = 0;
+        bool stringa = false, escape = false;
+        for (size_t i = a; i < testo.size(); i++) {
+            char ch = testo[i];
+            if (stringa) {
+                if (escape) escape = false;
+                else if (ch == '\\') escape = true;
+                else if (ch == '"') stringa = false;
+                continue;
+            }
+            if (ch == '"') stringa = true;
+            else if (ch == '{') livello++;
+            else if (ch == '}' && --livello == 0) {
+                std::string candidato = testo.substr(a, i - a + 1);
+                if (!json::parse(candidato, nullptr, false).is_discarded()) return candidato;
+                break;
+            }
+        }
+        a = testo.find('{', a + 1);
+    }
+    return testo;
+}
+
+bool Claude::EstraiRisposta(const std::string& corpoHttp, std::string& risultato, std::string& errore) {
+    {
+        std::ofstream log(CartellaEseguibile() + "/claude_ultima_risposta.txt", std::ios::binary);
+        if (log) log << corpoHttp;
+    }
+    json j = json::parse(corpoHttp, nullptr, false);
+    if (j.is_discarded() || !j.is_object()) { errore = "risposta del server non leggibile (vedi claude_ultima_risposta.txt)"; return false; }
+    if (j.value("type", "") == "error" && j.contains("error")) {
+        errore = "errore del server: " + j["error"].value("message", std::string("sconosciuto"));
+        return false;
+    }
+    std::string motivo = j.value("stop_reason", "");
+    std::string testo;
+    if (j.contains("content") && j["content"].is_array())
+        for (auto& blocco : j["content"])
+            if (blocco.value("type", "") == "text") testo += blocco.value("text", "");
+    if (motivo == "refusal") { errore = "Claude non puo' rispondere a questa richiesta: prova a riformularla"; return false; }
+    if (motivo == "max_tokens") { errore = "la risposta e' troppo lunga ed e' stata interrotta: chiedi qualcosa di piu' semplice"; return false; }
+    if (testo.empty()) { errore = "Claude non ha scritto nessun testo (vedi claude_ultima_risposta.txt)"; return false; }
+    risultato = EstraiJson(testo);
+    if (json::parse(risultato, nullptr, false).is_discarded()) {
+        errore = "Claude non ha risposto in JSON: \"" + testo.substr(0, 80) + (testo.size() > 80 ? "...\"" : "\"");
+        return false;
+    }
+    return true;
 }
 
 bool Claude::LivelloDaJson(const std::string& testoJson, std::string& testo, std::string& nome, std::string& errore) {
@@ -200,7 +247,8 @@ void ChatClaude::Invia(const ConfigClaude& cfg, const std::string& richiesta, co
     }
     json corpo = {
         { "model", cfg.modello },
-        { "max_tokens", 12000 },
+        { "max_tokens", 16000 },
+        { "output_config", { { "effort", "medium" } } },
         { "system", PromptSistema() },
         { "messages", messaggi },
     };
@@ -216,10 +264,7 @@ int ChatClaude::Stato() const { return HttpStato(); }
 std::string ChatClaude::RispostaGrezza() const {
     std::string r = HttpRisposta();
     if (HttpStato() != 2) return r;
-    json j = json::parse(r, nullptr, false);
-    if (j.is_discarded() || !j.contains("content")) return "risposta inattesa dal server";
-    std::string testo;
-    for (auto& blocco : j["content"])
-        if (blocco.value("type", "") == "text") testo += blocco.value("text", "");
-    return Claude::EstraiJson(testo);
+    std::string j, errore;
+    if (!Claude::EstraiRisposta(r, j, errore)) return "{\"risposta\": " + json(errore).dump() + ", \"azioni\": []}";
+    return j;
 }

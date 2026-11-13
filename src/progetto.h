@@ -13,6 +13,14 @@ struct ParametriFisica {
     float molla = 470;       // spinta della molla
 };
 
+// Tipo di gioco: cambia regole, comandi e visuale.
+enum class Modello { Platform, Sparatutto, Labirinto, Puzzle, Totale };
+const char* NomeModello(Modello m);
+const char* ChiaveModello(Modello m);   // "platform", "sparatutto"...
+
+// Testo di un cartello (1..9) in due lingue.
+struct TestoCartello { int numero = 1; std::string it, en; };
+
 std::string ColoreInTesto(Color c);
 bool TestoInColore(const std::string& s, Color& c);
 
@@ -24,6 +32,10 @@ struct Progetto {
     AspettoEroe eroe;
     std::vector<std::string> righe;   // la mappa, tutte le righe lunghe uguali
     std::vector<FileIncluso> file;    // musiche ed effetti caricati da file ("musica.ogg", "effetto_Salto.wav")
+    Modello modello = Modello::Platform;
+    float zoom = 1.0f;                // ingrandimento della telecamera (1 = normale)
+    int musica = 0;                   // brano generato (vedi Audio::Brani)
+    std::vector<TestoCartello> testi;
 
     static constexpr int ALTEZZA = 15;
 
@@ -34,4 +46,9 @@ struct Progetto {
     std::string Json() const;                            // stato completo, per Claude
     int Larghezza() const { return righe.empty() ? 0 : (int)righe[0].size(); }
     void Ridimensiona(int larghezza);
+    const TestoCartello* Testo(int numero) const;
 };
+
+// Un gioco con piu' livelli e' un unico testo: i livelli sono separati da una riga ";;".
+std::vector<std::string> DividiLivelli(const std::string& testoGioco);
+std::string UnisciLivelli(const std::vector<std::string>& livelli);

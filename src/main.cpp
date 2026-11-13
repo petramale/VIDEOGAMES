@@ -104,6 +104,8 @@ private:
                                    "un livello notturno tra le rovine, con gemme nascoste e tanti salti" };
     std::string esito = "Scrivi una descrizione e premi Invio, oppure F2 per un esempio.";
     bool inAttesa = false, provaLivello = false, esempio = false;
+    bool inserisciChiave = false;
+    std::string bozzaChiave;
     SpritePixel spriteClaude;
     std::string livelloClaude, nomeLivelloClaude;
     Livello anteprimaLivello;
@@ -470,6 +472,30 @@ void Studio::DisegnaLibrerie() {
 // --- 7. Claude -----------------------------------------------------------
 
 void Studio::AggiornaClaude(float dt) {
+    if (inserisciChiave) {
+        // Finestra per incollare la chiave API: Ctrl+V incolla, Invio salva, Esc annulla.
+        int c = GetCharPressed();
+        while (c > 0) { if (c > 32 && c < 127 && bozzaChiave.size() < 200) bozzaChiave.push_back((char)c); c = GetCharPressed(); }
+        bool ctrl = IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL);
+        if (ctrl && IsKeyPressed(KEY_V)) {
+            const char* t = GetClipboardText();
+            if (t) for (const char* p = t; *p; p++) if (*p > 32 && *p < 127) bozzaChiave.push_back(*p);
+        }
+        if ((IsKeyPressed(KEY_BACKSPACE) || IsKeyPressedRepeat(KEY_BACKSPACE)) && !bozzaChiave.empty()) bozzaChiave.pop_back();
+        if (IsKeyPressed(KEY_ENTER)) {
+            if (bozzaChiave.rfind("sk-ant-", 0) != 0) esito = "La chiave deve iniziare con sk-ant-";
+            else if (SaveFileText((CartellaEseguibile() + "/claude_chiave.txt").c_str(), (char*)bozzaChiave.c_str())) {
+                cfg = ConfigClaude::Carica();
+                if (cfg.chiave.empty()) cfg.chiave = bozzaChiave;
+                editor.ImpostaChiave(cfg.chiave);
+                esito = "Chiave salvata in claude_chiave.txt. Ora puoi chiedere a Claude!";
+                gAudio.Suona(Effetto::Vittoria);
+                inserisciChiave = false;
+            } else esito = "Non riesco a salvare claude_chiave.txt accanto allo studio";
+        }
+        if (IsKeyPressed(KEY_ESCAPE)) inserisciChiave = false;
+        return;
+    }
     if (provaLivello) {
         giocoClaude.Aggiorna(dt, Comandi::DaPeriferiche());
         if (IsKeyPressed(KEY_R)) { std::string e; giocoClaude.Carica(livelloClaude, e); }
@@ -490,9 +516,10 @@ void Studio::AggiornaClaude(float dt) {
             c = GetCharPressed();
         }
         if ((IsKeyPressed(KEY_BACKSPACE) || IsKeyPressedRepeat(KEY_BACKSPACE)) && !testo.empty()) testo.pop_back();
+        if (IsKeyPressed(KEY_F4)) { inserisciChiave = true; bozzaChiave.clear(); while (GetCharPressed() > 0) {} return; }
         if (IsKeyPressed(KEY_TAB)) { tipo = tipo == TipoRichiesta::Sprite ? TipoRichiesta::Livello : TipoRichiesta::Sprite; gAudio.Suona(Effetto::Menu); }
         if (IsKeyPressed(KEY_ENTER)) {
-            if (cfg.chiave.empty()) esito = "Manca la chiave API: imposta ANTHROPIC_API_KEY o crea claude_chiave.txt accanto allo studio.";
+            if (cfg.chiave.empty()) esito = "Manca la chiave API: premi F4 per inserirla.";
             else { claude.Invia(cfg, tipo, testo); inAttesa = true; esempio = false; esito = "Claude sta creando..."; gAudio.Suona(Effetto::Conferma); }
         }
         if (IsKeyPressed(KEY_F2)) {
@@ -528,6 +555,7 @@ void Studio::AggiornaClaude(float dt) {
     } else if (claude.Stato() >= 2) {
         inAttesa = false;
         std::string r = claude.Risultato(), err;
+        if (!claude.ultimoErrore.empty()) { esito = "Errore: " + claude.ultimoErrore; gAudio.Suona(Effetto::Colpo); return; }
         if (claude.Stato() == 3) { esito = "Errore: " + r; gAudio.Suona(Effetto::Colpo); return; }
         if (tipo == TipoRichiesta::Sprite) {
             if (spriteClaude.CaricaDaJson(r, err)) { livelloClaude.clear(); esito = "Fatto! Sprite \"" + spriteClaude.nome + "\""; gAudio.Suona(Effetto::Vittoria); }
@@ -564,7 +592,7 @@ void Studio::DisegnaClaude() {
     ScrittaACapo(testo, (int)box.x + 6, (int)box.y + 6, (int)box.width - 12, 10, WHITE);
 
     // Stato e chiave.
-    Scritta(cfg.chiave.empty() ? "Chiave API: non trovata" : TextFormat("Chiave API: ok  -  modello %s", cfg.modello.c_str()),
+    Scritta(cfg.chiave.empty() ? "Chiave API: non trovata - premi F4 per inserirla" : TextFormat("Chiave API: ok  -  modello %s  (F4 per cambiarla)", cfg.modello.c_str()),
             10, 124, 10, cfg.chiave.empty() ? Hex(0xff8a8a) : Hex(0x8cff6a));
     if (inAttesa) {
         for (int i = 0; i < 8; i++) {
@@ -613,7 +641,22 @@ void Studio::DisegnaClaude() {
     } else {
         ScrittaCentrata("Qui appare cio' che crea Claude", (int)(ant.x + ant.width / 2), 120, 10, Hex(0x8a7aa0));
     }
-    Intestazione("7. CREA CON CLAUDE", "Scrivi  Tab: sprite/livello  Invio: chiedi  F2: esempio  F5: gioca  F3: editor  Esc: menu");
+    if (inserisciChiave) {
+        DrawRectangle(0, 0, VW, VH, Hex(0x000000, 150));
+        Rectangle r = { 30, 50, VW - 60, 150 };
+        Pannello(r, Hex(0x1a1030, 245), Hex(0xd97757));
+        Scritta("Chiave API di Claude", (int)r.x + 10, (int)r.y + 8, 10, Hex(0xffd23f));
+        ScrittaACapo("1. Vai su console.anthropic.com, sezione API Keys, e crea una chiave (inizia con sk-ant-). "
+                     "Serve un po' di credito sull'account.  2. Copiala e premi qui Ctrl+V.  3. Premi Invio: viene salvata "
+                     "in claude_chiave.txt accanto allo studio.", (int)r.x + 10, (int)r.y + 24, (int)r.width - 20, 10, Hex(0xe0d8f0));
+        Rectangle in = { r.x + 10, r.y + 92, r.width - 20, 18 };
+        Pannello(in, Hex(0x0e0818), Hex(0xd97757));
+        std::string mostrata = bozzaChiave.size() > 14 ? bozzaChiave.substr(0, 10) + std::string(std::min<size_t>(30, bozzaChiave.size() - 14), '*') + bozzaChiave.substr(bozzaChiave.size() - 4) : bozzaChiave;
+        if (std::fmod(tempo, 1.0f) < 0.5f) mostrata += "_";
+        Scritta(mostrata.c_str(), (int)in.x + 4, (int)in.y + 4, 10, WHITE);
+        Scritta("Invio: salva   Esc: annulla   Backspace: cancella", (int)r.x + 10, (int)r.y + 124, 10, Hex(0x8a7aa0));
+    }
+    Intestazione("7. CREA CON CLAUDE", "Tab: sprite/livello  Invio: chiedi  F2: esempio  F5: gioca  F3: editor  F4: chiave  Esc: menu");
 }
 
 // --- Comandi e periferiche ----------------------------------------------
@@ -760,7 +803,7 @@ void Studio::DisegnaComandi() {
 void Studio::Aggiorna(float dt) {
     tempo += dt;
     if (tMessaggio > 0) tMessaggio -= dt;
-    bool scrivendo = (attuale == Schermata::Claude && !provaLivello) || (attuale == Schermata::Editor && editor.Scrivendo())
+    bool scrivendo = (attuale == Schermata::Claude && (!provaLivello || inserisciChiave)) || (attuale == Schermata::Editor && editor.Scrivendo())
                   || (attuale == Schermata::Comandi && attesaComando);
     if (IsKeyPressed(KEY_M) && !scrivendo) gAudio.MusicaAttiva(!gAudio.MusicaAttiva());
     if (attuale == Schermata::Editor) {
@@ -769,7 +812,7 @@ void Studio::Aggiorna(float dt) {
         return;
     }
     if (attuale == Schermata::Comandi) { AggiornaComandi(dt); return; }
-    bool indietro = attuale == Schermata::Claude ? IsKeyPressed(KEY_ESCAPE) : gInput.Premuto(Azione::Indietro);
+    bool indietro = attuale == Schermata::Claude ? (IsKeyPressed(KEY_ESCAPE) && !inserisciChiave) : gInput.Premuto(Azione::Indietro);
     if (attuale != Schermata::Menu && indietro && !(attuale == Schermata::Claude && provaLivello)) {
         attuale = Schermata::Menu; gAudio.Suona(Effetto::Menu); return;
     }

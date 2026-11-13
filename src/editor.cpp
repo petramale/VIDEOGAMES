@@ -626,8 +626,8 @@ void Editor::AggiornaChat(Rectangle p) {
     if (IsKeyPressed(KEY_ENTER) && !bozza.empty()) {
         if (cfg.chiave.empty()) {
             chat.storia.push_back({ true, bozza, "" });
-            chat.storia.push_back({ false, "Per parlare con me serve una chiave API di Anthropic: mettila nella variabile "
-                                           "ANTHROPIC_API_KEY oppure nel file claude_chiave.txt accanto allo studio, poi riavvia.", "" });
+            chat.storia.push_back({ false, "Per parlare con me serve una chiave API di Anthropic: torna al menu, apri la voce 7 "
+                                           "(Crea con Claude) e premi F4 per incollarla.", "" });
             bozza.clear();
             return;
         }

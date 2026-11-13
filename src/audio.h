@@ -5,6 +5,8 @@
 #pragma once
 #include "comune.h"
 #include <atomic>
+#include <map>
+#include <mutex>
 
 enum class Effetto { Salto, Moneta, Gemma, Colpo, Molla, Forziere, Esplosione, Vittoria, Passo, Menu, Conferma, Totale };
 
@@ -36,9 +38,17 @@ public:
     bool EffettoDaFile(Effetto e) const { return effettoFile[(int)e]; }
     void FermaTutto();                     // ripristina tutto ai suoni generati
 
+    // Brani generati dal codice: 0 e' la colonna sonora originale, gli altri sono composti
+    // da un compositore automatico con stili diversi.
+    static const std::vector<const char*>& Brani();
+    void ScegliBrano(int n);
+    int BranoAttuale() const { return branoAttuale; }
+
     void MusicaAttiva(bool attiva);
     bool MusicaAttiva() const { return musicaAttiva; }
     float volumeMusica = 0.55f;
+    float volumeEffetti = 1.0f;
+    bool muto = false;                     // audio spento del tutto (pulsante altoparlante)
 
     // Per la visualizzazione (oscilloscopio e rullo di note).
     float TempoBrano() const;
@@ -52,6 +62,11 @@ public:
 private:
     static void Callback(void* buffer, unsigned int frame);
     void ComponiBrano();
+    void ComponiStile(int n);
+    struct Composizione { std::vector<float> brano; std::vector<EventoNota> note; float durata, bpm; };
+    std::map<int, Composizione> archivio;
+    std::mutex blocco;
+    int branoAttuale = 0;
 
     Sound suoni[(int)Effetto::Totale]{};
     std::vector<float> campioniEffetti[(int)Effetto::Totale];

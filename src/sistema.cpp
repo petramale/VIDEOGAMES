@@ -44,7 +44,7 @@ DWORD WINAPI ThreadHttp(LPVOID) {
                                               WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE) : nullptr;
     bool ok = req != nullptr;
     if (ok) {
-        WinHttpSetTimeouts(req, 10000, 10000, 30000, 120000);
+        WinHttpSetTimeouts(req, 15000, 15000, 60000, 300000); // Claude puo' pensare a lungo
         ok = WinHttpSendRequest(req, http.intestazioni.c_str(), (DWORD)-1L, (LPVOID)http.corpo.data(),
                                 (DWORD)http.corpo.size(), (DWORD)http.corpo.size(), 0)
              && WinHttpReceiveResponse(req, nullptr);

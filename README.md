@@ -52,7 +52,7 @@ Il file creato si può copiare su qualsiasi PC Windows e funziona senza installa
 Serve una chiave API di Anthropic (da [console.anthropic.com](https://console.anthropic.com)).
 Mettila nella variabile d'ambiente `ANTHROPIC_API_KEY` oppure in un file `claude_chiave.txt`
 accanto a `StudioVideogiochi.exe` (il file è escluso da git). Il modello predefinito è
-`claude-sonnet-5-5`; per cambiarlo scrivi il nome in `claude_modello.txt`.
+`claude-opus-5-5`; per cambiarlo scrivi il nome in `claude_modello.txt`.
 
 Claude è l'unica parte che usa internet: tutto il resto dello studio funziona offline.
 

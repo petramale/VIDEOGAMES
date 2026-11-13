@@ -12,9 +12,18 @@ const char* NomeOggetto(TipoOggetto t) {
         case TipoOggetto::Slime: return "Slime";
         case TipoOggetto::Pipistrello: return "Pipistrello";
         case TipoOggetto::Bandiera: return "Bandiera";
+        case TipoOggetto::Cuore: return "Cuore";
+        case TipoOggetto::Cartello: return "Cartello";
+        case TipoOggetto::Porta: return "Porta";
+        case TipoOggetto::Fantasma: return "Fantasma";
+        case TipoOggetto::Torretta: return "Torretta";
+        case TipoOggetto::Boss: return "Boss";
+        case TipoOggetto::Cassa: return "Cassa";
     }
     return "";
 }
+
+const char* CaratteriOggetti() { return "ogmckebFhDrsBx123456789"; }
 
 bool Livello::Carica(const std::string& testo, std::string& errore) {
     std::vector<std::string> righe;
@@ -41,7 +50,7 @@ bool Livello::Carica(const std::string& testo, std::string& errore) {
             Oggetto o{};
             o.attivo = true;
             switch (c) {
-                case '#': case '=': case '-': case '^': celle[(size_t)y * w + x] = c; break;
+                case '#': case '=': case '-': case '^': case '.': celle[(size_t)y * w + x] = c; break;
                 case 'P': partenza = base; haPartenza = true; break;
                 case 'o': o.tipo = TipoOggetto::Moneta; o.pos = centro; break;
                 case 'g': o.tipo = TipoOggetto::Gemma; o.pos = centro; break;
@@ -51,9 +60,17 @@ bool Livello::Carica(const std::string& testo, std::string& errore) {
                 case 'e': o.tipo = TipoOggetto::Slime; o.pos = base; break;
                 case 'b': o.tipo = TipoOggetto::Pipistrello; o.pos = centro; break;
                 case 'F': o.tipo = TipoOggetto::Bandiera; o.pos = base; break;
-                default: continue;
+                case 'h': o.tipo = TipoOggetto::Cuore; o.pos = centro; break;
+                case 'D': o.tipo = TipoOggetto::Porta; o.pos = base; break;
+                case 'r': o.tipo = TipoOggetto::Fantasma; o.pos = centro; break;
+                case 's': o.tipo = TipoOggetto::Torretta; o.pos = base; break;
+                case 'B': o.tipo = TipoOggetto::Boss; o.pos = base; o.numero = 9; break;
+                case 'x': o.tipo = TipoOggetto::Cassa; o.pos = centro; break;
+                default:
+                    if (c >= '1' && c <= '9') { o.tipo = TipoOggetto::Cartello; o.pos = base; o.numero = c - '0'; break; }
+                    continue;
             }
-            if (std::string("ogmckebF").find(c) != std::string::npos) {
+            if (std::string(CaratteriOggetti()).find(c) != std::string::npos) {
                 o.origine = o.pos;
                 o.t = Hash1(x * 31 + y) * 10;
                 oggetti.push_back(o);
@@ -70,11 +87,32 @@ char Livello::Cella(int x, int y) const {
     return celle[(size_t)y * w + x];
 }
 
-void Livello::DisegnaTile(int tx, int ty, float sx, float sy, float tempo, float notte) const {
+void Livello::DisegnaTile(int tx, int ty, float sx, float sy, float tempo, float notte, bool dallAlto) const {
     char c = Cella(tx, ty);
     int x = (int)std::round(sx), y = (int)std::round(sy);
     float buio = notte * 0.45f;
     auto Ombra = [&](unsigned int col) { return Mescola(Hex(col), Hex(0x0a0d24), buio); };
+
+    if (dallAlto && (c == '#' || c == '=')) {
+        // Muro visto dall'alto: blocco in rilievo con la faccia superiore chiara.
+        bool siepe = c == '#';
+        Color fianco = siepe ? Hex(0x2f6a2a) : Hex(0x4a4f66), cima = siepe ? Hex(0x4caf3a) : Hex(0x8a90ac);
+        DrawRectangle(x, y, TILE, TILE, fianco);
+        DrawRectangle(x, y, TILE, TILE - 4, cima);
+        DrawRectangle(x, y, TILE, 1, siepe ? Hex(0x8ee36a) : Hex(0xb8bed6));
+        for (int i = 0; i < 3; i++) {
+            float h = Hash1(tx * 37 + ty * 91 + i);
+            DrawRectangle(x + 2 + (int)(h * 11), y + 2 + i * 4, 2, 1, siepe ? Hex(0x6fd34e) : Hex(0x6f7590));
+        }
+        if (Cella(tx, ty + 1) != c) DrawRectangle(x, y + TILE, TILE, 3, Hex(0x000000, 70)); // ombra sul pavimento
+        return;
+    }
+    if (c == '.') {
+        float p = 0.6f + 0.4f * std::sin(tempo * 4 + tx + ty);
+        DrawRectangleLines(x + 3, y + 3, TILE - 6, TILE - 6, ConAlfa(Hex(0xffd23f), p));
+        DrawRectangle(x + 6, y + 6, 4, 4, ConAlfa(Hex(0xffd23f), p * 0.7f));
+        return;
+    }
 
     if (c == '#') {
         bool cima = Cella(tx, ty - 1) != '#';
@@ -123,13 +161,29 @@ void Livello::DisegnaTile(int tx, int ty, float sx, float sy, float tempo, float
     }
 }
 
-void Livello::Disegna(float camX, float camY, float tempo, float notte) const {
-    int x0 = (int)std::floor(camX / TILE) - 1, x1 = x0 + VW / TILE + 3;
-    int y0 = (int)std::floor(camY / TILE) - 1, y1 = y0 + VH / TILE + 3;
+void Livello::DisegnaPavimento(float camX, float camY, int tema) const {
+    static const unsigned int colori[][2] = { { 0x3a5a3a, 0x345234 }, { 0x8a6a4a, 0x7e6044 }, { 0x6a7a9a, 0x62708e },
+                                              { 0x3a2a30, 0x34262c }, { 0x2e2a40, 0x29263a }, { 0x101428, 0x0e1224 }, { 0x2a2620, 0x25221c } };
+    int k = tema < 0 || tema > 6 ? 0 : tema;
+    ClearBackground(Hex(colori[k][1]));
+    int x0 = (int)std::floor(camX / TILE) - 6, x1 = x0 + VW / TILE + 14;
+    int y0 = (int)std::floor(camY / TILE) - 6, y1 = y0 + VH / TILE + 14;
+    for (int ty = y0; ty <= y1; ty++)
+        for (int tx = x0; tx <= x1; tx++) {
+            int x = (int)std::round(tx * TILE - camX), y = (int)std::round(ty * TILE - camY);
+            if (tx < 0 || tx >= w || ty < 0 || ty >= h) { DrawRectangle(x, y, TILE, TILE, Hex(0x05060c)); continue; }
+            DrawRectangle(x, y, TILE, TILE, Hex(colori[k][(tx + ty) % 2]));
+            if (Hash1(tx * 13 + ty * 7) > 0.85f) DrawRectangle(x + 5, y + 9, 2, 1, Hex(0x000000, 40));
+        }
+}
+
+void Livello::Disegna(float camX, float camY, float tempo, float notte, bool dallAlto) const {
+    int x0 = (int)std::floor(camX / TILE) - 6, x1 = x0 + VW / TILE + 14;
+    int y0 = (int)std::floor(camY / TILE) - 6, y1 = y0 + VH / TILE + 14;
     for (int ty = y0; ty <= y1; ty++)
         for (int tx = x0; tx <= x1; tx++)
             if (Cella(tx, ty) != ' ' && tx >= 0 && tx < w)
-                DisegnaTile(tx, ty, tx * TILE - camX, ty * TILE - camY, tempo, notte);
+                DisegnaTile(tx, ty, tx * TILE - camX, ty * TILE - camY, tempo, notte, dallAlto);
 }
 
 // ---------------------------------------------------------------------------

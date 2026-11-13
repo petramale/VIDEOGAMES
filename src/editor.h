@@ -22,6 +22,7 @@ public:
     void DisegnaChat(Rectangle pannello);
     bool vuoleUscire = false;
     bool Provando() const { return provando; }
+    void ImpostaChiave(const std::string& k) { cfg.chiave = k; }
     bool Scrivendo() const { return fuocoChat || rinomina; }   // la tastiera serve per scrivere
 
 private:

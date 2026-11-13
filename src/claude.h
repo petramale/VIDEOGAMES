@@ -9,7 +9,7 @@ enum class TipoRichiesta { Sprite, Livello };
 
 struct ConfigClaude {
     std::string chiave;                       // da ANTHROPIC_API_KEY o dal file claude_chiave.txt
-    std::string modello = "claude-sonnet-5-5"; // modificabile con il file claude_modello.txt
+    std::string modello = "claude-opus-5-5";   // modificabile con il file claude_modello.txt
     static ConfigClaude Carica();
 };
 
@@ -20,9 +20,13 @@ public:
     int Stato() const;
     // JSON del contenuto (sprite o livello) estratto dalla risposta, oppure messaggio di errore.
     std::string Risultato() const;
+    std::string ultimoErrore;              // vuoto se la risposta e' un JSON valido
 
     static std::string PromptSistema(TipoRichiesta tipo);
     static std::string EstraiJson(const std::string& testo);
+    // Dalla risposta HTTP completa al JSON prodotto da Claude. Controlla il motivo di fine
+    // (troppo lunga, rifiutata...), toglie eventuali ``` e salva tutto in claude_ultima_risposta.txt.
+    static bool EstraiRisposta(const std::string& corpoHttp, std::string& json, std::string& errore);
     // Converte il JSON di un livello ({"righe": [...]}) nel testo letto dal motore.
     static bool LivelloDaJson(const std::string& json, std::string& testo, std::string& nome, std::string& errore);
 
