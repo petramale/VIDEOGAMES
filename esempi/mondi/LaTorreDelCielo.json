@@ -1,0 +1,464 @@
+{
+ "autori": "",
+ "eroe": {
+  "capelli": "#6b3b1f",
+  "maglia": "#e0a030",
+  "mantello": "#5a3ad8",
+  "pantaloni": "#2a2f4a",
+  "pelle": "#f2c39b",
+  "scarpe": "#5a3020"
+ },
+ "fisica": {
+  "gravita": 900.0,
+  "molla": 470.0,
+  "salto": 330.0,
+  "velocita": 115.0
+ },
+ "formato": "studio-videogiochi/2",
+ "genere": "platform",
+ "giocatori": {
+  "massimo": 1,
+  "schermoDiviso": false
+ },
+ "mappaIniziale": 0,
+ "mappe": [
+  {
+   "altezza": 70,
+   "caselle": [
+    "                                    ",
+    "                                    ",
+    "                                    ",
+    "                                    ",
+    "                     -------        ",
+    "                                    ",
+    "                                    ",
+    "                     -------        ",
+    "                                    ",
+    "                                    ",
+    "               -------              ",
+    "                                    ",
+    "                                    ",
+    "         -------                    ",
+    "                                    ",
+    "                                    ",
+    "   -------                          ",
+    "                                    ",
+    "                                    ",
+    "        -------                     ",
+    "                                    ",
+    "                                    ",
+    "              -------               ",
+    "                                    ",
+    "                                    ",
+    "                    -------         ",
+    "                                    ",
+    "                                    ",
+    "                          -------   ",
+    "                                    ",
+    "                                    ",
+    "                     -------        ",
+    "                                    ",
+    "                                    ",
+    "               -------              ",
+    "                                    ",
+    "                                    ",
+    "         -------                    ",
+    "                                    ",
+    "                                    ",
+    "   -------                          ",
+    "                                    ",
+    "                                    ",
+    "        -------                     ",
+    "                                    ",
+    "                                    ",
+    "              -------               ",
+    "                                    ",
+    "                                    ",
+    "                    -------         ",
+    "                                    ",
+    "                                    ",
+    "                          -------   ",
+    "                                    ",
+    "                                    ",
+    "                     -------        ",
+    "                                    ",
+    "                                    ",
+    "               -------              ",
+    "                                    ",
+    "                                    ",
+    "         -------                    ",
+    "                                    ",
+    "                                    ",
+    "   -------                          ",
+    "                                    ",
+    "                                    ",
+    "####################################",
+    "####################################",
+    "####################################"
+   ],
+   "cielo": {
+    "alto": "#1a2a6c",
+    "basso": "#f7b267"
+   },
+   "decorazioni": [],
+   "larghezza": 36,
+   "musica": 5,
+   "nome": "Torre",
+   "oggetti": [
+    {
+     "tipo": "moneta",
+     "x": 88.0,
+     "y": 1000.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 120.0,
+     "y": 1000.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 184.0,
+     "y": 952.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 216.0,
+     "y": 952.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 280.0,
+     "y": 904.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 312.0,
+     "y": 904.0
+    },
+    {
+     "tipo": "pipistrello",
+     "x": 296.0,
+     "y": 872.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 376.0,
+     "y": 856.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 408.0,
+     "y": 856.0
+    },
+    {
+     "tipo": "gemma",
+     "x": 392.0,
+     "y": 840.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 456.0,
+     "y": 808.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 488.0,
+     "y": 808.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 360.0,
+     "y": 760.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 392.0,
+     "y": 760.0
+    },
+    {
+     "tipo": "lanterna",
+     "x": 408.0,
+     "y": 784.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 264.0,
+     "y": 712.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 296.0,
+     "y": 712.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 168.0,
+     "y": 664.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 200.0,
+     "y": 664.0
+    },
+    {
+     "tipo": "gemma",
+     "x": 184.0,
+     "y": 648.0
+    },
+    {
+     "tipo": "pipistrello",
+     "x": 184.0,
+     "y": 632.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 88.0,
+     "y": 616.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 120.0,
+     "y": 616.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 184.0,
+     "y": 568.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 216.0,
+     "y": 568.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 280.0,
+     "y": 520.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 312.0,
+     "y": 520.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 376.0,
+     "y": 472.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 408.0,
+     "y": 472.0
+    },
+    {
+     "tipo": "gemma",
+     "x": 392.0,
+     "y": 456.0
+    },
+    {
+     "tipo": "lanterna",
+     "x": 424.0,
+     "y": 496.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 456.0,
+     "y": 424.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 488.0,
+     "y": 424.0
+    },
+    {
+     "tipo": "pipistrello",
+     "x": 472.0,
+     "y": 392.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 360.0,
+     "y": 376.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 392.0,
+     "y": 376.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 264.0,
+     "y": 328.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 296.0,
+     "y": 328.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 168.0,
+     "y": 280.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 200.0,
+     "y": 280.0
+    },
+    {
+     "tipo": "gemma",
+     "x": 184.0,
+     "y": 264.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 88.0,
+     "y": 232.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 120.0,
+     "y": 232.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 184.0,
+     "y": 184.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 216.0,
+     "y": 184.0
+    },
+    {
+     "tipo": "lanterna",
+     "x": 232.0,
+     "y": 208.0
+    },
+    {
+     "tipo": "pipistrello",
+     "x": 200.0,
+     "y": 152.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 280.0,
+     "y": 136.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 312.0,
+     "y": 136.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 376.0,
+     "y": 88.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 408.0,
+     "y": 88.0
+    },
+    {
+     "tipo": "gemma",
+     "x": 392.0,
+     "y": 72.0
+    },
+    {
+     "tipo": "bandiera",
+     "x": 408.0,
+     "y": 64.0
+    },
+    {
+     "tipo": "cuore",
+     "x": 360.0,
+     "y": 40.0
+    },
+    {
+     "tipo": "molla",
+     "x": 488.0,
+     "y": 1072.0
+    },
+    {
+     "numero": 1,
+     "tipo": "cartello",
+     "x": 104.0,
+     "y": 1072.0
+    }
+   ],
+   "partenza": {
+    "x": 56.0,
+    "y": 1072.0
+   },
+   "scenario": {
+    "cicloGiorno": false,
+    "ora": 0.5,
+    "sfondoGenerato": false,
+    "tema": 0
+   },
+   "strati": [
+    {
+     "altezza": 0.45,
+     "ampiezza": 50.0,
+     "colore": "#fff4d8",
+     "nome": "Stelle",
+     "parallasseX": 0.02,
+     "parallasseY": 0.05,
+     "seme": 1.0,
+     "tipo": "stelle"
+    },
+    {
+     "altezza": 0.78,
+     "ampiezza": 70.0,
+     "colore": "#7a5a9a",
+     "nome": "Montagne lontane",
+     "parallasseX": 0.06,
+     "parallasseY": 0.12,
+     "seme": 2.0,
+     "tipo": "montagne"
+    },
+    {
+     "altezza": 0.32,
+     "ampiezza": 60.0,
+     "colore": "#ffd6c8",
+     "nome": "Nuvole",
+     "parallasseX": 0.15,
+     "parallasseY": 0.35,
+     "seme": 4.0,
+     "tipo": "nuvole",
+     "vento": 6.0
+    },
+    {
+     "altezza": 0.92,
+     "ampiezza": 40.0,
+     "colore": "#3d2c5e",
+     "nome": "Colline",
+     "parallasseX": 0.25,
+     "parallasseY": 0.45,
+     "seme": 7.0,
+     "tipo": "colline"
+    }
+   ],
+   "telecamera": {
+    "anticipo": 20.0,
+    "dirX": 1,
+    "dirY": 0,
+    "modo": "segui",
+    "velocita": 40.0,
+    "zonaMortaX": 40.0,
+    "zonaMortaY": 30.0,
+    "zoom": 1.0
+   },
+   "testi": [
+    {
+     "en": "Climb to the top of the tower! The camera follows you up and down.",
+     "it": "Sali fino in cima alla torre! La telecamera ti segue in alto e in basso.",
+     "numero": 1
+    }
+   ],
+   "vista": "laterale"
+  }
+ ],
+ "titolo": "La torre del cielo"
+}

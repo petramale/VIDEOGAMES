@@ -1,0 +1,8 @@
+build/
+bin/
+*.o
+*.exe
+Makefile.win
+*.layout
+claude_chiave.txt
+*.opzioni
