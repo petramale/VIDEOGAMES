@@ -144,7 +144,7 @@ void Gioco::AggiornaBoss(Oggetto& o, float dt, Rectangle box) {
 
     Rectangle r = BoxOggetto(o);
     if (Sovrappone(box, r)) {
-        if (modello == Modello::Platform && eroe.vel.y > 40 && eroe.pos.y < r.y + 10) {
+        if (Laterale() && eroe.vel.y > 40 && eroe.pos.y < r.y + 10) {
             Colpito(o, 1);
             eroe.vel.y = -280;
         } else Ferisci(eroe.pos.x < o.pos.x ? -180.0f : 180.0f);

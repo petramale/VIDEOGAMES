@@ -4,6 +4,7 @@
 // foresta e lucciole. Nessuna immagine esterna: tutto e' disegnato dal codice.
 #pragma once
 #include "comune.h"
+#include "mondo.h"
 
 struct TemaSfondo {
     const char* nome;
@@ -19,7 +20,15 @@ public:
     static const std::vector<TemaSfondo>& Temi();
 
     void Aggiorna(float dt) { tempo += dt; }
-    void Disegna(float camX) const;
+    // dy: di quanto la telecamera e' salita rispetto al fondo della mappa (gli strati scendono).
+    void Disegna(float camX, float dy = 0) const;
+    void DisegnaPrimoPiano(float camX, float dy = 0) const;
+
+    // Scenario personalizzato (nuovo formato): cielo, strati, oppure solo quello generato.
+    bool generato = true;
+    bool cieloPersonale = false;
+    Color cieloAlto = Hex(0x3f8ff0), cieloBasso = Hex(0xb9e3ff);
+    std::vector<StratoSfondo> strati;
     Color ColoreOrizzonte() const;
     float Notte() const;      // 0 di giorno, 1 a notte fonda
 
@@ -28,5 +37,7 @@ private:
     void Cielo(Color& alto, Color& basso) const;
     void Montagne(float camX, int strato, Color colore, float fattore, float base, float ampiezza, float scala) const;
     void Nuvole(float camX) const;
-    void Foresta(float camX, Color colore) const;
+    void Foresta(float camX, Color colore, float dy = 0) const;
+    void DisegnaStrato(const StratoSfondo& s, float camX, float dy) const;
+    void Astri() const;
 };

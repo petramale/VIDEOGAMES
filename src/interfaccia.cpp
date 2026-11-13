@@ -74,3 +74,11 @@ bool PulsanteAudio(Rectangle r, const std::string& fileOpzioni) {
     }
     return cambia;
 }
+
+Rectangle PostoAudioLibero(Rectangle area) {
+    float s = Limita(area.height * 0.06f, 24, 48);
+    float destra = GetScreenWidth() - (area.x + area.width);
+    if (destra >= 30) { float t = std::min(s, destra - 6); return { area.x + area.width + (destra - t) / 2, area.y + 6, t, t }; }
+    if (area.y >= s + 8) return { area.x + area.width - s - 6, (area.y - s) / 2, s, s };
+    return AngoloAudio(area, false);
+}

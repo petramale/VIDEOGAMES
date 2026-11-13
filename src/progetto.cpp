@@ -10,6 +10,8 @@ const char* NomeModello(Modello m) {
         case Modello::Sparatutto: return "Sparatutto";
         case Modello::Labirinto: return "Labirinto";
         case Modello::Puzzle: return "Puzzle";
+        case Modello::OpenWorld: return "Open world";
+        case Modello::Avventura: return "Avventura";
         default: return "";
     }
 }
@@ -19,6 +21,8 @@ const char* ChiaveModello(Modello m) {
         case Modello::Sparatutto: return "sparatutto";
         case Modello::Labirinto: return "labirinto";
         case Modello::Puzzle: return "puzzle";
+        case Modello::OpenWorld: return "openworld";
+        case Modello::Avventura: return "avventura";
         default: return "platform";
     }
 }

@@ -9,6 +9,7 @@
 #include "livello.h"
 #include "particelle.h"
 #include "progetto.h"
+#include "mondo.h"
 
 struct Comandi {
     float asse = 0;                 // -1 sinistra .. 1 destra (anche analogico)
@@ -33,10 +34,12 @@ Rectangle BoxOggetto(const Oggetto& o);
 
 class Gioco {
 public:
+    // Accetta il JSON del nuovo formato e il vecchio testo a caratteri.
     bool Carica(const std::string& testoLivello, std::string& errore);
+    bool CaricaMondo(const Mondo& m, std::string& errore);
     void Aggiorna(float dt, const Comandi& c);
     void Disegna();
-    void Ricomincia() { std::string e; Carica(sorgente, e); }
+    void Ricomincia() { std::string e; CaricaMondo(Mondo(mondo), e); }
 
     Sfondo sfondo;
     Eroe eroe;
@@ -63,6 +66,11 @@ public:
     bool vinto = false, finito = false;
 
     float CameraX() const { return camX; }
+    float CameraY() const { return camY; }
+    bool VistaAlto() const { return vistaAlto; }
+    const Mondo& MondoAttuale() const { return mondo; }
+    int MappaAttuale() const { return mappaAttuale; }
+    Telecamera telecamera;          // della mappa attuale (si puo' cambiare al volo)
     int GemmeTotali() const { return gemmeTotali; }
     bool UscitaAperta() const { return modello != Modello::Labirinto || gemme >= gemmeTotali; }
 
@@ -73,7 +81,11 @@ private:
     void FisicaSparatutto(float dt, const Comandi& c);
     void AggiornaProiettili(float dt);
     void AggiornaBoss(Oggetto& o, float dt, Rectangle box);
-    void AggiornaTelecamera(float dt);
+    void AggiornaTelecamera(float dt, bool subito = false);
+    bool EntraMappa(int indice, Vector2 arrivo, std::string& errore);
+    void VaiAMappa(int indice, Vector2 arrivo);
+    bool Laterale() const { return !vistaAlto && modello != Modello::Sparatutto; }
+    void DisegnaDecorazioni(float cx, float cy, bool primoPiano) const;
     void Spara(Vector2 da, Vector2 verso, float velocita, bool amico, Color c);
     void Colpito(Oggetto& o, int danno);       // un nemico preso da un colpo o schiacciato
     bool CassaIn(int tx, int ty) const;
@@ -87,7 +99,12 @@ private:
     void DisegnaHud() const;
 
     Livello livello;
-    std::string sorgente;
+    Mondo mondo;
+    int mappaAttuale = 0, mappaVerso = -1, mappaDopoVittoria = -1;
+    Vector2 arrivoVerso{ -1, -1 };
+    float tTransizione = 0;         // dissolvenza tra una mappa e l'altra
+    bool portaBloccata = false;     // appena arrivati su una porta: non si riparte subito
+    bool vistaAlto = false;
     std::vector<Oggetto> oggetti;
     std::vector<Proiettile> proiettili;
     std::vector<std::vector<Oggetto>> storiaPuzzle; // per annullare le mosse

@@ -9,6 +9,8 @@
 bool PulsanteAudio(Rectangle r, const std::string& fileOpzioni);
 // Posizioni comode: in alto o in basso a destra dentro l'area di gioco.
 Rectangle AngoloAudio(Rectangle area, bool inBasso);
+// Fuori dall'immagine del gioco, nelle bande laterali o sopra, se c'e' spazio; altrimenti in alto a destra.
+Rectangle PostoAudioLibero(Rectangle area);
 
 // Opzioni audio (muto, volumi) lette e scritte in un piccolo file di testo.
 void CaricaOpzioniAudio(const std::string& file);

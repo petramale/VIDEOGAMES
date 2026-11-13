@@ -1,4 +1,6 @@
 #include "livello.h"
+#include "mondo.h"
+#include <cctype>
 #include <cstdlib>
 #include <sstream>
 
@@ -25,6 +27,54 @@ const char* NomeOggetto(TipoOggetto t) {
 
 const char* CaratteriOggetti() { return "ogmckebFhDrsBx123456789"; }
 
+bool OggettoDaCarattere(char c, TipoOggetto& t, bool& appoggiato) {
+    appoggiato = true;
+    switch (c) {
+        case 'o': t = TipoOggetto::Moneta; appoggiato = false; return true;
+        case 'g': t = TipoOggetto::Gemma; appoggiato = false; return true;
+        case 'm': t = TipoOggetto::Molla; return true;
+        case 'c': t = TipoOggetto::Forziere; return true;
+        case 'k': t = TipoOggetto::Lanterna; return true;
+        case 'e': t = TipoOggetto::Slime; return true;
+        case 'b': t = TipoOggetto::Pipistrello; appoggiato = false; return true;
+        case 'F': t = TipoOggetto::Bandiera; return true;
+        case 'h': t = TipoOggetto::Cuore; appoggiato = false; return true;
+        case 'D': t = TipoOggetto::Porta; return true;
+        case 'r': t = TipoOggetto::Fantasma; appoggiato = false; return true;
+        case 's': t = TipoOggetto::Torretta; return true;
+        case 'B': t = TipoOggetto::Boss; return true;
+        case 'x': t = TipoOggetto::Cassa; appoggiato = false; return true;
+        default:
+            if (c >= '1' && c <= '9') { t = TipoOggetto::Cartello; return true; }
+            return false;
+    }
+}
+
+std::string ChiaveOggetto(TipoOggetto t) {
+    std::string s = NomeOggetto(t);
+    for (auto& ch : s) ch = (char)std::tolower((unsigned char)ch);
+    return s;
+}
+
+bool TipoDaNome(const std::string& nome, TipoOggetto& t) {
+    std::string n = nome;
+    for (auto& ch : n) ch = (char)std::tolower((unsigned char)ch);
+    for (int i = 0; i < NUM_TIPI_OGGETTO; i++)
+        if (ChiaveOggetto((TipoOggetto)i) == n) { t = (TipoOggetto)i; return true; }
+    return false;
+}
+
+static Oggetto NuovoOggetto(TipoOggetto tipo, Vector2 pos, int numero, int seme) {
+    Oggetto o{};
+    o.tipo = tipo;
+    o.pos = o.origine = pos;
+    o.attivo = true;
+    o.numero = numero;
+    if (tipo == TipoOggetto::Boss && o.numero <= 0) o.numero = 9;
+    o.t = Hash1(seme) * 10;
+    return o;
+}
+
 bool Livello::Carica(const std::string& testo, std::string& errore) {
     std::vector<std::string> righe;
     std::stringstream ss(testo);
@@ -41,49 +91,51 @@ bool Livello::Carica(const std::string& testo, std::string& errore) {
     if (w < 10) { errore = "il livello e' troppo stretto"; return false; }
     celle.assign((size_t)w * h, ' ');
     oggetti.clear();
+    bordiChiusi = false;
     bool haPartenza = false;
     for (int y = 0; y < h; y++) {
         for (int x = 0; x < (int)righe[y].size(); x++) {
             char c = righe[y][x];
             Vector2 centro = { x * TILE + TILE / 2.0f, y * TILE + TILE / 2.0f };
             Vector2 base = { x * TILE + TILE / 2.0f, (y + 1) * TILE * 1.0f };
-            Oggetto o{};
-            o.attivo = true;
-            switch (c) {
-                case '#': case '=': case '-': case '^': case '.': celle[(size_t)y * w + x] = c; break;
-                case 'P': partenza = base; haPartenza = true; break;
-                case 'o': o.tipo = TipoOggetto::Moneta; o.pos = centro; break;
-                case 'g': o.tipo = TipoOggetto::Gemma; o.pos = centro; break;
-                case 'm': o.tipo = TipoOggetto::Molla; o.pos = base; break;
-                case 'c': o.tipo = TipoOggetto::Forziere; o.pos = base; break;
-                case 'k': o.tipo = TipoOggetto::Lanterna; o.pos = base; break;
-                case 'e': o.tipo = TipoOggetto::Slime; o.pos = base; break;
-                case 'b': o.tipo = TipoOggetto::Pipistrello; o.pos = centro; break;
-                case 'F': o.tipo = TipoOggetto::Bandiera; o.pos = base; break;
-                case 'h': o.tipo = TipoOggetto::Cuore; o.pos = centro; break;
-                case 'D': o.tipo = TipoOggetto::Porta; o.pos = base; break;
-                case 'r': o.tipo = TipoOggetto::Fantasma; o.pos = centro; break;
-                case 's': o.tipo = TipoOggetto::Torretta; o.pos = base; break;
-                case 'B': o.tipo = TipoOggetto::Boss; o.pos = base; o.numero = 9; break;
-                case 'x': o.tipo = TipoOggetto::Cassa; o.pos = centro; break;
-                default:
-                    if (c >= '1' && c <= '9') { o.tipo = TipoOggetto::Cartello; o.pos = base; o.numero = c - '0'; break; }
-                    continue;
-            }
-            if (std::string(CaratteriOggetti()).find(c) != std::string::npos) {
-                o.origine = o.pos;
-                o.t = Hash1(x * 31 + y) * 10;
-                oggetti.push_back(o);
-            }
+            TipoOggetto t;
+            bool appoggiato;
+            if (c == '#' || c == '=' || c == '-' || c == '^' || c == '.') celle[(size_t)y * w + x] = c;
+            else if (c == 'P') { partenza = base; haPartenza = true; }
+            else if (OggettoDaCarattere(c, t, appoggiato))
+                oggetti.push_back(NuovoOggetto(t, appoggiato ? base : centro, (c >= '1' && c <= '9') ? c - '0' : 0, x * 31 + y));
         }
     }
     if (!haPartenza) { errore = "manca la partenza (P)"; return false; }
     return true;
 }
 
+bool Livello::DaMappa(const Mappa& m, std::string& errore) {
+    w = m.larghezza; h = m.altezza;
+    if (w < 4 || h < 4) { errore = "la mappa e' troppo piccola"; return false; }
+    celle.assign((size_t)w * h, ' ');
+    for (int y = 0; y < h; y++)
+        for (int x = 0; x < w; x++) {
+            char c = m.Casella(x, y);
+            if (c == '#' || c == '=' || c == '-' || c == '^' || c == '.') celle[(size_t)y * w + x] = c;
+        }
+    oggetti.clear();
+    int i = 0;
+    for (auto& om : m.oggetti) {
+        TipoOggetto t;
+        if (!TipoDaNome(om.tipo, t)) continue;   // tipi sconosciuti: ignorati (versioni future)
+        Oggetto o = NuovoOggetto(t, { om.x, om.y }, om.numero, i++ * 7 + 3);
+        o.destMappa = om.mappa;
+        o.dest = { om.destX, om.destY };
+        oggetti.push_back(o);
+    }
+    partenza = m.partenza;
+    bordiChiusi = m.vista == Vista::Alto;
+    return true;
+}
 char Livello::Cella(int x, int y) const {
     if (x < 0 || x >= w) return '=';          // bordi laterali solidi
-    if (y < 0 || y >= h) return ' ';
+    if (y < 0 || y >= h) return bordiChiusi ? '=' : ' ';
     return celle[(size_t)y * w + x];
 }
 
@@ -182,7 +234,7 @@ void Livello::Disegna(float camX, float camY, float tempo, float notte, bool dal
     int y0 = (int)std::floor(camY / TILE) - 6, y1 = y0 + VH / TILE + 14;
     for (int ty = y0; ty <= y1; ty++)
         for (int tx = x0; tx <= x1; tx++)
-            if (Cella(tx, ty) != ' ' && tx >= 0 && tx < w)
+            if (Cella(tx, ty) != ' ' && tx >= 0 && tx < w && ty >= 0 && ty < h)
                 DisegnaTile(tx, ty, tx * TILE - camX, ty * TILE - camY, tempo, notte, dallAlto);
 }
 

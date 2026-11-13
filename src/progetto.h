@@ -14,7 +14,7 @@ struct ParametriFisica {
 };
 
 // Tipo di gioco: cambia regole, comandi e visuale.
-enum class Modello { Platform, Sparatutto, Labirinto, Puzzle, Totale };
+enum class Modello { Platform, Sparatutto, Labirinto, Puzzle, OpenWorld, Avventura, Totale };
 const char* NomeModello(Modello m);
 const char* ChiaveModello(Modello m);   // "platform", "sparatutto"...
 

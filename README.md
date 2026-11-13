@@ -87,6 +87,18 @@ strumenti/incorpora.cpp trasforma file binari in array C++
 librerie/               raylib 5.5 e nlohmann/json con le loro licenze
 ```
 
+## Nuovo motore (fase 1): mondi, mappe e strati
+
+La voce di menu **10. Nuovo motore: mondi** prova il nuovo formato dei giochi. Un gioco è un **mondo** in JSON (`"formato": "studio-videogiochi/2"`) fatto di una o più **mappe**:
+
+- dimensioni libere (fino a 1000×1000 caselle) e scroll in 4 direzioni;
+- vista `laterale` (con gravità) o `alto` (open world, avventura dall'alto);
+- telecamera `segui` (con zona morta e anticipo), `stanze`, `automatica` (direzione e velocità) o `fissa`; in gioco il tasto T le prova tutte;
+- cielo personalizzato e strati di sfondo in parallasse (`montagne`, `colline`, `foresta`, `nuvole`, `stelle`, `fascia`, `immagine`), anche in primo piano;
+- decorazioni e oggetti in posizione libera (pixel), porte che portano a un'altra mappa (`"mappa": 1, "destX", "destY"`).
+
+Nella schermata: Invio gioca, F2 salva il JSON nella cartella `mondi` accanto allo studio, C crea il `.exe`, F5 ricarica i `.json` della cartella `mondi` (anche scritti a mano o da Claude). Esempi pronti in `esempi/mondi/`. I vecchi livelli a caratteri si importano da soli. Verifica automatica: `StudioVideogiochi --verifica-mondi`.
+
 ## Formato dei livelli
 
 Un livello è un testo: ogni carattere è un tile da 16 pixel.

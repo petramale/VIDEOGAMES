@@ -14,6 +14,9 @@
 #include "editor.h"
 #include "gioco.h"
 #include "interfaccia.h"
+#include "immagini.h"
+#include "mondo.h"
+#include <cctype>
 #include "librerie.h"
 #include "pacchetto.h"
 #include "periferiche.h"
@@ -27,7 +30,7 @@
 
 namespace {
 
-enum class Schermata { Menu, Scenari, Personaggi, Oggetti, Audio, Logica, Librerie, Claude, Editor, Comandi };
+enum class Schermata { Menu, Scenari, Personaggi, Oggetti, Audio, Logica, Librerie, Claude, Editor, Comandi, Mondi };
 
 const char* SVILUPPATORE = "Mario Petramale";
 Texture2D gLogo{};   // logo Elvantis, disegnato a risoluzione piena
@@ -43,9 +46,10 @@ const VoceMenu VOCI[] = {
     { "Crea con Claude",        "Descrivi uno sprite o un livello: Claude lo crea",          Schermata::Claude },
     { "Editor + chat Claude",   "Disegna il tuo livello, provalo, crea il .exe. Claude lo modifica parlando con te nella chat", Schermata::Editor },
     { "Comandi e periferiche",  "Tastiera, mouse e joypad: cambia i tasti e prova i comandi dal vivo", Schermata::Comandi },
+    { "Nuovo motore: mondi",    "Anteprima del nuovo motore: mappe grandi, vista laterale e dall'alto, scroll in 4 direzioni, telecamera a scelta, porte fra mappe. Formato JSON", Schermata::Mondi },
 };
-constexpr int NUM_VOCI = 9;
-constexpr float MENU_Y = 84, MENU_PASSO = 19, MENU_H = 17;
+constexpr int NUM_VOCI = 10;
+constexpr float MENU_Y = 82, MENU_PASSO = 17, MENU_H = 15;
 
 struct PaletteEroe { const char* nome; AspettoEroe a; };
 std::vector<PaletteEroe> PaletteEroi() {
@@ -80,6 +84,8 @@ private:
     void DisegnaLibrerie();
     void AggiornaClaude(float dt);    void DisegnaClaude();
     void AggiornaComandi(float dt);   void DisegnaComandi();
+    void AggiornaMondi(float dt);     void DisegnaMondi();
+    void CaricaMondi();
 
     Schermata attuale = Schermata::Menu;
     int scelta = 0;
@@ -111,6 +117,13 @@ private:
     std::string livelloClaude, nomeLivelloClaude;
     Livello anteprimaLivello;
     Gioco giocoClaude;
+    // Mondi del nuovo motore
+    std::vector<Mondo> mondi;
+    std::vector<std::string> fileMondi;    // "" = mondo d'esempio, altrimenti il file .json
+    int sceltaMondo = 0;
+    bool giocaMondo = false;
+    float tAiutoMondo = 0;
+    Gioco giocoMondo;
     // Comandi
     int rigaComando = 0, colonnaComando = 0;
     bool attesaComando = false;
@@ -138,6 +151,7 @@ void Studio::Apri(Schermata s) {
     std::string err;
     if (s == Schermata::Oggetti) giocoOggetti.Carica(LivelloVetrinaOggetti(), err);
     if (s == Schermata::Editor) editor.Entra();
+    if (s == Schermata::Mondi) { CaricaMondi(); giocaMondo = false; }
     if (s == Schermata::Comandi) attesaComando = false;
 }
 
@@ -155,7 +169,7 @@ void Studio::AggiornaMenu(float dt) {
     sfondoMenu.ora = std::fmod(sfondoMenu.ora + dt / 90.0f, 1.0f);
     if (gInput.Premuto(Azione::Giu)) { scelta = (scelta + 1) % NUM_VOCI; gAudio.Suona(Effetto::Menu); }
     if (gInput.Premuto(Azione::Su)) { scelta = (scelta + NUM_VOCI - 1) % NUM_VOCI; gAudio.Suona(Effetto::Menu); }
-    for (int i = 0; i < NUM_VOCI; i++) if (IsKeyPressed(KEY_ONE + i)) { scelta = i; Apri(VOCI[i].schermata); return; }
+    for (int i = 0; i < NUM_VOCI; i++) if (IsKeyPressed(i < 9 ? KEY_ONE + i : KEY_ZERO)) { scelta = i; Apri(VOCI[i].schermata); return; }
     if (gInput.Premuto(Azione::Conferma)) { Apri(VOCI[scelta].schermata); return; }
     if (IsKeyPressed(KEY_ESCAPE)) esci = true;
 
@@ -197,8 +211,8 @@ void Studio::DisegnaMenu() {
         float sposta = sel ? 6 + std::sin(tempo * 6) * 1.5f : 0;
         r.x += sposta;
         Pannello(r, sel ? Hex(0x2a2f6a, 230) : Hex(0x101430, 190), sel ? Hex(0xffd23f) : Hex(0x3a4080));
-        Scritta(TextFormat("%d", i + 1), (int)r.x + 6, (int)r.y + 4, 10, sel ? Hex(0xffd23f) : Hex(0x8a90c0));
-        Scritta(VOCI[i].titolo, (int)r.x + 20, (int)r.y + 4, 10, sel ? WHITE : Hex(0xc8d0f0));
+        Scritta(TextFormat("%d", (i + 1) % 10), (int)r.x + 6, (int)r.y + 3, 10, sel ? Hex(0xffd23f) : Hex(0x8a90c0));
+        Scritta(VOCI[i].titolo, (int)r.x + 20, (int)r.y + 3, 10, sel ? WHITE : Hex(0xc8d0f0));
     }
     // Scheda descrittiva della voce scelta.
     Rectangle d = { 246, 84, 214, 152 };
@@ -799,6 +813,163 @@ void Studio::DisegnaComandi() {
                                                        : "Frecce: scegli  Invio o clic: cambia  Canc: cancella  Ctrl+R: predefiniti  Esc: menu");
 }
 
+// --- 10. Mondi del nuovo motore ----------------------------------------------
+
+// Nome di file senza spazi ne' simboli: "L'isola aperta" -> "LIsolaAperta".
+std::string NomeFile(const std::string& titolo) {
+    std::string n;
+    bool maiuscola = true;
+    for (unsigned char c : titolo) {
+        if (std::isalnum(c)) { n += maiuscola ? (char)std::toupper(c) : (char)c; maiuscola = false; }
+        else maiuscola = true;
+    }
+    return n.empty() ? std::string("Gioco") : n;
+}
+
+void Studio::CaricaMondi() {
+    mondi = MondiDiProva();
+    fileMondi.assign(mondi.size(), "");
+    // Anche i mondi salvati nella cartella "mondi" accanto allo studio (anche scritti a mano o da Claude).
+    std::string cartella = CartellaEseguibile() + "/mondi";
+    if (DirectoryExists(cartella.c_str())) {
+        FilePathList elenco = LoadDirectoryFilesEx(cartella.c_str(), ".json", false);
+        for (unsigned int i = 0; i < elenco.count; i++) {
+            char* testo = LoadFileText(elenco.paths[i]);
+            if (!testo) continue;
+            Mondo m;
+            std::string errore;
+            if (m.DaJson(testo, errore)) { mondi.push_back(m); fileMondi.push_back(elenco.paths[i]); }
+            else Messaggio(std::string(GetFileName(elenco.paths[i])) + ": " + errore);
+            UnloadFileText(testo);
+        }
+        UnloadDirectoryFiles(elenco);
+    }
+    sceltaMondo = (int)Limita((float)sceltaMondo, 0, (float)mondi.size() - 1);
+}
+
+void Studio::AggiornaMondi(float dt) {
+    if (mondi.empty()) { if (gInput.Premuto(Azione::Indietro)) attuale = Schermata::Menu; return; }
+    Mondo& m = mondi[sceltaMondo];
+    if (giocaMondo) {
+        tAiutoMondo -= dt;
+        if (IsKeyPressed(KEY_ESCAPE)) { giocaMondo = false; gAudio.ScegliBrano(0); gAudio.Suona(Effetto::Menu); return; }
+        if (IsKeyPressed(KEY_F1)) giocoMondo.mostraCollisioni = !giocoMondo.mostraCollisioni;
+        if (IsKeyPressed(KEY_F9)) giocoMondo.mostraFps = !giocoMondo.mostraFps;
+        if (IsKeyPressed(KEY_R) || (giocoMondo.finito && gInput.Premuto(Azione::Conferma))) giocoMondo.Ricomincia();
+        if (IsKeyPressed(KEY_T)) {
+            // Prova al volo le diverse telecamere sulla mappa attuale.
+            int modo = ((int)giocoMondo.telecamera.modo + 1) % (int)ModoTelecamera::Totale;
+            giocoMondo.telecamera.modo = (ModoTelecamera)modo;
+            if (giocoMondo.telecamera.modo == ModoTelecamera::Automatica && giocoMondo.telecamera.dirX == 0 && giocoMondo.telecamera.dirY == 0)
+                giocoMondo.telecamera.dirX = 1;
+            Messaggio(std::string("Telecamera: ") + NomeModoTelecamera(giocoMondo.telecamera.modo));
+        }
+        giocoMondo.Aggiorna(dt, Comandi::DaPeriferiche());
+        if (giocoMondo.musica != gAudio.BranoAttuale()) gAudio.ScegliBrano(giocoMondo.musica);
+        return;
+    }
+    if (gInput.Premuto(Azione::Indietro)) { attuale = Schermata::Menu; gAudio.Suona(Effetto::Menu); return; }
+    int n = (int)mondi.size();
+    if (gInput.Premuto(Azione::Giu)) { sceltaMondo = (sceltaMondo + 1) % n; gAudio.Suona(Effetto::Menu); }
+    if (gInput.Premuto(Azione::Su)) { sceltaMondo = (sceltaMondo + n - 1) % n; gAudio.Suona(Effetto::Menu); }
+    Vector2 mouse = gInput.Mouse();
+    bool clic = false;
+    for (int i = 0; i < n; i++) {
+        Rectangle r = { 12, 40.0f + i * 22, 196, 20 };
+        if (CheckCollisionPointRec(mouse, r) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+            if (sceltaMondo == i) clic = true;
+            sceltaMondo = i;
+        }
+    }
+    if (gInput.Premuto(Azione::Conferma) || clic) {
+        std::string errore;
+        giocoMondo = Gioco{};
+        if (giocoMondo.CaricaMondo(mondi[sceltaMondo], errore)) {
+            giocaMondo = true;
+            tAiutoMondo = 5;
+            gAudio.ScegliBrano(giocoMondo.musica);
+            gAudio.Suona(Effetto::Conferma);
+        } else Messaggio("Errore: " + errore);
+        return;
+    }
+    if (IsKeyPressed(KEY_F2)) {
+        std::string cartella = CartellaEseguibile() + "/mondi";
+        MakeDirectory(cartella.c_str());
+        std::string percorso = fileMondi[sceltaMondo].empty() ? cartella + "/" + NomeFile(m.titolo) + ".json" : fileMondi[sceltaMondo];
+        std::string testo = m.Json();
+        if (SaveFileText(percorso.c_str(), &testo[0])) Messaggio("Salvato " + std::string(GetFileName(percorso.c_str())) + " nella cartella mondi");
+        else Messaggio("Non riesco a salvare " + percorso);
+    }
+    if (IsKeyPressed(KEY_F5)) { CaricaMondi(); Messaggio(TextFormat("%d mondi caricati", (int)mondi.size())); }
+    if (IsKeyPressed(KEY_C)) {
+#ifdef _WIN32
+        std::string nome = NomeFile(m.titolo) + ".exe";
+#else
+        std::string nome = NomeFile(m.titolo);
+#endif
+        std::string errore;
+        DatiGioco dati{ m.titolo, m.Json(true) };
+        if (CreaEseguibile(CartellaEseguibile() + "/" + nome, SerializzaGioco(dati), errore)) { Messaggio("Creato " + nome + " accanto allo studio!"); gAudio.Suona(Effetto::Vittoria); }
+        else Messaggio("Errore: " + errore);
+    }
+}
+
+void Studio::DisegnaMondi() {
+    if (giocaMondo) {
+        giocoMondo.Disegna();
+        if (tAiutoMondo > 0) {
+            float k = Limita(tAiutoMondo, 0, 1);
+            DrawRectangle(0, VH - 14, VW, 14, Hex(0x0b0e22, (unsigned char)(200 * k)));
+            Scritta("T: cambia telecamera   F1: collisioni   F9: FPS   R: ricomincia   Esc: torna all'elenco", 6, VH - 12, 10, ConAlfa(Hex(0xc8d0f0), k));
+        }
+        return;
+    }
+    DrawRectangleGradientV(0, 0, VW, VH, Hex(0x0e1230), Hex(0x24124a));
+    Intestazione("NUOVO MOTORE: MONDI", "Invio: gioca   F2: salva JSON   C: crea il .exe   F5: ricarica   Esc: menu");
+    for (int i = 0; i < (int)mondi.size(); i++) {
+        Rectangle r = { 12, 40.0f + i * 22, 196, 20 };
+        bool sel = i == sceltaMondo;
+        Pannello(r, sel ? Hex(0x2a2f6a, 230) : Hex(0x101430, 190), sel ? Hex(0xffd23f) : Hex(0x3a4080));
+        Scritta(mondi[i].titolo.c_str(), (int)r.x + 6, (int)r.y + 5, 10, sel ? WHITE : Hex(0xc8d0f0));
+        if (!fileMondi[i].empty()) Scritta("json", (int)(r.x + r.width - 26), (int)r.y + 5, 10, Hex(0x8cff6a));
+    }
+    Scritta("Metti altri mondi .json nella cartella", 12, VH - 40, 10, Hex(0x8a90c0));
+    Scritta("\"mondi\" accanto allo studio (F5).", 12, VH - 28, 10, Hex(0x8a90c0));
+    if (mondi.empty()) return;
+    const Mondo& m = mondi[sceltaMondo];
+    Rectangle d = { 220, 26, 250, 228 };
+    Pannello(d, Hex(0x101430, 210), Hex(0x3a4080));
+    int y = (int)d.y + 8, x = (int)d.x + 8;
+    Scritta(m.titolo.c_str(), x, y, 10, Hex(0xffd23f)); y += 16;
+    Scritta(TextFormat("Genere: %s    Mappe: %d", NomeGenere(m.genere), (int)m.mappe.size()), x, y, 10, WHITE); y += 16;
+    for (size_t i = 0; i < m.mappe.size() && i < 4; i++) {
+        const Mappa& mp = m.mappe[i];
+        Scritta(TextFormat("%s: %dx%d caselle, vista %s", mp.nome.c_str(), mp.larghezza, mp.altezza, mp.vista == Vista::Alto ? "dall'alto" : "laterale"),
+                x, y, 10, Hex(0xc8d0f0)); y += 12;
+        Scritta(TextFormat("  %s, strati %d, oggetti %d", NomeModoTelecamera(mp.telecamera.modo), (int)mp.strati.size(), (int)mp.oggetti.size()),
+                x, y, 10, Hex(0x8a90c0)); y += 14;
+    }
+    // Minimappa della prima mappa.
+    const Mappa& mp = m.mappe[m.mappaIniziale];
+    float spazio = d.y + d.height - 8 - y;
+    float scala = std::min((d.width - 16) / mp.larghezza, spazio / mp.altezza);
+    scala = std::min(scala, 3.0f);
+    float ox = d.x + (d.width - mp.larghezza * scala) / 2, oy = (float)y + 2;
+    DrawRectangle((int)ox, (int)oy, (int)(mp.larghezza * scala), (int)(mp.altezza * scala), Hex(0x05081c));
+    for (int ty = 0; ty < mp.altezza; ty++)
+        for (int tx = 0; tx < mp.larghezza; tx++) {
+            char c = mp.Casella(tx, ty);
+            if (c == ' ') continue;
+            Color col = c == '#' ? Hex(0x5ac85a) : c == '=' ? Hex(0x8a90ac) : c == '-' ? Hex(0xc8904a) : c == '^' ? Hex(0xff6a6a) : Hex(0xffd23f);
+            DrawRectangleRec({ ox + tx * scala, oy + ty * scala, std::max(1.0f, scala), std::max(1.0f, scala) }, col);
+        }
+    for (auto& o : mp.oggetti) {
+        Color col = (o.tipo == "moneta" || o.tipo == "gemma") ? Hex(0xffe066) : (o.tipo == "porta" || o.tipo == "bandiera") ? Hex(0x5ef0ff) : Hex(0xff5c8a);
+        DrawRectangleRec({ ox + o.x / TILE * scala - 1, oy + o.y / TILE * scala - 1, 2, 2 }, col);
+    }
+    DrawRectangleRec({ ox + mp.partenza.x / TILE * scala - 1.5f, oy + mp.partenza.y / TILE * scala - 3, 3, 3 }, WHITE);
+}
+
 // --- Ciclo principale ----------------------------------------------------
 
 void Studio::Aggiorna(float dt) {
@@ -813,6 +984,7 @@ void Studio::Aggiorna(float dt) {
         return;
     }
     if (attuale == Schermata::Comandi) { AggiornaComandi(dt); return; }
+    if (attuale == Schermata::Mondi) { AggiornaMondi(dt); return; }
     bool indietro = attuale == Schermata::Claude ? (IsKeyPressed(KEY_ESCAPE) && !inserisciChiave) : gInput.Premuto(Azione::Indietro);
     if (attuale != Schermata::Menu && indietro && !(attuale == Schermata::Claude && provaLivello)) {
         attuale = Schermata::Menu; gAudio.Suona(Effetto::Menu); return;
@@ -853,6 +1025,7 @@ void Studio::Disegna() {
         case Schermata::Claude: DisegnaClaude(); break;
         case Schermata::Editor: editor.Disegna(); break;
         case Schermata::Comandi: DisegnaComandi(); break;
+        case Schermata::Mondi: DisegnaMondi(); break;
     }
     if (tMessaggio > 0) {
         int w = MeasureText(messaggio.c_str(), 10) + 16;
@@ -980,7 +1153,9 @@ int GiocaPacchetto(const DatiGioco& dati) {
     gioco.titolo = dati.titolo;
     gioco.crediti = std::string("Creato con Studio Videogiochi di ") + SVILUPPATORE;
     std::string errore;
+    ImpostaFileImmagini(dati.file);
     bool ok = gioco.Carica(dati.livello, errore);
+    if (ok && !gAudio.MusicaDaFile()) gAudio.ScegliBrano(gioco.musica);
     bool aperta = Presentazione(dati.titolo, std::string("Studio Videogiochi - Elvantis - sviluppatore ") + SVILUPPATORE, 2.6f);
     while (aperta && !WindowShouldClose()) {
         Rectangle area = AreaGioco({ 0, 0, 0, 0 });
@@ -991,6 +1166,7 @@ int GiocaPacchetto(const DatiGioco& dati) {
         if (ok && IsKeyPressed(KEY_R)) gioco.Carica(dati.livello, errore);
         gAudio.Aggiorna(GetFrameTime());
         if (ok) gioco.Aggiorna(GetFrameTime(), Comandi::DaPeriferiche());
+        if (ok && !gAudio.MusicaDaFile() && gioco.musica != gAudio.BranoAttuale()) gAudio.ScegliBrano(gioco.musica);   // cambio di mappa
         BeginTextureMode(schermo);
         if (ok) gioco.Disegna();
         else { ClearBackground(BLACK); Scritta(("Dati del gioco non validi: " + errore).c_str(), 10, 10, 10, WHITE); }
@@ -998,7 +1174,7 @@ int GiocaPacchetto(const DatiGioco& dati) {
         BeginDrawing();
         ClearBackground(BLACK);
         DisegnaSchermo(schermo, area);
-        PulsanteAudio(AngoloAudio(area, true), opzioni);
+        PulsanteAudio(PostoAudioLibero(area), opzioni);
         EndDrawing();
     }
     UnloadRenderTexture(schermo);
@@ -1006,6 +1182,67 @@ int GiocaPacchetto(const DatiGioco& dati) {
     gAudio.Chiudi();
     CloseWindow();
     return 0;
+}
+
+// Controllo automatico dei mondi d'esempio (senza finestra): JSON avanti e indietro,
+// caricamento nel motore e, per le mappe viste dall'alto, che ogni oggetto sia raggiungibile.
+int VerificaMondi() {
+    int errori = 0;
+    for (auto& m : MondiDiProva()) {
+        std::string json = m.Json(), errore;
+        Mondo copia;
+        if (!copia.DaJson(json, errore)) { TraceLog(LOG_ERROR, "%s: JSON non riletto: %s", m.titolo.c_str(), errore.c_str()); errori++; continue; }
+        if (copia.Json() != json) { TraceLog(LOG_ERROR, "%s: il JSON cambia dopo la rilettura", m.titolo.c_str()); errori++; }
+        Gioco g;
+        if (!g.CaricaMondo(copia, errore)) { TraceLog(LOG_ERROR, "%s: %s", m.titolo.c_str(), errore.c_str()); errori++; continue; }
+        for (auto& mp : copia.mappe) {
+            if (mp.vista != Vista::Alto) continue;
+            // Visita in ampiezza dalle caselle libere della partenza.
+            std::vector<char> visto((size_t)mp.larghezza * mp.altezza, 0);
+            std::vector<std::pair<int, int>> coda;
+            auto Libera = [&](int x, int y) { char c = mp.Casella(x, y); return x >= 0 && y >= 0 && x < mp.larghezza && y < mp.altezza && c != '#' && c != '='; };
+            int sx = (int)(mp.partenza.x / TILE), sy = (int)((mp.partenza.y - 1) / TILE);
+            coda.push_back({ sx, sy }); visto[(size_t)sy * mp.larghezza + sx] = 1;
+            for (size_t i = 0; i < coda.size(); i++) {
+                int dx[4] = { 1, -1, 0, 0 }, dy[4] = { 0, 0, 1, -1 };
+                for (int k = 0; k < 4; k++) {
+                    int x = coda[i].first + dx[k], y = coda[i].second + dy[k];
+                    if (Libera(x, y) && !visto[(size_t)y * mp.larghezza + x]) { visto[(size_t)y * mp.larghezza + x] = 1; coda.push_back({ x, y }); }
+                }
+            }
+            int irraggiungibili = 0;
+            for (auto& o : mp.oggetti) {
+                int x = (int)(o.x / TILE), y = (int)((o.y - 1) / TILE);
+                if (x < 0 || y < 0 || x >= mp.larghezza || y >= mp.altezza || !visto[(size_t)y * mp.larghezza + x]) {
+                    TraceLog(LOG_WARNING, "%s / %s: %s in %d,%d non raggiungibile", m.titolo.c_str(), mp.nome.c_str(), o.tipo.c_str(), x, y);
+                    irraggiungibili++;
+                }
+            }
+            errori += irraggiungibili;
+            TraceLog(LOG_INFO, "%s / %s: %d caselle raggiungibili, %d oggetti", m.titolo.c_str(), mp.nome.c_str(), (int)coda.size(), (int)mp.oggetti.size());
+        }
+        TraceLog(LOG_INFO, "%s: ok (%d mappe, JSON %d byte)", m.titolo.c_str(), (int)m.mappe.size(), (int)json.size());
+    }
+    // Porta fra due mappe: l'eroe cammina verso destra e deve arrivare nella seconda mappa.
+    {
+        Mondo w;
+        w.genere = Genere::OpenWorld;
+        for (int i = 0; i < 2; i++) { Mappa m; m.Nuova(16, 10, Vista::Alto); m.nome = i ? "B" : "A"; w.mappe.push_back(m); }
+        OggettoMappa p; p.tipo = "porta"; p.x = 7 * TILE + 8; p.y = 4 * TILE; p.mappa = 1; p.destX = 3 * TILE + 8; p.destY = 6 * TILE + 14;
+        w.mappe[0].oggetti.push_back(p);
+        w.mappe[0].partenza = { 3 * TILE + 8, 3 * TILE + 14 };
+        Gioco g;
+        std::string errore;
+        g.CaricaMondo(w, errore);
+        Comandi c; c.asse = 1;
+        for (int i = 0; i < 120 && g.MappaAttuale() == 0; i++) g.Aggiorna(1 / 60.0f, c);
+        Comandi fermo;
+        for (int i = 0; i < 60; i++) g.Aggiorna(1 / 60.0f, fermo);
+        if (g.MappaAttuale() != 1) { TraceLog(LOG_ERROR, "La porta non porta alla seconda mappa"); errori++; }
+        else TraceLog(LOG_INFO, "Porta fra mappe: ok");
+    }
+    TraceLog(errori ? LOG_ERROR : LOG_INFO, "Verifica finita: %d problemi", errori);
+    return errori ? 1 : 0;
 }
 
 int CreaDaRigaDiComando(int argc, char** argv) {
@@ -1029,6 +1266,12 @@ int CreaDaRigaDiComando(int argc, char** argv) {
 
 int main(int argc, char** argv) {
     if (argc > 1 && std::string(argv[1]) == "--crea") return CreaDaRigaDiComando(argc, argv);
+    if (argc > 1 && std::string(argv[1]) == "--verifica-mondi") return VerificaMondi();
+    if (argc > 2 && std::string(argv[1]) == "--esporta-mondi") {
+        MakeDirectory(argv[2]);
+        for (auto& m : MondiDiProva()) { std::string t = m.Json(); SaveFileText((std::string(argv[2]) + "/" + NomeFile(m.titolo) + ".json").c_str(), &t[0]); }
+        return 0;
+    }
     if (argc > 2 && std::string(argv[1]) == "--esporta-audio") return gAudio.EsportaWav(argv[2]) ? 0 : 1;
 
     std::string dati;
@@ -1072,7 +1315,7 @@ int main(int argc, char** argv) {
         DisegnaSchermo(schermo, area);
         studio.DisegnaSopra(area);
         if (studio.ChatVisibile()) studio.editor.DisegnaChat(chat);
-        PulsanteAudio(studio.ChatVisibile() ? Rectangle{ chat.x + chat.width - 50, chat.y + 8, 40, 40 } : AngoloAudio(area, false), opzioni);
+        PulsanteAudio(studio.ChatVisibile() ? Rectangle{ chat.x + chat.width - 50, chat.y + 8, 40, 40 } : PostoAudioLibero(area), opzioni);
         EndDrawing();
     }
     UnloadRenderTexture(schermo);
