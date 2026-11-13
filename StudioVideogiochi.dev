@@ -28,7 +28,7 @@ Folders=raylib,studio
 IncludeVersionInfo=0
 SupportXPThemes=0
 CompilerSet=0
-UnitCount=40
+UnitCount=42
 
 [Unit1]
 FileName=src\audio.cpp
@@ -430,3 +430,23 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
+
+[Unit41]
+FileName=src\interfaccia.cpp
+CompileCpp=1
+Folder=studio
+Compile=1
+Link=1
+Priority=1000
+OverrideBuildCmd=0
+BuildCmd=
+
+[Unit42]
+FileName=src\interfaccia.h
+CompileCpp=1
+Folder=studio
+Compile=0
+Link=0
+Priority=1000
+OverrideBuildCmd=0
+BuildCmd=
