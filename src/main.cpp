@@ -12,6 +12,8 @@
 #include "audio.h"
 #include "claude.h"
 #include "editor.h"
+#include "editor_mondo.h"
+#include "claude_mondo.h"
 #include "gioco.h"
 #include "interfaccia.h"
 #include "immagini.h"
@@ -30,7 +32,7 @@
 
 namespace {
 
-enum class Schermata { Menu, Scenari, Personaggi, Oggetti, Audio, Logica, Librerie, Claude, Editor, Comandi, Mondi };
+enum class Schermata { Menu, Scenari, Personaggi, Oggetti, Audio, Logica, Librerie, Claude, Editor, Comandi, Mondi, EditorMondi };
 
 const char* SVILUPPATORE = "Mario Petramale";
 Texture2D gLogo{};   // logo Elvantis, disegnato a risoluzione piena
@@ -44,7 +46,7 @@ const VoceMenu VOCI[] = {
     { "Logica di gioco",        "Livello completo: collisioni, scroll, nemici. Crea il .exe",Schermata::Logica },
     { "Librerie",               "Le librerie open-source incluse e le loro licenze",         Schermata::Librerie },
     { "Crea con Claude",        "Descrivi uno sprite o un livello: Claude lo crea",          Schermata::Claude },
-    { "Editor + chat Claude",   "Disegna il tuo livello, provalo, crea il .exe. Claude lo modifica parlando con te nella chat", Schermata::Editor },
+    { "Editor dei mondi",       "Il nuovo editor: menu, pannelli, mappe con scroll e zoom, strati dello sfondo, immagini, porte fra mappe. Claude modifica il mondo parlando con te", Schermata::EditorMondi },
     { "Comandi e periferiche",  "Tastiera, mouse e joypad: cambia i tasti e prova i comandi dal vivo", Schermata::Comandi },
     { "Nuovo motore: mondi",    "Anteprima del nuovo motore: mappe grandi, vista laterale e dall'alto, scroll in 4 direzioni, telecamera a scelta, porte fra mappe. Formato JSON", Schermata::Mondi },
 };
@@ -69,6 +71,10 @@ public:
     void DisegnaSopra(Rectangle area);   // a risoluzione piena, sopra l'immagine del gioco
     bool ChatVisibile() const { return attuale == Schermata::Editor && editor.ChatAperta(); }
     Editor editor;
+    EditorMondo editorMondo;
+    bool NuovoEditor() const { return attuale == Schermata::EditorMondi; }
+    void TornaAlMenu() { editorMondo.Esci(); attuale = Schermata::Menu; gAudio.Suona(Effetto::Menu);
+        if (editorMondo.vuoleClassico) { editorMondo.vuoleClassico = false; Apri(Schermata::Editor); } }
     bool esci = false;
 
 private:
@@ -142,6 +148,7 @@ void Studio::Avvia() {
     sfondoMenu.ora = 0.72f;
     cfg = ConfigClaude::Carica();
     editor.Inizializza();
+    editorMondo.Inizializza();
 }
 
 void Studio::Apri(Schermata s) {
@@ -151,6 +158,7 @@ void Studio::Apri(Schermata s) {
     std::string err;
     if (s == Schermata::Oggetti) giocoOggetti.Carica(LivelloVetrinaOggetti(), err);
     if (s == Schermata::Editor) editor.Entra();
+    if (s == Schermata::EditorMondi) editorMondo.Entra();
     if (s == Schermata::Mondi) { CaricaMondi(); giocaMondo = false; }
     if (s == Schermata::Comandi) attesaComando = false;
 }
@@ -229,7 +237,7 @@ void Studio::DisegnaMenu() {
             break;
         }
         case Schermata::Claude: fantasma.Disegna(c, 3, tempo); break;
-        case Schermata::Editor: {
+        case Schermata::Editor: case Schermata::EditorMondi: {
             // Mini mappa che si costruisce da sola.
             for (int i = 0; i < 12; i++) {
                 int h = 1 + (int)(Rumore1(i * 0.7f) * 3);
@@ -549,13 +557,12 @@ void Studio::AggiornaClaude(float dt) {
             gAudio.Suona(Effetto::Gemma);
         }
         if (IsKeyPressed(KEY_F3) && !livelloClaude.empty()) {
-            Progetto p;
+            Mondo w;
             std::string e;
-            if (p.DaTesto(livelloClaude, e)) {
-                p.titolo = nomeLivelloClaude.empty() ? "Livello di Claude" : nomeLivelloClaude;
-                p.ora = 0.85f;
-                editor.Apri(p, "Livello di Claude aperto nell'editor");
-                Apri(Schermata::Editor);
+            if (w.Carica(livelloClaude, e)) {
+                w.titolo = nomeLivelloClaude.empty() ? "Livello di Claude" : nomeLivelloClaude;
+                editorMondo.Apri(w, "", "Livello di Claude aperto nell'editor dei mondi");
+                Apri(Schermata::EditorMondi);
                 return;
             }
             esito = "Livello non valido: " + e;
@@ -815,17 +822,6 @@ void Studio::DisegnaComandi() {
 
 // --- 10. Mondi del nuovo motore ----------------------------------------------
 
-// Nome di file senza spazi ne' simboli: "L'isola aperta" -> "LIsolaAperta".
-std::string NomeFile(const std::string& titolo) {
-    std::string n;
-    bool maiuscola = true;
-    for (unsigned char c : titolo) {
-        if (std::isalnum(c)) { n += maiuscola ? (char)std::toupper(c) : (char)c; maiuscola = false; }
-        else maiuscola = true;
-    }
-    return n.empty() ? std::string("Gioco") : n;
-}
-
 void Studio::CaricaMondi() {
     mondi = MondiDiProva();
     fileMondi.assign(mondi.size(), "");
@@ -895,20 +891,21 @@ void Studio::AggiornaMondi(float dt) {
     if (IsKeyPressed(KEY_F2)) {
         std::string cartella = CartellaEseguibile() + "/mondi";
         MakeDirectory(cartella.c_str());
-        std::string percorso = fileMondi[sceltaMondo].empty() ? cartella + "/" + NomeFile(m.titolo) + ".json" : fileMondi[sceltaMondo];
+        std::string percorso = fileMondi[sceltaMondo].empty() ? cartella + "/" + NomeFileDaTitolo(m.titolo) + ".json" : fileMondi[sceltaMondo];
         std::string testo = m.Json();
         if (SaveFileText(percorso.c_str(), &testo[0])) Messaggio("Salvato " + std::string(GetFileName(percorso.c_str())) + " nella cartella mondi");
         else Messaggio("Non riesco a salvare " + percorso);
     }
+    if (IsKeyPressed(KEY_E)) { editorMondo.Apri(m, fileMondi[sceltaMondo], "Aperto: " + m.titolo); Apri(Schermata::EditorMondi); return; }
     if (IsKeyPressed(KEY_F5)) { CaricaMondi(); Messaggio(TextFormat("%d mondi caricati", (int)mondi.size())); }
     if (IsKeyPressed(KEY_C)) {
 #ifdef _WIN32
-        std::string nome = NomeFile(m.titolo) + ".exe";
+        std::string nome = NomeFileDaTitolo(m.titolo) + ".exe";
 #else
-        std::string nome = NomeFile(m.titolo);
+        std::string nome = NomeFileDaTitolo(m.titolo);
 #endif
         std::string errore;
-        DatiGioco dati{ m.titolo, m.Json(true) };
+        DatiGioco dati{ m.titolo, m.Json(true), {} };
         if (CreaEseguibile(CartellaEseguibile() + "/" + nome, SerializzaGioco(dati), errore)) { Messaggio("Creato " + nome + " accanto allo studio!"); gAudio.Suona(Effetto::Vittoria); }
         else Messaggio("Errore: " + errore);
     }
@@ -925,7 +922,7 @@ void Studio::DisegnaMondi() {
         return;
     }
     DrawRectangleGradientV(0, 0, VW, VH, Hex(0x0e1230), Hex(0x24124a));
-    Intestazione("NUOVO MOTORE: MONDI", "Invio: gioca   F2: salva JSON   C: crea il .exe   F5: ricarica   Esc: menu");
+    Intestazione("NUOVO MOTORE: MONDI", "Invio: gioca   E: modifica   F2: salva JSON   C: exe   F5: ricarica   Esc: menu");
     for (int i = 0; i < (int)mondi.size(); i++) {
         Rectangle r = { 12, 40.0f + i * 22, 196, 20 };
         bool sel = i == sceltaMondo;
@@ -975,6 +972,7 @@ void Studio::DisegnaMondi() {
 void Studio::Aggiorna(float dt) {
     tempo += dt;
     if (tMessaggio > 0) tMessaggio -= dt;
+    if (attuale == Schermata::EditorMondi) return;   // il nuovo editor lavora a risoluzione piena (vedi main)
     bool scrivendo = (attuale == Schermata::Claude && (!provaLivello || inserisciChiave)) || (attuale == Schermata::Editor && editor.Scrivendo())
                   || (attuale == Schermata::Comandi && attesaComando);
     if (IsKeyPressed(KEY_M) && !scrivendo) gAudio.MusicaAttiva(!gAudio.MusicaAttiva());
@@ -1024,6 +1022,7 @@ void Studio::Disegna() {
         case Schermata::Librerie: DisegnaLibrerie(); break;
         case Schermata::Claude: DisegnaClaude(); break;
         case Schermata::Editor: editor.Disegna(); break;
+        case Schermata::EditorMondi: break;
         case Schermata::Comandi: DisegnaComandi(); break;
         case Schermata::Mondi: DisegnaMondi(); break;
     }
@@ -1241,6 +1240,83 @@ int VerificaMondi() {
         if (g.MappaAttuale() != 1) { TraceLog(LOG_ERROR, "La porta non porta alla seconda mappa"); errori++; }
         else TraceLog(LOG_INFO, "Porta fra mappe: ok");
     }
+    // Risposte di Claude d'esempio: le azioni si applicano come nell'editor.
+    {
+        int prima = errori;
+        auto Prova = [&](const char* nome, bool ok) {
+            if (!ok) { TraceLog(LOG_ERROR, "Claude: %s FALLITO", nome); errori++; }
+            else TraceLog(LOG_INFO, "Claude: %s ok", nome);
+        };
+        Mondo base;
+        { Mappa m; m.Nuova(40, 15, Vista::Laterale); m.nome = "Prato"; base.mappe.push_back(m); }
+        // 1. Impostazioni del mondo e fisica (con limiti).
+        {
+            Mondo w = base;
+            EsitoClaude e = ApplicaRispostaClaude(w, 0, R"({"risposta":"Fatto!","azioni":[{"tipo":"mondo","modifiche":{"titolo":"Corsa nel cielo","genere":"sparatutto","fisica":{"salto":5000}}}]})");
+            Prova("mondo", e.modificato && w.titolo == "Corsa nel cielo" && w.genere == Genere::Sparatutto && w.fisica.salto <= 600 && w.mappe.size() == 1 && e.risposta == "Fatto!");
+        }
+        // 2. Proprieta' della mappa e strati dello sfondo.
+        {
+            Mondo w = base;
+            EsitoClaude e = ApplicaRispostaClaude(w, 0, R"({"risposta":"Tramonto","azioni":[{"tipo":"mappa","modifiche":{"ora":0.74,"cicloGiorno":false,"telecamera":{"modo":"automatica","velocita":50},
+                "strati":[{"nome":"Monti","tipo":"montagne","colore":"#6a3a8a","parallasseX":0.2},{"tipo":"nuvole","colore":"#ffffff"}]}}]})");
+            Prova("mappa e strati", e.modificato && w.mappe[0].strati.size() == 2 && w.mappe[0].strati[0].tipo == "montagne" && !w.mappe[0].cicloGiorno &&
+                  w.mappe[0].telecamera.modo == ModoTelecamera::Automatica && w.mappe[0].caselle.size() == 15);
+        }
+        // 3. Terreno a rettangoli e oggetti per casella.
+        {
+            Mondo w = base;
+            EsitoClaude e = ApplicaRispostaClaude(w, 0, R"({"risposta":"Piattaforme","azioni":[{"tipo":"rettangolo","x0":5,"y0":8,"x1":9,"y1":8,"casella":"-"},
+                {"tipo":"aggiungi","oggetti":[{"tipo":"moneta","cx":6,"cy":7},{"tipo":"Moneta","cx":7,"cy":7},{"tipo":"slime","cx":20,"cy":11}]}]})");
+            int monete = 0;
+            for (auto& o : w.mappe[0].oggetti) monete += o.tipo == "moneta";
+            Prova("rettangolo e oggetti", e.modificato && w.mappe[0].Casella(7, 8) == '-' && monete == 2 && w.mappe[0].oggetti.size() == 3);
+        }
+        // 4. Un'azione sbagliata viene scartata, le altre restano.
+        {
+            Mondo w = base;
+            EsitoClaude e = ApplicaRispostaClaude(w, 0, R"({"risposta":"Draghi","azioni":[{"tipo":"aggiungi","oggetti":[{"tipo":"drago","cx":3,"cy":3}]},{"tipo":"rettangolo","x0":0,"y0":0,"x1":2,"y1":0,"casella":"="},{"tipo":"vola"}]})");
+            Prova("azioni sbagliate scartate", e.modificato && e.scartate.size() == 2 && w.mappe[0].oggetti.empty() && w.mappe[0].Casella(1, 0) == '=');
+        }
+        // 5. Nuova mappa collegata con una porta; l'editor la apre.
+        {
+            Mondo w = base;
+            EsitoClaude e = ApplicaRispostaClaude(w, 0, R"({"risposta":"Grotta","azioni":[{"tipo":"nuovaMappa","mappa":{"nome":"Grotta","larghezza":30,"altezza":20,"vista":"alto","caselle":[]}},
+                {"tipo":"aggiungi","mappa":0,"oggetti":[{"tipo":"porta","cx":30,"cy":11,"mappa":1}]}]})");
+            Prova("nuova mappa con porta", e.modificato && w.mappe.size() == 2 && w.mappe[1].vista == Vista::Alto && w.mappe[1].larghezza == 30 && e.apriMappa == 1 &&
+                  w.mappe[0].oggetti.size() == 1 && w.mappe[0].oggetti[0].mappa == 1);
+        }
+        // 6. Risultato non valido (porta verso una mappa che non c'e'): nessuna modifica.
+        {
+            Mondo w = base;
+            EsitoClaude e = ApplicaRispostaClaude(w, 0, R"({"risposta":"Porta","azioni":[{"tipo":"aggiungi","oggetti":[{"tipo":"porta","cx":4,"cy":11,"mappa":7}]}]})");
+            Prova("risultato non valido rifiutato", !e.modificato && w.mappe[0].oggetti.empty() && !e.scartate.empty());
+        }
+        // 7. JSON dentro un blocco di testo, e solo testo.
+        {
+            Mondo w = base;
+            EsitoClaude e = ApplicaRispostaClaude(w, 0, "Ecco qui:\n```json\n{\"risposta\":\"Ok\",\"azioni\":[{\"tipo\":\"rimuovi\",\"oggettiTipo\":\"tutti\"},{\"tipo\":\"mappa\",\"modifiche\":{\"nome\":\"Valle\"}}]}\n```");
+            Prova("JSON fra le righe", e.modificato && w.mappe[0].nome == "Valle");
+            EsitoClaude t = ApplicaRispostaClaude(w, 0, "Certo, ti spiego come funzionano le porte.");
+            Prova("risposta solo a parole", !t.modificato && t.risposta.find("porte") != std::string::npos);
+        }
+        // 8. Togliere oggetti per tipo e per casella; caselle nuove con la loro misura.
+        {
+            Mondo w = base;
+            ApplicaRispostaClaude(w, 0, R"({"risposta":"","azioni":[{"tipo":"aggiungi","oggetti":[{"tipo":"moneta","cx":2,"cy":5},{"tipo":"gemma","cx":3,"cy":5},{"tipo":"slime","cx":10,"cy":11}]}]})");
+            EsitoClaude e = ApplicaRispostaClaude(w, 0, R"({"risposta":"Via","azioni":[{"tipo":"rimuovi","oggettiTipo":"slime"},{"tipo":"rimuovi","caselle":[[2,5]]}]})");
+            bool soloGemma = w.mappe[0].oggetti.size() == 1 && w.mappe[0].oggetti[0].tipo == "gemma";
+            EsitoClaude c = ApplicaRispostaClaude(w, 0, R"({"risposta":"Nuova","azioni":[{"tipo":"mappa","modifiche":{"caselle":["          ","          ","          ","          ","##########","##########"],"partenza":{"x":24,"y":64}}}]})");
+            Prova("rimuovi e ridisegna", e.modificato && soloGemma && c.modificato && w.mappe[0].larghezza == 10 && w.mappe[0].altezza == 6);
+        }
+        // 9. Lo stato mandato a Claude si rilegge.
+        {
+            std::string stato = StatoMondoPerClaude(MondiDiProva()[2], 1);
+            Prova("stato per Claude", stato.find("\"mappe\"") != std::string::npos && stato.size() < 200000);
+            Prova("istruzioni per Claude", PromptMondo().size() > 2000);
+        }
+        TraceLog(LOG_INFO, "Prove delle risposte di Claude: %d problemi", errori - prima);
+    }
     TraceLog(errori ? LOG_ERROR : LOG_INFO, "Verifica finita: %d problemi", errori);
     return errori ? 1 : 0;
 }
@@ -1269,7 +1345,7 @@ int main(int argc, char** argv) {
     if (argc > 1 && std::string(argv[1]) == "--verifica-mondi") return VerificaMondi();
     if (argc > 2 && std::string(argv[1]) == "--esporta-mondi") {
         MakeDirectory(argv[2]);
-        for (auto& m : MondiDiProva()) { std::string t = m.Json(); SaveFileText((std::string(argv[2]) + "/" + NomeFile(m.titolo) + ".json").c_str(), &t[0]); }
+        for (auto& m : MondiDiProva()) { std::string t = m.Json(); SaveFileText((std::string(argv[2]) + "/" + NomeFileDaTitolo(m.titolo) + ".json").c_str(), &t[0]); }
         return 0;
     }
     if (argc > 2 && std::string(argv[1]) == "--esporta-audio") return gAudio.EsportaWav(argv[2]) ? 0 : 1;
@@ -1302,6 +1378,15 @@ int main(int argc, char** argv) {
         gInput.Aggiorna(area.width / VW, { area.x, area.y });
         if (IsKeyPressed(KEY_F11)) ToggleBorderlessWindowed();
         gAudio.Aggiorna(dt);
+        if (studio.NuovoEditor()) {
+            // Il nuovo editor si disegna direttamente nella finestra, a risoluzione piena.
+            BeginDrawing();
+            studio.editorMondo.Frame(dt);
+            PulsanteAudio(studio.editorMondo.PostoAudio(), opzioni);
+            EndDrawing();
+            if (studio.editorMondo.vuoleUscire) studio.TornaAlMenu();
+            continue;
+        }
         studio.Aggiorna(dt);
         if (studio.ChatVisibile()) studio.editor.AggiornaChat(PannelloChat(true));
         BeginTextureMode(schermo);

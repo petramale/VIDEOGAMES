@@ -233,7 +233,7 @@ std::string ChatClaude::PromptSistema() {
         "dillo con gentilezza nella risposta e proponi l'alternativa piu' vicina.";
 }
 
-void ChatClaude::Invia(const ConfigClaude& cfg, const std::string& richiesta, const std::string& statoProgettoJson) {
+void ChatClaude::Invia(const ConfigClaude& cfg, const std::string& richiesta, const std::string& statoProgettoJson, const std::string& prompt) {
     MessaggioChat m{ true, richiesta, "Stato attuale del progetto:\n" + statoProgettoJson + "\n\nRichiesta: " + richiesta };
     storia.push_back(m);
     json messaggi = json::array();
@@ -249,7 +249,7 @@ void ChatClaude::Invia(const ConfigClaude& cfg, const std::string& richiesta, co
         { "model", cfg.modello },
         { "max_tokens", 16000 },
         { "output_config", { { "effort", "medium" } } },
-        { "system", PromptSistema() },
+        { "system", prompt.empty() ? PromptSistema() : prompt },
         { "messages", messaggi },
     };
     std::string intestazioni =

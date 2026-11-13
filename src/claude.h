@@ -45,7 +45,8 @@ struct MessaggioChat {
 class ChatClaude {
 public:
     std::vector<MessaggioChat> storia;
-    void Invia(const ConfigClaude& cfg, const std::string& richiesta, const std::string& statoProgettoJson);
+    // prompt vuoto = quello del vecchio editor a caratteri.
+    void Invia(const ConfigClaude& cfg, const std::string& richiesta, const std::string& statoProgettoJson, const std::string& prompt = "");
     int Stato() const;                    // come Claude::Stato
     std::string RispostaGrezza() const;   // testo della risposta (JSON) o errore
     static std::string PromptSistema();

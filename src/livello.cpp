@@ -213,13 +213,13 @@ void Livello::DisegnaTile(int tx, int ty, float sx, float sy, float tempo, float
     }
 }
 
-void Livello::DisegnaPavimento(float camX, float camY, int tema) const {
+void Livello::DisegnaPavimento(float camX, float camY, int tema, float larghezza, float altezza, bool pulisci) const {
     static const unsigned int colori[][2] = { { 0x3a5a3a, 0x345234 }, { 0x8a6a4a, 0x7e6044 }, { 0x6a7a9a, 0x62708e },
                                               { 0x3a2a30, 0x34262c }, { 0x2e2a40, 0x29263a }, { 0x101428, 0x0e1224 }, { 0x2a2620, 0x25221c } };
     int k = tema < 0 || tema > 6 ? 0 : tema;
-    ClearBackground(Hex(colori[k][1]));
-    int x0 = (int)std::floor(camX / TILE) - 6, x1 = x0 + VW / TILE + 14;
-    int y0 = (int)std::floor(camY / TILE) - 6, y1 = y0 + VH / TILE + 14;
+    if (pulisci) ClearBackground(Hex(colori[k][1]));
+    int x0 = (int)std::floor(camX / TILE) - 6, x1 = x0 + (int)(larghezza / TILE) + 14;
+    int y0 = (int)std::floor(camY / TILE) - 6, y1 = y0 + (int)(altezza / TILE) + 14;
     for (int ty = y0; ty <= y1; ty++)
         for (int tx = x0; tx <= x1; tx++) {
             int x = (int)std::round(tx * TILE - camX), y = (int)std::round(ty * TILE - camY);
@@ -229,9 +229,9 @@ void Livello::DisegnaPavimento(float camX, float camY, int tema) const {
         }
 }
 
-void Livello::Disegna(float camX, float camY, float tempo, float notte, bool dallAlto) const {
-    int x0 = (int)std::floor(camX / TILE) - 6, x1 = x0 + VW / TILE + 14;
-    int y0 = (int)std::floor(camY / TILE) - 6, y1 = y0 + VH / TILE + 14;
+void Livello::Disegna(float camX, float camY, float tempo, float notte, bool dallAlto, float larghezza, float altezza) const {
+    int x0 = (int)std::floor(camX / TILE) - 6, x1 = x0 + (int)(larghezza / TILE) + 14;
+    int y0 = (int)std::floor(camY / TILE) - 6, y1 = y0 + (int)(altezza / TILE) + 14;
     for (int ty = y0; ty <= y1; ty++)
         for (int tx = x0; tx <= x1; tx++)
             if (Cella(tx, ty) != ' ' && tx >= 0 && tx < w && ty >= 0 && ty < h)

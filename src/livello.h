@@ -48,6 +48,7 @@ public:
     bool Carica(const std::string& testo, std::string& errore);
     bool DaMappa(const Mappa& m, std::string& errore);   // nuovo formato
     char Cella(int x, int y) const;
+    void ImpostaCella(int x, int y, char c) { if (x >= 0 && y >= 0 && x < w && y < h) celle[(size_t)y * w + x] = c; }
     bool Solido(int x, int y) const { char c = Cella(x, y); return c == '#' || c == '='; }
     bool Piattaforma(int x, int y) const { return Cella(x, y) == '-'; }
     bool Spina(int x, int y) const { return Cella(x, y) == '^'; }
@@ -56,9 +57,9 @@ public:
     int Altezza() const { return h; }
     Vector2 Partenza() const { return partenza; }
     const std::vector<Oggetto>& Oggetti() const { return oggetti; }
-    void Disegna(float camX, float camY, float tempo, float notte, bool dallAlto = false) const;
+    void Disegna(float camX, float camY, float tempo, float notte, bool dallAlto = false, float larghezza = VW, float altezza = VH) const;
     // Pavimento per i modelli visti dall'alto (labirinto e puzzle).
-    void DisegnaPavimento(float camX, float camY, int tema) const;
+    void DisegnaPavimento(float camX, float camY, int tema, float larghezza = VW, float altezza = VH, bool pulisci = true) const;
 
 private:
     int w = 0, h = 0;

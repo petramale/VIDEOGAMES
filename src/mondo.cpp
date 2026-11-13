@@ -2,6 +2,7 @@
 #include "livello.h"
 #include "sfondo.h"
 #include "json.hpp"
+#include <cctype>
 #include <sstream>
 
 using nlohmann::json;
@@ -413,4 +414,42 @@ std::string Mondo::Controlla() const {
         }
     }
     return "";
+}
+
+std::string MappaInJson(const Mappa& m) { return MappaJson(m).dump(); }
+
+bool MappaDaJson(const std::string& testo, Mappa& m, std::string& errore) {
+    json j = json::parse(testo, nullptr, false);
+    if (j.is_discarded()) { errore = "JSON della mappa non valido"; return false; }
+    Mappa nuova;
+    if (!MappaDaJson(j, nuova, errore)) return false;
+    m = nuova;
+    return true;
+}
+
+Vector2 PosizioneInCasella(const std::string& tipo, int cx, int cy, Vista vista) {
+    TipoOggetto t;
+    bool appoggiato = true;
+    if (TipoDaNome(tipo, t)) {
+        switch (t) {
+            case TipoOggetto::Moneta: case TipoOggetto::Gemma: case TipoOggetto::Pipistrello: case TipoOggetto::Cuore:
+            case TipoOggetto::Fantasma: case TipoOggetto::Cassa: appoggiato = false; break;
+            default: break;
+        }
+    }
+    (void)vista;
+    return { cx * TILE + TILE / 2.0f, appoggiato ? (cy + 1) * (float)TILE : cy * TILE + TILE / 2.0f };
+}
+
+std::string NomeFileDaTitolo(const std::string& titolo) {
+    std::string n;
+    bool maiuscola = true;
+    for (size_t i = 0; i < titolo.size(); i++) {
+        unsigned char c = (unsigned char)titolo[i];
+        // "L'isola" -> "Isola": l'articolo apostrofato si salta.
+        if (std::isalpha(c) && i + 1 < titolo.size() && titolo[i + 1] == '\'' && (i == 0 || titolo[i - 1] == ' ')) { i++; continue; }
+        if (std::isalnum(c)) { n += maiuscola ? (char)std::toupper(c) : (char)c; maiuscola = false; }
+        else maiuscola = true;
+    }
+    return n.empty() ? std::string("Gioco") : n;
 }

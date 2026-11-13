@@ -27,7 +27,7 @@ In alternativa, da riga di comando con il `bin` di TDM-GCC nel PATH: `mingw32-ma
 | 5 | Logica di gioco | Livello completo "La valle delle gemme": salto variabile, coyote time, collisioni con tile e piattaforme, telecamera che anticipa, nemici, spine, vite, checkpoint, vittoria con fuochi d'artificio. F1 mostra i riquadri di collisione. **C crea il gioco .exe.** |
 | 6 | Librerie | Le librerie incluse, con versione, licenza e cartella (elenco anche in `librerie/librerie.json`). |
 | 7 | Crea con Claude | Descrivi uno sprite o un livello: Claude lo crea, lo studio lo controlla e lo mostra. Un livello si gioca subito con F5, F3 lo apre nell'editor. F2 carica una risposta d'esempio, utile senza internet. |
-| 8 | Editor + chat Claude | Disegni il livello con mouse o joypad (terreno, piattaforme, spine, oggetti, nemici), cambi tema e ora, Tab lo provi subito, Ctrl+S salva, Ctrl+E crea il .exe. A destra la **chat con Claude** modifica il progetto aperto (livello, scenario, eroe, fisica) con anteprima immediata. F4 apre il pannello audio: trascina sulla finestra file **WAV, OGG o MP3** per la musica o per i singoli effetti; finiscono dentro l'eseguibile creato. |
+| 8 | Editor dei mondi | Il nuovo editor a menu e pannelli (vedi "Editor dei mondi" più sotto). Dal menu File si apre anche l'editor classico: disegni il livello con mouse o joypad (terreno, piattaforme, spine, oggetti, nemici), cambi tema e ora, Tab lo provi subito, Ctrl+S salva, Ctrl+E crea il .exe. A destra la **chat con Claude** modifica il progetto aperto (livello, scenario, eroe, fisica) con anteprima immediata. F4 apre il pannello audio: trascina sulla finestra file **WAV, OGG o MP3** per la musica o per i singoli effetti; finiscono dentro l'eseguibile creato. |
 | 9 | Comandi e periferiche | Tastiera, mouse e joypad: per ogni azione due tasti e un pulsante del joypad, da cambiare con un clic; prova dal vivo, zona morta delle levette. Salvato in `comandi.cfg`, vale anche per i giochi creati. |
 
 Comandi comuni: frecce o WASD per muoversi, Spazio per saltare, M accende o spegne la musica,
@@ -97,7 +97,21 @@ La voce di menu **10. Nuovo motore: mondi** prova il nuovo formato dei giochi. U
 - cielo personalizzato e strati di sfondo in parallasse (`montagne`, `colline`, `foresta`, `nuvole`, `stelle`, `fascia`, `immagine`), anche in primo piano;
 - decorazioni e oggetti in posizione libera (pixel), porte che portano a un'altra mappa (`"mappa": 1, "destX", "destY"`).
 
-Nella schermata: Invio gioca, F2 salva il JSON nella cartella `mondi` accanto allo studio, C crea il `.exe`, F5 ricarica i `.json` della cartella `mondi` (anche scritti a mano o da Claude). Esempi pronti in `esempi/mondi/`. I vecchi livelli a caratteri si importano da soli. Verifica automatica: `StudioVideogiochi --verifica-mondi`.
+Nella schermata: Invio gioca, E apre il mondo nell'editor, F2 salva il JSON nella cartella `mondi` accanto allo studio, C crea il `.exe`, F5 ricarica i `.json` della cartella `mondi` (anche scritti a mano o da Claude). Esempi pronti in `esempi/mondi/`. I vecchi livelli a caratteri si importano da soli. Verifica automatica: `StudioVideogiochi --verifica-mondi`.
+
+## Editor dei mondi (fase 2)
+
+La voce **8. Editor dei mondi** apre il nuovo editor, a tutta finestra:
+
+- **in alto** i menu File, Modifica, Mondo, Mappa, Vista, Prova, Aiuto e le schede delle mappe del mondo (clic destro su una scheda per rinominarla, `+` per aggiungerne una);
+- **a sinistra** la tavolozza: 6 caselle, i 15 oggetti della libreria e la partenza dell'eroe;
+- **al centro** la mappa con lo sfondo vero, griglia, inquadratura del gioco e minimappa. Rotella e frecce scorrono nelle 4 direzioni, Ctrl+rotella fa lo zoom, il tasto centrale (o Spazio + trascina) sposta la vista;
+- **a destra** quattro schede: *Proprietà* (dell'oggetto selezionato o della mappa: misura, vista, tema, ora, cielo, musica, telecamera, partenza), *Mondo* (titolo, genere, giocatori, fisica, colori dell'eroe), *Strati* (strati dello sfondo e decorazioni) e *Claude*;
+- **in basso** gli strumenti: pennello, gomma, riempi, rettangolo, seleziona, contagocce, e i pulsanti PROVA e Crea .exe.
+
+Le porte si collegano scegliendo la mappa d'arrivo nelle Proprietà e poi il punto d'arrivo sulla mappa. Un'immagine PNG o JPG **trascinata sulla finestra** diventa una decorazione (o uno strato, se è aperta la scheda Strati): il file si copia nella cartella `immagini` e finisce dentro il `.exe` del gioco. Ctrl+Z / Ctrl+Y annullano e ripetono tutto, anche le modifiche di Claude. F1 mostra tutti i comandi.
+
+**Claude** vede il mondo intero e risponde con un messaggio e delle azioni (cambia mondo o mappa, riempie rettangoli di caselle, aggiunge o toglie oggetti, crea mappe nuove). Le azioni si applicano a una copia, si controllano e solo allora entrano nel mondo; quelle sbagliate vengono scartate e mostrate in arancione. La chiave API si incolla direttamente nel pannello. `--verifica-mondi` prova anche 11 risposte di Claude d'esempio.
 
 ## Formato dei livelli
 

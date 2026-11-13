@@ -109,3 +109,11 @@ bool SembraJson(const std::string& testo);
 
 // Mondi d'esempio del nuovo motore (fase 1): mostrano viste, telecamere e mappe collegate.
 std::vector<Mondo> MondiDiProva();
+
+// Una sola mappa in JSON (per Claude e per copiare/incollare mappe).
+std::string MappaInJson(const Mappa& m);
+bool MappaDaJson(const std::string& testo, Mappa& m, std::string& errore);
+// Posizione in pixel di un oggetto messo nella casella (cx, cy): base o centro, secondo il tipo.
+Vector2 PosizioneInCasella(const std::string& tipo, int cx, int cy, Vista vista);
+// Nome di file senza spazi ne' simboli: "Il mio gioco" -> "IlMioGioco".
+std::string NomeFileDaTitolo(const std::string& titolo);
