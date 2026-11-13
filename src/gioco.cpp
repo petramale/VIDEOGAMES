@@ -1,11 +1,13 @@
 #include "gioco.h"
 #include "audio.h"
+#include "periferiche.h"
+#include "progetto.h"
 
 namespace {
-constexpr float GRAVITA = 900, CADUTA_MAX = 420, ACCEL = 1000, ATTRITO = 1400, VEL_MAX = 115;
-constexpr float SALTO = 305, MOLLA = 470, RIMBALZO = 230;
+constexpr float CADUTA_MAX = 420, ACCEL = 1000, ATTRITO = 1400, RIMBALZO = 230;
 
 bool Sovrappone(Rectangle a, Rectangle b) { return CheckCollisionRecs(a, b); }
+}
 
 // Riquadro di collisione di ogni oggetto: lo stesso per la logica e per il disegno (F1).
 Rectangle BoxOggetto(const Oggetto& o) {
@@ -22,22 +24,28 @@ Rectangle BoxOggetto(const Oggetto& o) {
     }
     return { x, y, 0, 0 };
 }
-}
 
-Comandi Comandi::DaTastiera() {
+
+Comandi Comandi::DaPeriferiche() {
     Comandi c;
-    c.sinistra = IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A) || IsGamepadButtonDown(0, GAMEPAD_BUTTON_LEFT_FACE_LEFT)
-                 || GetGamepadAxisMovement(0, GAMEPAD_AXIS_LEFT_X) < -0.4f;
-    c.destra = IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D) || IsGamepadButtonDown(0, GAMEPAD_BUTTON_LEFT_FACE_RIGHT)
-               || GetGamepadAxisMovement(0, GAMEPAD_AXIS_LEFT_X) > 0.4f;
-    c.salto = IsKeyDown(KEY_SPACE) || IsKeyDown(KEY_UP) || IsKeyDown(KEY_W) || IsGamepadButtonDown(0, GAMEPAD_BUTTON_RIGHT_FACE_DOWN);
-    c.saltoPremuto = IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_UP) || IsKeyPressed(KEY_W) || IsGamepadButtonPressed(0, GAMEPAD_BUTTON_RIGHT_FACE_DOWN);
+    c.asse = gInput.Asse();
+    c.salto = gInput.Tenuto(Azione::Salto);
+    c.saltoPremuto = gInput.Premuto(Azione::Salto);
+    if (gInput.m.mouseNelGioco) {
+        if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) { c.mouseGuida = true; c.mouseX = gInput.Mouse().x; }
+        if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) c.salto = true;
+        if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) c.saltoPremuto = true;
+    }
     return c;
 }
 
 bool Gioco::Carica(const std::string& testoLivello, std::string& errore) {
     if (!livello.Carica(testoLivello, errore)) return false;
     sorgente = testoLivello;
+    Progetto p;
+    if (p.LeggiImpostazioni(testoLivello)) { // il livello porta con se' scenario, fisica ed eroe
+        sfondo.tema = p.tema; sfondo.ora = p.ora; fisica = p.fisica; eroe.aspetto = p.eroe;
+    }
     oggetti = livello.Oggetti();
     particelle.Svuota();
     AspettoEroe aspetto = eroe.aspetto;
@@ -101,24 +109,31 @@ void Gioco::Rinasci() {
 }
 
 void Gioco::Fisica(float dt, const Comandi& c) {
-    float dirInput = (c.destra ? 1.0f : 0.0f) - (c.sinistra ? 1.0f : 0.0f);
+    float dirInput = Limita(c.asse, -1, 1);
+    if (c.mouseGuida) { // il mouse guida l'eroe verso il puntatore
+        float d = c.mouseX + camX - eroe.pos.x;
+        dirInput = std::fabs(d) < 6 ? 0.0f : (d > 0 ? 1.0f : -1.0f);
+    }
     bool controllo = !(eroe.stato == StatoEroe::Colpito && eroe.tStato < 0.3f) && !vinto && !finito;
     if (!controllo) dirInput = 0;
 
     if (dirInput != 0) {
         eroe.vel.x += dirInput * ACCEL * dt * (eroe.aTerra ? 1.0f : 0.75f);
         eroe.dir = dirInput > 0 ? 1 : -1;
+        // Con la levetta analogica la velocita' massima segue l'inclinazione.
+        float massima = fisica.velocita * std::max(0.35f, std::fabs(dirInput));
+        eroe.vel.x = Limita(eroe.vel.x, -massima, massima);
     } else if (eroe.aTerra) {
         float a = ATTRITO * dt;
         eroe.vel.x = std::fabs(eroe.vel.x) <= a ? 0 : eroe.vel.x - a * (eroe.vel.x > 0 ? 1 : -1);
     }
-    eroe.vel.x = Limita(eroe.vel.x, -VEL_MAX, VEL_MAX);
+    eroe.vel.x = Limita(eroe.vel.x, -fisica.velocita, fisica.velocita);
 
     // Salto con "coyote time" (si puo' saltare un attimo dopo il bordo) e memoria del tasto.
     coyote = eroe.aTerra ? 0.1f : coyote - dt;
     bufferSalto = (c.saltoPremuto && controllo) ? 0.12f : bufferSalto - dt;
     if (bufferSalto > 0 && coyote > 0) {
-        eroe.vel.y = -SALTO; bufferSalto = 0; coyote = 0; saltoTagliato = false;
+        eroe.vel.y = -fisica.salto; bufferSalto = 0; coyote = 0; saltoTagliato = false;
         eroe.CambiaStato(StatoEroe::Salto);
         gAudio.Suona(Effetto::Salto, 0.7f);
         particelle.Polvere(eroe.pos, 6);
@@ -126,7 +141,7 @@ void Gioco::Fisica(float dt, const Comandi& c) {
     // Salto variabile: lasciando il tasto si salta piu' basso.
     if (!c.salto && eroe.vel.y < -90 && !saltoTagliato) { eroe.vel.y *= 0.5f; saltoTagliato = true; }
 
-    eroe.vel.y = std::min(eroe.vel.y + GRAVITA * dt, CADUTA_MAX);
+    eroe.vel.y = std::min(eroe.vel.y + fisica.gravita * dt, CADUTA_MAX);
     bool eraATerra = eroe.aTerra;
     MuoviConCollisioni(eroe.pos, eroe.vel, Eroe::LARGHEZZA, Eroe::ALTEZZA - 2, dt, eroe.aTerra, true);
 
@@ -167,7 +182,7 @@ void Gioco::AggiornaOggetti(float dt) {
             case TipoOggetto::Moneta: case TipoOggetto::Gemma: {
                 if (o.fisica) {
                     bool terra;
-                    o.vel.y = std::min(o.vel.y + GRAVITA * dt, CADUTA_MAX);
+                    o.vel.y = std::min(o.vel.y + fisica.gravita * dt, CADUTA_MAX);
                     o.vel.x *= 1 - dt * 1.5f;
                     MuoviConCollisioni(o.pos, o.vel, 6, 6, dt, terra, true);
                     if (terra) o.vel.y = -o.vel.y * 0.0f;
@@ -185,7 +200,7 @@ void Gioco::AggiornaOggetti(float dt) {
                 o.stato = std::max(0.0f, o.stato - dt * 4);
                 Rectangle r = BoxOggetto(o);
                 if (eroe.vel.y > 0 && Sovrappone(box, r)) {
-                    eroe.vel.y = -MOLLA; saltoTagliato = true; o.stato = 1;
+                    eroe.vel.y = -fisica.molla; saltoTagliato = true; o.stato = 1;
                     eroe.CambiaStato(StatoEroe::Salto);
                     gAudio.Suona(Effetto::Molla);
                     particelle.Emetti({ o.pos.x, o.pos.y - 8 }, 10, Hex(0xfff070), 80, 0.4f, 100, 1.5f, true);
@@ -293,7 +308,7 @@ void Gioco::Aggiorna(float dt, const Comandi& c) {
     if (scossa > 0) scossa -= dt;
 }
 
-void Gioco::DisegnaOggetto(const Oggetto& o) const {
+void DisegnaOggetto(const Oggetto& o, float camX, float camY, float tempoVisivo, bool vinto) {
     float x = o.pos.x - camX, y = o.pos.y - camY, t = o.t;
     switch (o.tipo) {
         case TipoOggetto::Moneta: {
@@ -401,6 +416,11 @@ void Gioco::DisegnaOggetto(const Oggetto& o) const {
             break;
         }
     }
+}
+
+void Gioco::DisegnaOggettoConInfo(const Oggetto& o) const {
+    DisegnaOggetto(o, camX, camY, tempoVisivo, vinto);
+    float x = o.pos.x - camX, y = o.pos.y - camY;
     if (mostraEtichette && !o.fisica) {
         const char* nome = NomeOggetto(o.tipo);
         int w = MeasureText(nome, 10);
@@ -438,6 +458,7 @@ void Gioco::DisegnaHud() const {
         ScrittaCentrata("LIVELLO COMPLETATO!", VW / 2, VH / 2 - 20, 20, Mescola(BLANK, Hex(0xffd23f), k));
         ScrittaCentrata(TextFormat("Monete %d   Gemme %d   Tempo %02d:%02d", monete, gemme, (int)tempo / 60, (int)tempo % 60),
                         VW / 2, VH / 2 + 6, 10, Mescola(BLANK, WHITE, k));
+        if (!crediti.empty()) ScrittaCentrata(crediti.c_str(), VW / 2, VH / 2 + 40, 10, Mescola(BLANK, Hex(0xc8d0f0), k));
     } else if (finito) {
         float k = Limita(tFine * 2, 0, 1);
         DrawRectangle(0, 0, VW, VH, Hex(0x200010, (unsigned char)(150 * k)));
@@ -457,7 +478,7 @@ void Gioco::Disegna() {
 
     float salvaX = camX, salvaY = camY;
     camX = cx; camY = cy;
-    for (const auto& o : oggetti) if (o.attivo) DisegnaOggetto(o);
+    for (const auto& o : oggetti) if (o.attivo) DisegnaOggettoConInfo(o);
 
     Eroe e = eroe;
     e.pos = { std::round(eroe.pos.x - cx), std::round(eroe.pos.y - cy) };

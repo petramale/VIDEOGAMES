@@ -11,9 +11,9 @@ ResourceIncludes=
 MakeIncludes=
 Compiler=-O2_@@_-DPLATFORM_DESKTOP_@@_-DGRAPHICS_API_OPENGL_33_@@_-w_@@_
 CppCompiler=-O2_@@_-std=c++17_@@_
-Linker=-static_@@_-lopengl32_@@_-lgdi32_@@_-lwinmm_@@_-lwinhttp_@@_
+Linker=-static_@@_-mwindows_@@_-lopengl32_@@_-lgdi32_@@_-lwinmm_@@_-lwinhttp_@@_
 IsCpp=1
-Icon=
+Icon=risorse\elvantis.ico
 ExeOutput=bin
 ObjectOutput=build\devcpp
 LogOutput=
@@ -28,7 +28,7 @@ Folders=raylib,studio
 IncludeVersionInfo=0
 SupportXPThemes=0
 CompilerSet=0
-UnitCount=32
+UnitCount=39
 
 [Unit1]
 FileName=src\audio.cpp
@@ -51,7 +51,7 @@ OverrideBuildCmd=0
 BuildCmd=
 
 [Unit3]
-FileName=src\gioco.cpp
+FileName=src\editor.cpp
 CompileCpp=1
 Folder=studio
 Compile=1
@@ -61,7 +61,7 @@ OverrideBuildCmd=0
 BuildCmd=
 
 [Unit4]
-FileName=src\librerie.cpp
+FileName=src\gioco.cpp
 CompileCpp=1
 Folder=studio
 Compile=1
@@ -71,7 +71,7 @@ OverrideBuildCmd=0
 BuildCmd=
 
 [Unit5]
-FileName=src\livello.cpp
+FileName=src\librerie.cpp
 CompileCpp=1
 Folder=studio
 Compile=1
@@ -81,7 +81,7 @@ OverrideBuildCmd=0
 BuildCmd=
 
 [Unit6]
-FileName=src\main.cpp
+FileName=src\livello.cpp
 CompileCpp=1
 Folder=studio
 Compile=1
@@ -91,7 +91,7 @@ OverrideBuildCmd=0
 BuildCmd=
 
 [Unit7]
-FileName=src\pacchetto.cpp
+FileName=src\main.cpp
 CompileCpp=1
 Folder=studio
 Compile=1
@@ -101,7 +101,7 @@ OverrideBuildCmd=0
 BuildCmd=
 
 [Unit8]
-FileName=src\particelle.cpp
+FileName=src\pacchetto.cpp
 CompileCpp=1
 Folder=studio
 Compile=1
@@ -111,7 +111,7 @@ OverrideBuildCmd=0
 BuildCmd=
 
 [Unit9]
-FileName=src\personaggio.cpp
+FileName=src\particelle.cpp
 CompileCpp=1
 Folder=studio
 Compile=1
@@ -121,7 +121,7 @@ OverrideBuildCmd=0
 BuildCmd=
 
 [Unit10]
-FileName=src\pixelart.cpp
+FileName=src\periferiche.cpp
 CompileCpp=1
 Folder=studio
 Compile=1
@@ -131,7 +131,7 @@ OverrideBuildCmd=0
 BuildCmd=
 
 [Unit11]
-FileName=src\sfondo.cpp
+FileName=src\personaggio.cpp
 CompileCpp=1
 Folder=studio
 Compile=1
@@ -141,7 +141,7 @@ OverrideBuildCmd=0
 BuildCmd=
 
 [Unit12]
-FileName=src\sistema.cpp
+FileName=src\pixelart.cpp
 CompileCpp=1
 Folder=studio
 Compile=1
@@ -151,6 +151,36 @@ OverrideBuildCmd=0
 BuildCmd=
 
 [Unit13]
+FileName=src\progetto.cpp
+CompileCpp=1
+Folder=studio
+Compile=1
+Link=1
+Priority=1000
+OverrideBuildCmd=0
+BuildCmd=
+
+[Unit14]
+FileName=src\sfondo.cpp
+CompileCpp=1
+Folder=studio
+Compile=1
+Link=1
+Priority=1000
+OverrideBuildCmd=0
+BuildCmd=
+
+[Unit15]
+FileName=src\sistema.cpp
+CompileCpp=1
+Folder=studio
+Compile=1
+Link=1
+Priority=1000
+OverrideBuildCmd=0
+BuildCmd=
+
+[Unit16]
 FileName=src\audio.h
 CompileCpp=1
 Folder=studio
@@ -160,7 +190,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit14]
+[Unit17]
 FileName=src\claude.h
 CompileCpp=1
 Folder=studio
@@ -170,7 +200,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit15]
+[Unit18]
 FileName=src\comune.h
 CompileCpp=1
 Folder=studio
@@ -180,38 +210,8 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit16]
-FileName=src\gioco.h
-CompileCpp=1
-Folder=studio
-Compile=0
-Link=0
-Priority=1000
-OverrideBuildCmd=0
-BuildCmd=
-
-[Unit17]
-FileName=src\librerie.h
-CompileCpp=1
-Folder=studio
-Compile=0
-Link=0
-Priority=1000
-OverrideBuildCmd=0
-BuildCmd=
-
-[Unit18]
-FileName=src\livello.h
-CompileCpp=1
-Folder=studio
-Compile=0
-Link=0
-Priority=1000
-OverrideBuildCmd=0
-BuildCmd=
-
 [Unit19]
-FileName=src\pacchetto.h
+FileName=src\editor.h
 CompileCpp=1
 Folder=studio
 Compile=0
@@ -221,7 +221,7 @@ OverrideBuildCmd=0
 BuildCmd=
 
 [Unit20]
-FileName=src\particelle.h
+FileName=src\gioco.h
 CompileCpp=1
 Folder=studio
 Compile=0
@@ -231,7 +231,7 @@ OverrideBuildCmd=0
 BuildCmd=
 
 [Unit21]
-FileName=src\personaggio.h
+FileName=src\librerie.h
 CompileCpp=1
 Folder=studio
 Compile=0
@@ -241,7 +241,7 @@ OverrideBuildCmd=0
 BuildCmd=
 
 [Unit22]
-FileName=src\pixelart.h
+FileName=src\livello.h
 CompileCpp=1
 Folder=studio
 Compile=0
@@ -251,7 +251,7 @@ OverrideBuildCmd=0
 BuildCmd=
 
 [Unit23]
-FileName=src\sfondo.h
+FileName=src\pacchetto.h
 CompileCpp=1
 Folder=studio
 Compile=0
@@ -261,7 +261,7 @@ OverrideBuildCmd=0
 BuildCmd=
 
 [Unit24]
-FileName=src\sistema.h
+FileName=src\particelle.h
 CompileCpp=1
 Folder=studio
 Compile=0
@@ -271,6 +271,76 @@ OverrideBuildCmd=0
 BuildCmd=
 
 [Unit25]
+FileName=src\periferiche.h
+CompileCpp=1
+Folder=studio
+Compile=0
+Link=0
+Priority=1000
+OverrideBuildCmd=0
+BuildCmd=
+
+[Unit26]
+FileName=src\personaggio.h
+CompileCpp=1
+Folder=studio
+Compile=0
+Link=0
+Priority=1000
+OverrideBuildCmd=0
+BuildCmd=
+
+[Unit27]
+FileName=src\pixelart.h
+CompileCpp=1
+Folder=studio
+Compile=0
+Link=0
+Priority=1000
+OverrideBuildCmd=0
+BuildCmd=
+
+[Unit28]
+FileName=src\progetto.h
+CompileCpp=1
+Folder=studio
+Compile=0
+Link=0
+Priority=1000
+OverrideBuildCmd=0
+BuildCmd=
+
+[Unit29]
+FileName=src\risorse_dati.h
+CompileCpp=1
+Folder=studio
+Compile=0
+Link=0
+Priority=1000
+OverrideBuildCmd=0
+BuildCmd=
+
+[Unit30]
+FileName=src\sfondo.h
+CompileCpp=1
+Folder=studio
+Compile=0
+Link=0
+Priority=1000
+OverrideBuildCmd=0
+BuildCmd=
+
+[Unit31]
+FileName=src\sistema.h
+CompileCpp=1
+Folder=studio
+Compile=0
+Link=0
+Priority=1000
+OverrideBuildCmd=0
+BuildCmd=
+
+[Unit32]
 FileName=librerie\raylib\src\rcore.c
 CompileCpp=0
 Folder=raylib
@@ -280,7 +350,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit26]
+[Unit33]
 FileName=librerie\raylib\src\rshapes.c
 CompileCpp=0
 Folder=raylib
@@ -290,7 +360,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit27]
+[Unit34]
 FileName=librerie\raylib\src\rtextures.c
 CompileCpp=0
 Folder=raylib
@@ -300,7 +370,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit28]
+[Unit35]
 FileName=librerie\raylib\src\rtext.c
 CompileCpp=0
 Folder=raylib
@@ -310,7 +380,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit29]
+[Unit36]
 FileName=librerie\raylib\src\rmodels.c
 CompileCpp=0
 Folder=raylib
@@ -320,7 +390,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit30]
+[Unit37]
 FileName=librerie\raylib\src\raudio.c
 CompileCpp=0
 Folder=raylib
@@ -330,7 +400,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit31]
+[Unit38]
 FileName=librerie\raylib\src\utils.c
 CompileCpp=0
 Folder=raylib
@@ -340,7 +410,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit32]
+[Unit39]
 FileName=librerie\raylib\src\rglfw.c
 CompileCpp=0
 Folder=raylib
@@ -349,3 +419,4 @@ Link=1
 Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
+

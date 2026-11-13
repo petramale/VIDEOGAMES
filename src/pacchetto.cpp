@@ -1,13 +1,14 @@
 #include "pacchetto.h"
 #include "sistema.h"
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <iterator>
 
 namespace {
 const char FIRMA[9] = "VGPAK001";
-const std::string INTESTAZIONE = "STUDIO-VIDEOGIOCHI 1\n";
+const std::string INTESTAZIONE = "STUDIO-VIDEOGIOCHI 2\n";
 
 bool LeggiFile(const std::string& percorso, std::string& contenuto) {
     std::ifstream f(percorso, std::ios::binary);
@@ -28,16 +29,43 @@ size_t DimensioneEseguibile(const std::string& exe, std::string* dati) {
 }
 } // namespace
 
+// Formato: intestazione, titolo, lunghezza e testo del livello, numero di file,
+// poi per ogni file: nome, lunghezza, contenuto.
 std::string SerializzaGioco(const DatiGioco& g) {
-    return INTESTAZIONE + g.titolo + "\n" + g.livello;
+    std::string s = INTESTAZIONE + g.titolo + "\n" + std::to_string(g.livello.size()) + "\n" + g.livello;
+    s += std::to_string(g.file.size()) + "\n";
+    for (const auto& f : g.file) s += f.first + "\n" + std::to_string(f.second.size()) + "\n" + f.second;
+    return s;
 }
 
 bool DeserializzaGioco(const std::string& dati, DatiGioco& g) {
     if (dati.compare(0, INTESTAZIONE.size(), INTESTAZIONE) != 0) return false;
-    size_t a = INTESTAZIONE.size(), b = dati.find('\n', a);
-    if (b == std::string::npos) return false;
-    g.titolo = dati.substr(a, b - a);
-    g.livello = dati.substr(b + 1);
+    size_t p = INTESTAZIONE.size();
+    auto Riga = [&](std::string& out) {
+        size_t e = dati.find('\n', p);
+        if (e == std::string::npos) return false;
+        out = dati.substr(p, e - p);
+        p = e + 1;
+        return true;
+    };
+    auto Blocco = [&](std::string& out) {
+        std::string n;
+        if (!Riga(n)) return false;
+        size_t len = (size_t)std::strtoull(n.c_str(), nullptr, 10);
+        if (p + len > dati.size()) return false;
+        out = dati.substr(p, len);
+        p += len;
+        return true;
+    };
+    std::string conta;
+    if (!Riga(g.titolo) || !Blocco(g.livello) || !Riga(conta)) return false;
+    int n = std::atoi(conta.c_str());
+    g.file.clear();
+    for (int i = 0; i < n; i++) {
+        FileIncluso f;
+        if (!Riga(f.first) || !Blocco(f.second)) return false;
+        g.file.push_back(f);
+    }
     return true;
 }
 

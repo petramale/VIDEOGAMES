@@ -158,3 +158,68 @@ const char* Claude::EsempioLivello() {
   ]
 })";
 }
+
+// --- Chat --------------------------------------------------------------------
+
+std::string ChatClaude::PromptSistema() {
+    return
+        "Sei Claude, l'assistente creativo dello Studio Videogiochi (sviluppato da Mario Petramale). "
+        "L'utente sta creando un gioco a piattaforme 2D in pixel art e ti scrive in italiano. "
+        "A ogni richiesta ricevi lo stato del progetto in JSON. Rispondi SOLO con un oggetto JSON valido, "
+        "senza testo prima o dopo e senza blocchi di codice, con questo formato:\n"
+        "{\"risposta\": \"messaggio breve e amichevole in italiano su cosa hai fatto o una domanda\", "
+        "\"azioni\": [ ... ]}\n"
+        "Azioni possibili (usa solo quelle che servono, anche nessuna):\n"
+        "- {\"tipo\": \"livello\", \"righe\": [15 stringhe lunghe uguali]}: sostituisce la mappa. Legenda: '#' terra, "
+        "'=' pietra, '-' piattaforma attraversabile dal basso, '^' spine, ' ' vuoto, 'P' partenza (una), 'F' bandiera (una), "
+        "'o' moneta, 'g' gemma, 'm' molla, 'c' forziere, 'k' lanterna checkpoint, 'e' slime, 'b' pipistrello. "
+        "Le ultime 3 righe sono il terreno. Il personaggio salta circa 3 tile in alto e 5 in lungo con la fisica standard: "
+        "ogni tratto deve essere raggiungibile. Per piccole modifiche parti dalla mappa attuale e cambia solo il necessario.\n"
+        "- {\"tipo\": \"titolo\", \"valore\": \"...\"}\n"
+        "- {\"tipo\": \"scenario\", \"tema\": 0-3, \"ora\": 0.0-1.0}: temi 0 valle verde, 1 deserto rosso, 2 ghiacci eterni, "
+        "3 terre vulcaniche; ora 0 mezzanotte, 0.25 alba, 0.5 mezzogiorno, 0.75 tramonto.\n"
+        "- {\"tipo\": \"eroe\", \"pelle\": \"#rrggbb\", \"capelli\": ..., \"maglia\": ..., \"mantello\": ..., \"pantaloni\": ..., \"scarpe\": ...} "
+        "(anche solo alcuni colori)\n"
+        "- {\"tipo\": \"fisica\", \"gravita\": 300-2000, \"salto\": 150-600, \"velocita\": 40-300, \"molla\": 250-900} "
+        "(standard: 900, 305, 115, 470; anche solo alcuni valori)\n"
+        "Se la richiesta riguarda qualcosa che ancora non puoi cambiare (per esempio nuovi tipi di nemici, musica o sprite), "
+        "dillo con gentilezza nella risposta e proponi l'alternativa piu' vicina.";
+}
+
+void ChatClaude::Invia(const ConfigClaude& cfg, const std::string& richiesta, const std::string& statoProgettoJson) {
+    MessaggioChat m{ true, richiesta, "Stato attuale del progetto:\n" + statoProgettoJson + "\n\nRichiesta: " + richiesta };
+    storia.push_back(m);
+    json messaggi = json::array();
+    // Le richieste precedenti senza lo stato (pesante): basta l'ultimo stato completo.
+    for (size_t i = 0; i < storia.size(); i++) {
+        const auto& s = storia[i];
+        bool ultimo = i + 1 == storia.size();
+        std::string contenuto = s.utente ? (ultimo ? s.grezzo : s.testo) : s.grezzo;
+        if (contenuto.empty()) contenuto = "(vuoto)";
+        messaggi.push_back({ { "role", s.utente ? "user" : "assistant" }, { "content", contenuto } });
+    }
+    json corpo = {
+        { "model", cfg.modello },
+        { "max_tokens", 12000 },
+        { "system", PromptSistema() },
+        { "messages", messaggi },
+    };
+    std::string intestazioni =
+        "content-type: application/json\r\n"
+        "anthropic-version: 2023-06-01\r\n"
+        "x-api-key: " + cfg.chiave + "\r\n";
+    HttpAvviaPost("api.anthropic.com", "/v1/messages", intestazioni, corpo.dump());
+}
+
+int ChatClaude::Stato() const { return HttpStato(); }
+
+std::string ChatClaude::RispostaGrezza() const {
+    std::string r = HttpRisposta();
+    if (HttpStato() != 2) return r;
+    json j = json::parse(r, nullptr, false);
+    if (j.is_discarded() || !j.contains("content")) return "risposta inattesa dal server";
+    std::string testo;
+    for (auto& blocco : j["content"])
+        if (blocco.value("type", "") == "text") testo += blocco.value("text", "");
+    return Claude::EstraiJson(testo);
+}

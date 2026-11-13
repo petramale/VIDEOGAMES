@@ -24,6 +24,8 @@ CXXFLAGS := -O2 -std=c++17 -Wall -I$(RAYLIB) -Ilibrerie/nlohmann
 ifeq ($(PIATTAFORMA),windows)
   ESEGUIBILE := $(BIN_DIR)/StudioVideogiochi.exe
   LDFLAGS    := -static -mwindows -lopengl32 -lgdi32 -lwinmm -lwinhttp
+  WINDRES    ?= $(patsubst %g++,%windres,$(CXX))
+  RISORSE    := $(OBJ_DIR)/studio_rc.o
 else
   ESEGUIBILE := $(BIN_DIR)/StudioVideogiochi
   CFLAGS     += -D_GNU_SOURCE -D_GLFW_X11
@@ -37,7 +39,7 @@ STUDIO_OBJ := $(patsubst src/%.cpp,$(OBJ_DIR)/%.o,$(STUDIO_SRC))
 
 all: $(ESEGUIBILE)
 
-$(ESEGUIBILE): $(RAYLIB_OBJ) $(STUDIO_OBJ)
+$(ESEGUIBILE): $(RAYLIB_OBJ) $(STUDIO_OBJ) $(RISORSE)
 	@mkdir -p $(BIN_DIR)
 	$(CXX) -o $@ $^ $(LDFLAGS)
 
@@ -48,6 +50,11 @@ $(OBJ_DIR)/raylib/%.o: $(RAYLIB)/%.c
 $(OBJ_DIR)/%.o: src/%.cpp src/*.h
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+# Icona dell'eseguibile (logo Elvantis), solo su Windows.
+$(OBJ_DIR)/studio_rc.o: risorse/studio.rc risorse/elvantis.ico
+	@mkdir -p $(dir $@)
+	$(WINDRES) -I risorse -i $< -o $@
 
 clean:
 	rm -rf build bin

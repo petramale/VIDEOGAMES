@@ -4,10 +4,16 @@
 // All'avvio l'eseguibile controlla la propria coda: se trova la firma, avvia il gioco.
 #pragma once
 #include <string>
+#include <utility>
+#include <vector>
+
+// Un file incluso nel gioco (musica, effetto sonoro...): nome e contenuto binario.
+using FileIncluso = std::pair<std::string, std::string>;
 
 struct DatiGioco {
     std::string titolo;
-    std::string livello;
+    std::string livello;               // testo del progetto (impostazioni + mappa)
+    std::vector<FileIncluso> file;     // es. "musica.ogg", "effetto_Salto.wav"
 };
 
 std::string SerializzaGioco(const DatiGioco& g);

@@ -1,4 +1,5 @@
 #include "livello.h"
+#include <cstdlib>
 #include <sstream>
 
 const char* NomeOggetto(TipoOggetto t) {
@@ -21,6 +22,7 @@ bool Livello::Carica(const std::string& testo, std::string& errore) {
     std::string r;
     while (std::getline(ss, r)) {
         if (!r.empty() && r.back() == '\r') r.pop_back();
+        if (!r.empty() && r[0] == ';') continue; // impostazioni: le legge progetto.cpp
         if (!r.empty()) righe.push_back(r);
     }
     if (righe.size() < 4) { errore = "il livello deve avere almeno 4 righe"; return false; }

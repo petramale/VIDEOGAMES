@@ -281,7 +281,7 @@ void Audio::Callback(void* buffer, unsigned int frame) {
     Audio& a = gAudio;
     unsigned long pos = a.posizione.load();
     size_t n = a.brano.size();
-    float vol = a.musicaAttiva ? a.volumeMusica : 0.0f;
+    float vol = (a.musicaAttiva && !a.musicaFile) ? a.volumeMusica : 0.0f;
     for (unsigned int i = 0; i < frame; i++) {
         out[i] = n ? (short)(a.brano[(pos + i) % n] * vol * 32000) : 0;
     }
@@ -324,6 +324,7 @@ void Audio::Inizializza() {
 
 void Audio::Chiudi() {
     if (!pronto) return;
+    FermaTutto();
     StopAudioStream(flusso);
     UnloadAudioStream(flusso);
     for (auto& s : suoni) UnloadSound(s);
@@ -350,6 +351,70 @@ float Audio::Campione(long indice) const {
 }
 
 void Audio::Aggiorna(float dt) {
+    if (musicaFile) {
+        SetMusicVolume(musica, musicaAttiva ? volumeMusica : 0.0f);
+        UpdateMusicStream(musica);
+        return;
+    }
     if (pronto || !musicaAttiva || brano.empty()) return;
     posizione.store((unsigned long)((posizione.load() + (unsigned long)(dt * SR)) % brano.size()));
+}
+
+bool Audio::CaricaMusica(const std::string& estensione, const std::string& dati) {
+    if (!pronto) return false;
+    RipristinaMusica();
+    datiMusica = dati; // raylib legge il file un pezzo alla volta: la copia deve restare viva
+    musica = LoadMusicStreamFromMemory(estensione.c_str(), (const unsigned char*)datiMusica.data(), (int)datiMusica.size());
+    if (!IsMusicValid(musica)) { datiMusica.clear(); return false; }
+    musica.looping = true;
+    PlayMusicStream(musica);
+    musicaFile = true;
+    return true;
+}
+
+void Audio::RipristinaMusica() {
+    if (!musicaFile) return;
+    StopMusicStream(musica);
+    UnloadMusicStream(musica);
+    datiMusica.clear();
+    musicaFile = false;
+}
+
+bool Audio::CaricaEffetto(Effetto e, const std::string& estensione, const std::string& dati) {
+    if (!pronto) return false;
+    Wave w = LoadWaveFromMemory(estensione.c_str(), (const unsigned char*)dati.data(), (int)dati.size());
+    if (!IsWaveValid(w)) return false;
+    Sound s = LoadSoundFromWave(w);
+    UnloadWave(w);
+    if (!IsSoundValid(s)) return false;
+    UnloadSound(suoni[(int)e]);
+    suoni[(int)e] = s;
+    effettoFile[(int)e] = true;
+    return true;
+}
+
+void Audio::RipristinaEffetto(Effetto e) {
+    if (!pronto || !effettoFile[(int)e]) return;
+    UnloadSound(suoni[(int)e]);
+    std::vector<short> pcm = InPcm(campioniEffetti[(int)e], 1.0f);
+    suoni[(int)e] = LoadSoundFromWave(ComeWave(pcm));
+    effettoFile[(int)e] = false;
+}
+
+void Audio::FermaTutto() {
+    RipristinaMusica();
+    for (int i = 0; i < (int)Effetto::Totale; i++) RipristinaEffetto((Effetto)i);
+}
+
+void Audio::ApplicaFile(const std::vector<std::pair<std::string, std::string>>& file) {
+    FermaTutto();
+    for (const auto& f : file) {
+        size_t punto = f.first.rfind('.');
+        if (punto == std::string::npos) continue;
+        std::string nome = f.first.substr(0, punto), est = f.first.substr(punto);
+        if (nome == "musica") CaricaMusica(est, f.second);
+        else
+            for (int i = 0; i < (int)Effetto::Totale; i++)
+                if (nome == std::string("effetto_") + NomeEffetto((Effetto)i)) CaricaEffetto((Effetto)i, est, f.second);
+    }
 }

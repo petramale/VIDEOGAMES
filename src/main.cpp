@@ -1,4 +1,6 @@
-// Studio Videogiochi: vetrina dei 7 strumenti dello studio e costruttore di eseguibili.
+// Studio Videogiochi: vetrina dei 7 strumenti dello studio, editor dei livelli con la
+// chat di Claude, comandi delle periferiche e costruttore di eseguibili.
+// Sviluppatore: Mario Petramale - Elvantis.
 //
 //   StudioVideogiochi.exe                           apre lo studio
 //   StudioVideogiochi.exe --crea Gioco.exe liv.txt "Titolo"   crea un gioco da riga di comando
@@ -9,9 +11,13 @@
 #include "comune.h"
 #include "audio.h"
 #include "claude.h"
+#include "editor.h"
 #include "gioco.h"
 #include "librerie.h"
 #include "pacchetto.h"
+#include "periferiche.h"
+#include "progetto.h"
+#include "risorse_dati.h"
 #include "pixelart.h"
 #include "sistema.h"
 #include <cstring>
@@ -20,7 +26,10 @@
 
 namespace {
 
-enum class Schermata { Menu, Scenari, Personaggi, Oggetti, Audio, Logica, Librerie, Claude };
+enum class Schermata { Menu, Scenari, Personaggi, Oggetti, Audio, Logica, Librerie, Claude, Editor, Comandi };
+
+const char* SVILUPPATORE = "Mario Petramale";
+Texture2D gLogo{};   // logo Elvantis, disegnato a risoluzione piena
 
 struct VoceMenu { const char* titolo; const char* descrizione; Schermata schermata; };
 const VoceMenu VOCI[] = {
@@ -31,8 +40,11 @@ const VoceMenu VOCI[] = {
     { "Logica di gioco",        "Livello completo: collisioni, scroll, nemici. Crea il .exe",Schermata::Logica },
     { "Librerie",               "Le librerie open-source incluse e le loro licenze",         Schermata::Librerie },
     { "Crea con Claude",        "Descrivi uno sprite o un livello: Claude lo crea",          Schermata::Claude },
+    { "Editor + chat Claude",   "Disegna il tuo livello, provalo, crea il .exe. Claude lo modifica parlando con te nella chat", Schermata::Editor },
+    { "Comandi e periferiche",  "Tastiera, mouse e joypad: cambia i tasti e prova i comandi dal vivo", Schermata::Comandi },
 };
-constexpr int NUM_VOCI = 7;
+constexpr int NUM_VOCI = 9;
+constexpr float MENU_Y = 84, MENU_PASSO = 19, MENU_H = 17;
 
 struct PaletteEroe { const char* nome; AspettoEroe a; };
 std::vector<PaletteEroe> PaletteEroi() {
@@ -49,6 +61,9 @@ public:
     void Avvia();
     void Aggiorna(float dt);
     void Disegna();
+    void DisegnaSopra(Rectangle area);   // a risoluzione piena, sopra l'immagine del gioco
+    bool ChatVisibile() const { return attuale == Schermata::Editor && editor.ChatAperta(); }
+    Editor editor;
     bool esci = false;
 
 private:
@@ -63,6 +78,7 @@ private:
     void AggiornaLogica(float dt);
     void DisegnaLibrerie();
     void AggiornaClaude(float dt);    void DisegnaClaude();
+    void AggiornaComandi(float dt);   void DisegnaComandi();
 
     Schermata attuale = Schermata::Menu;
     int scelta = 0;
@@ -92,6 +108,10 @@ private:
     std::string livelloClaude, nomeLivelloClaude;
     Livello anteprimaLivello;
     Gioco giocoClaude;
+    // Comandi
+    int rigaComando = 0, colonnaComando = 0;
+    bool attesaComando = false;
+    float tAttesa = 0;
 };
 
 void Studio::Avvia() {
@@ -105,6 +125,7 @@ void Studio::Avvia() {
     giocoLogica.Carica(LivelloAvventura(), err);
     sfondoMenu.ora = 0.72f;
     cfg = ConfigClaude::Carica();
+    editor.Inizializza();
 }
 
 void Studio::Apri(Schermata s) {
@@ -113,6 +134,8 @@ void Studio::Apri(Schermata s) {
     gAudio.Suona(Effetto::Conferma, 0.6f);
     std::string err;
     if (s == Schermata::Oggetti) giocoOggetti.Carica(LivelloVetrinaOggetti(), err);
+    if (s == Schermata::Editor) editor.Entra();
+    if (s == Schermata::Comandi) attesaComando = false;
 }
 
 void Studio::Intestazione(const char* titolo, const char* aiuto) const {
@@ -127,22 +150,18 @@ void Studio::Intestazione(const char* titolo, const char* aiuto) const {
 void Studio::AggiornaMenu(float dt) {
     sfondoMenu.Aggiorna(dt);
     sfondoMenu.ora = std::fmod(sfondoMenu.ora + dt / 90.0f, 1.0f);
-    if (IsKeyPressed(KEY_DOWN) || IsKeyPressed(KEY_S)) { scelta = (scelta + 1) % NUM_VOCI; gAudio.Suona(Effetto::Menu); }
-    if (IsKeyPressed(KEY_UP) || IsKeyPressed(KEY_W)) { scelta = (scelta + NUM_VOCI - 1) % NUM_VOCI; gAudio.Suona(Effetto::Menu); }
+    if (gInput.Premuto(Azione::Giu)) { scelta = (scelta + 1) % NUM_VOCI; gAudio.Suona(Effetto::Menu); }
+    if (gInput.Premuto(Azione::Su)) { scelta = (scelta + NUM_VOCI - 1) % NUM_VOCI; gAudio.Suona(Effetto::Menu); }
     for (int i = 0; i < NUM_VOCI; i++) if (IsKeyPressed(KEY_ONE + i)) { scelta = i; Apri(VOCI[i].schermata); return; }
-    if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE)) Apri(VOCI[scelta].schermata);
+    if (gInput.Premuto(Azione::Conferma)) { Apri(VOCI[scelta].schermata); return; }
     if (IsKeyPressed(KEY_ESCAPE)) esci = true;
 
-    // Mouse: la posizione viene riportata alla risoluzione virtuale.
-    float scala = std::min((float)GetScreenWidth() / VW, (float)GetScreenHeight() / VH);
-    Vector2 m = GetMousePosition();
-    m.x = (m.x - (GetScreenWidth() - VW * scala) / 2) / scala;
-    m.y = (m.y - (GetScreenHeight() - VH * scala) / 2) / scala;
-    Vector2 delta = GetMouseDelta();
+    // Mouse: la posizione arriva gia' nella risoluzione virtuale.
+    Vector2 m = gInput.Mouse();
     for (int i = 0; i < NUM_VOCI; i++) {
-        Rectangle r = { 24, 92.0f + i * 22, 200, 20 };
+        Rectangle r = { 24, MENU_Y + i * MENU_PASSO, 200, MENU_H };
         if (CheckCollisionPointRec(m, r)) {
-            if ((delta.x != 0 || delta.y != 0) && scelta != i) { scelta = i; gAudio.Suona(Effetto::Menu, 0.5f); }
+            if (gInput.MouseMosso() && scelta != i) { scelta = i; gAudio.Suona(Effetto::Menu, 0.5f); }
             if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) Apri(VOCI[i].schermata);
         }
     }
@@ -170,16 +189,16 @@ void Studio::DisegnaMenu() {
     ScrittaCentrata("crea i tuoi videogiochi, con Claude al tuo fianco", VW / 2, 66, 10, Hex(0xe0e6ff));
 
     for (int i = 0; i < NUM_VOCI; i++) {
-        Rectangle r = { 24, 92.0f + i * 22, 200, 20 };
+        Rectangle r = { 24, MENU_Y + i * MENU_PASSO, 200, MENU_H };
         bool sel = i == scelta;
         float sposta = sel ? 6 + std::sin(tempo * 6) * 1.5f : 0;
         r.x += sposta;
         Pannello(r, sel ? Hex(0x2a2f6a, 230) : Hex(0x101430, 190), sel ? Hex(0xffd23f) : Hex(0x3a4080));
-        Scritta(TextFormat("%d", i + 1), (int)r.x + 6, (int)r.y + 5, 10, sel ? Hex(0xffd23f) : Hex(0x8a90c0));
-        Scritta(VOCI[i].titolo, (int)r.x + 20, (int)r.y + 5, 10, sel ? WHITE : Hex(0xc8d0f0));
+        Scritta(TextFormat("%d", i + 1), (int)r.x + 6, (int)r.y + 4, 10, sel ? Hex(0xffd23f) : Hex(0x8a90c0));
+        Scritta(VOCI[i].titolo, (int)r.x + 20, (int)r.y + 4, 10, sel ? WHITE : Hex(0xc8d0f0));
     }
     // Scheda descrittiva della voce scelta.
-    Rectangle d = { 246, 92, 214, 152 };
+    Rectangle d = { 246, 84, 214, 152 };
     Pannello(d, Hex(0x101430, 200), Hex(0x3a4080));
     Scritta(VOCI[scelta].titolo, (int)d.x + 8, (int)d.y + 8, 10, Hex(0xffd23f));
     ScrittaACapo(VOCI[scelta].descrizione, (int)d.x + 8, (int)d.y + 24, (int)d.width - 16, 10, Hex(0xe0e6ff));
@@ -193,6 +212,27 @@ void Studio::DisegnaMenu() {
             break;
         }
         case Schermata::Claude: fantasma.Disegna(c, 3, tempo); break;
+        case Schermata::Editor: {
+            // Mini mappa che si costruisce da sola.
+            for (int i = 0; i < 12; i++) {
+                int h = 1 + (int)(Rumore1(i * 0.7f) * 3);
+                for (int k = 0; k < h; k++)
+                    if (std::fmod(tempo * 4, 16.0f) > i) DrawRectangle((int)c.x - 72 + i * 12, (int)c.y + 24 - k * 12, 11, 11, k == h - 1 ? Hex(0x5ac85a) : Hex(0x7a4a2a));
+            }
+            DrawRectangleRounded({ c.x + 30, c.y - 40, 64, 22 }, 0.4f, 4, Hex(0xd97757));
+            Scritta("Claude", (int)c.x + 44, (int)c.y - 34, 10, WHITE);
+            break;
+        }
+        case Schermata::Comandi: {
+            const char* nomi[3] = { "Tastiera", "Mouse", "Joypad" };
+            for (int i = 0; i < 3; i++) {
+                bool attiva = (int)gInput.Ultima() == i;
+                Rectangle r = { c.x - 90 + i * 62, c.y - 10, 56, 30 };
+                Pannello(r, attiva ? Hex(0x2a5a3a) : Hex(0x1a2050), attiva ? Hex(0x8cff6a) : Hex(0x3a4080));
+                ScrittaCentrata(nomi[i], (int)(r.x + r.width / 2), (int)r.y + 10, 10, WHITE);
+            }
+            break;
+        }
         case Schermata::Audio:
             for (int i = 0; i < 24; i++) {
                 float h = 6 + std::fabs(std::sin(tempo * 4 + i * 0.7f) * std::sin(tempo * 1.3f + i)) * 34;
@@ -210,18 +250,19 @@ void Studio::DisegnaMenu() {
             }
         }
     }
+    Scritta(TextFormat("Sviluppato da %s", SVILUPPATORE), (int)d.x, (int)(d.y + d.height + 4), 10, Hex(0xffd2b8));
     DrawRectangle(0, VH - 14, VW, 14, Hex(0x0b0e22, 200));
-    Scritta("Frecce o mouse: scegli   Invio: apri   M: musica   F11: schermo intero   Esc: esci", 6, VH - 12, 10, Hex(0xc8d0f0));
+    Scritta("Frecce, mouse o joypad: scegli   Invio/A: apri   M: musica   F11: schermo intero   Esc: esci", 6, VH - 12, 10, Hex(0xc8d0f0));
 }
 
 // --- 1. Scenari ----------------------------------------------------------
 
 void Studio::AggiornaScenari(float dt) {
     scenario.Aggiorna(dt);
-    if (IsKeyDown(KEY_RIGHT)) velScenario = std::min(velScenario + 200 * dt, 300.0f);
-    if (IsKeyDown(KEY_LEFT)) velScenario = std::max(velScenario - 200 * dt, -300.0f);
-    if (IsKeyDown(KEY_UP)) scenario.ora = std::fmod(scenario.ora + dt * 0.15f, 1.0f);
-    if (IsKeyDown(KEY_DOWN)) scenario.ora = std::fmod(scenario.ora - dt * 0.15f + 1.0f, 1.0f);
+    if (gInput.Tenuto(Azione::Destra)) velScenario = std::min(velScenario + 200 * dt, 300.0f);
+    if (gInput.Tenuto(Azione::Sinistra)) velScenario = std::max(velScenario - 200 * dt, -300.0f);
+    if (gInput.Tenuto(Azione::Su)) scenario.ora = std::fmod(scenario.ora + dt * 0.15f, 1.0f);
+    if (gInput.Tenuto(Azione::Giu)) scenario.ora = std::fmod(scenario.ora - dt * 0.15f + 1.0f, 1.0f);
     if (IsKeyPressed(KEY_T)) { scenario.tema = (scenario.tema + 1) % (int)Sfondo::Temi().size(); gAudio.Suona(Effetto::Gemma, 0.5f); }
     if (IsKeyPressed(KEY_G)) scorrimentoAuto = !scorrimentoAuto;
     if (scorrimentoAuto) scenario.ora = std::fmod(scenario.ora + dt / 40.0f, 1.0f);
@@ -248,10 +289,10 @@ void Studio::DisegnaScenari() {
 void Studio::AggiornaPersonaggi(float dt) {
     const StatoEroe stati[] = { StatoEroe::Fermo, StatoEroe::Corsa, StatoEroe::Salto, StatoEroe::Caduta,
                                 StatoEroe::Atterraggio, StatoEroe::Vittoria, StatoEroe::Colpito };
-    if (IsKeyPressed(KEY_RIGHT)) { statoScelto = (statoScelto + 1) % 7; cicloStati = false; gAudio.Suona(Effetto::Menu); }
-    if (IsKeyPressed(KEY_LEFT)) { statoScelto = (statoScelto + 6) % 7; cicloStati = false; gAudio.Suona(Effetto::Menu); }
+    if (gInput.Premuto(Azione::Destra)) { statoScelto = (statoScelto + 1) % 7; cicloStati = false; gAudio.Suona(Effetto::Menu); }
+    if (gInput.Premuto(Azione::Sinistra)) { statoScelto = (statoScelto + 6) % 7; cicloStati = false; gAudio.Suona(Effetto::Menu); }
     if (IsKeyPressed(KEY_A)) cicloStati = !cicloStati;
-    if (IsKeyPressed(KEY_C)) { palette = (palette + 1) % (int)palettes.size(); gAudio.Suona(Effetto::Gemma, 0.5f); }
+    if (IsKeyPressed(KEY_C) || gInput.Premuto(Azione::Conferma)) { palette = (palette + 1) % (int)palettes.size(); gAudio.Suona(Effetto::Gemma, 0.5f); }
     if (cicloStati) { tCiclo += dt; if (tCiclo > 2.2f) { tCiclo = 0; statoScelto = (statoScelto + 1) % 7; } }
     StatoEroe s = stati[statoScelto];
     modello.aspetto = palettes[palette].a;
@@ -299,11 +340,11 @@ void Studio::DisegnaPersonaggi() {
 
 void Studio::AggiornaAudio(float dt) {
     const int n = (int)Effetto::Totale;
-    if (IsKeyPressed(KEY_RIGHT)) effettoScelto = (effettoScelto + 1) % n;
-    if (IsKeyPressed(KEY_LEFT)) effettoScelto = (effettoScelto + n - 1) % n;
-    if (IsKeyPressed(KEY_DOWN)) effettoScelto = (effettoScelto + 6) % n;
-    if (IsKeyPressed(KEY_UP)) effettoScelto = (effettoScelto + n - 6) % n;
-    if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE)) gAudio.Suona((Effetto)effettoScelto);
+    if (gInput.Premuto(Azione::Destra)) effettoScelto = (effettoScelto + 1) % n;
+    if (gInput.Premuto(Azione::Sinistra)) effettoScelto = (effettoScelto + n - 1) % n;
+    if (gInput.Premuto(Azione::Giu)) effettoScelto = (effettoScelto + 6) % n;
+    if (gInput.Premuto(Azione::Su)) effettoScelto = (effettoScelto + n - 6) % n;
+    if (gInput.Premuto(Azione::Conferma)) gAudio.Suona((Effetto)effettoScelto);
     if (IsKeyPressed(KEY_EQUAL) || IsKeyPressed(KEY_KP_ADD)) gAudio.volumeMusica = std::min(1.0f, gAudio.volumeMusica + 0.1f);
     if (IsKeyPressed(KEY_MINUS) || IsKeyPressed(KEY_KP_SUBTRACT)) gAudio.volumeMusica = std::max(0.0f, gAudio.volumeMusica - 0.1f);
     float t = gAudio.TempoBrano();
@@ -398,7 +439,7 @@ void Studio::AggiornaLogica(float dt) {
         if (CreaEseguibile(percorso, SerializzaGioco(dati), errore)) { Messaggio("Creato " + nome + " accanto allo studio!"); gAudio.Suona(Effetto::Vittoria); }
         else Messaggio("Errore: " + errore);
     }
-    giocoLogica.Aggiorna(dt, Comandi::DaTastiera());
+    giocoLogica.Aggiorna(dt, Comandi::DaPeriferiche());
 }
 
 // --- 6. Librerie ---------------------------------------------------------
@@ -430,7 +471,7 @@ void Studio::DisegnaLibrerie() {
 
 void Studio::AggiornaClaude(float dt) {
     if (provaLivello) {
-        giocoClaude.Aggiorna(dt, Comandi::DaTastiera());
+        giocoClaude.Aggiorna(dt, Comandi::DaPeriferiche());
         if (IsKeyPressed(KEY_R)) { std::string e; giocoClaude.Carica(livelloClaude, e); }
         if (IsKeyPressed(KEY_ESCAPE)) provaLivello = false;
         return;
@@ -464,6 +505,18 @@ void Studio::AggiornaClaude(float dt) {
                 spriteClaude.Scarica(); esito = "Esempio caricato: \"" + nomeLivelloClaude + "\". F5 per giocarlo!";
             }
             gAudio.Suona(Effetto::Gemma);
+        }
+        if (IsKeyPressed(KEY_F3) && !livelloClaude.empty()) {
+            Progetto p;
+            std::string e;
+            if (p.DaTesto(livelloClaude, e)) {
+                p.titolo = nomeLivelloClaude.empty() ? "Livello di Claude" : nomeLivelloClaude;
+                p.ora = 0.85f;
+                editor.Apri(p, "Livello di Claude aperto nell'editor");
+                Apri(Schermata::Editor);
+                return;
+            }
+            esito = "Livello non valido: " + e;
         }
         if (IsKeyPressed(KEY_F5) && !livelloClaude.empty()) {
             std::string e;
@@ -556,10 +609,150 @@ void Studio::DisegnaClaude() {
         ScrittaCentrata(TextFormat("%d x %d tile, %d oggetti", lw, lh, (int)anteprimaLivello.Oggetti().size()), (int)(ant.x + ant.width / 2), 134, 10, Hex(0xc8d0f0));
         float b = 0.5f + 0.5f * std::sin(tempo * 4);
         ScrittaCentrata("F5: gioca questo livello", (int)(ant.x + ant.width / 2), 160, 10, Mescola(Hex(0xffd23f), WHITE, b));
+        ScrittaCentrata("F3: aprilo nell'editor", (int)(ant.x + ant.width / 2), 176, 10, Hex(0xffd2b8));
     } else {
         ScrittaCentrata("Qui appare cio' che crea Claude", (int)(ant.x + ant.width / 2), 120, 10, Hex(0x8a7aa0));
     }
-    Intestazione("7. CREA CON CLAUDE", "Scrivi   Tab: sprite o livello   Invio: chiedi a Claude   F2: esempio   F5: gioca   Esc: menu");
+    Intestazione("7. CREA CON CLAUDE", "Scrivi  Tab: sprite/livello  Invio: chiedi  F2: esempio  F5: gioca  F3: editor  Esc: menu");
+}
+
+// --- Comandi e periferiche ----------------------------------------------
+
+// Righe: le 8 azioni, poi "mouse nel gioco" e "zona morta". Colonne: tasto 1, tasto 2, joypad.
+constexpr int RIGHE_COMANDI = NUM_AZIONI + 2;
+
+void Studio::AggiornaComandi(float dt) {
+    Mappatura& mp = gInput.m;
+    int joy = gInput.Joypad();
+    if (attesaComando) {
+        // Il prossimo tasto o pulsante premuto diventa il nuovo comando. Esc annulla.
+        tAttesa += dt;
+        int tasto = GetKeyPressed();
+        if (tasto == KEY_ESCAPE && colonnaComando < 2) { attesaComando = false; return; }
+        if (colonnaComando < 2 && tasto > 0) {
+            mp.tasti[rigaComando][colonnaComando] = tasto;
+            attesaComando = false; gInput.Salva(); gAudio.Suona(Effetto::Gemma);
+        } else if (colonnaComando == 2) {
+            if (tasto == KEY_ESCAPE) { attesaComando = false; return; }
+            if (joy >= 0)
+                for (int b = 1; b <= GAMEPAD_BUTTON_RIGHT_THUMB; b++)
+                    if (IsGamepadButtonPressed(joy, b)) { mp.pulsanti[rigaComando] = b; attesaComando = false; gInput.Salva(); gAudio.Suona(Effetto::Gemma); break; }
+        }
+        if (tAttesa > 8) attesaComando = false;
+        return;
+    }
+    if (IsKeyPressed(KEY_ESCAPE) || (joy >= 0 && IsGamepadButtonPressed(joy, mp.pulsanti[(int)Azione::Indietro]))) {
+        gInput.Salva(); attuale = Schermata::Menu; gAudio.Suona(Effetto::Menu); return;
+    }
+    if (IsKeyPressed(KEY_DOWN)) rigaComando = (rigaComando + 1) % RIGHE_COMANDI;
+    if (IsKeyPressed(KEY_UP)) rigaComando = (rigaComando + RIGHE_COMANDI - 1) % RIGHE_COMANDI;
+    if (IsKeyPressed(KEY_RIGHT)) colonnaComando = std::min(2, colonnaComando + 1);
+    if (IsKeyPressed(KEY_LEFT)) colonnaComando = std::max(0, colonnaComando - 1);
+    if (joy >= 0) {
+        if (IsGamepadButtonPressed(joy, GAMEPAD_BUTTON_LEFT_FACE_DOWN)) rigaComando = (rigaComando + 1) % RIGHE_COMANDI;
+        if (IsGamepadButtonPressed(joy, GAMEPAD_BUTTON_LEFT_FACE_UP)) rigaComando = (rigaComando + RIGHE_COMANDI - 1) % RIGHE_COMANDI;
+        if (IsGamepadButtonPressed(joy, GAMEPAD_BUTTON_LEFT_FACE_RIGHT)) colonnaComando = std::min(2, colonnaComando + 1);
+        if (IsGamepadButtonPressed(joy, GAMEPAD_BUTTON_LEFT_FACE_LEFT)) colonnaComando = std::max(0, colonnaComando - 1);
+    }
+    // Clic del mouse su una cella della tabella.
+    Vector2 m = gInput.Mouse();
+    for (int r = 0; r < RIGHE_COMANDI; r++)
+        for (int c = 0; c < 3; c++) {
+            Rectangle cel = { 96.0f + c * 66, 38.0f + r * 18, 62, 16 };
+            if (r >= NUM_AZIONI && c > 0) continue;
+            if (r >= NUM_AZIONI) cel.width = 194;
+            if (CheckCollisionPointRec(m, cel) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+                if (rigaComando == r && colonnaComando == c) attesaComando = true, tAttesa = 0;
+                rigaComando = r; colonnaComando = c;
+                if (r >= NUM_AZIONI) attesaComando = false;
+            }
+        }
+    bool conferma = IsKeyPressed(KEY_ENTER) || (joy >= 0 && IsGamepadButtonPressed(joy, GAMEPAD_BUTTON_RIGHT_FACE_DOWN) && rigaComando >= NUM_AZIONI);
+    if (rigaComando == NUM_AZIONI && (conferma || (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && CheckCollisionPointRec(m, { 96, 38.0f + NUM_AZIONI * 18, 194, 16 })))) {
+        mp.mouseNelGioco = !mp.mouseNelGioco; gInput.Salva(); gAudio.Suona(Effetto::Menu);
+    } else if (rigaComando == NUM_AZIONI + 1) {
+        if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_EQUAL) || IsKeyPressed(KEY_KP_ADD)) { mp.zonaMorta = std::fmod(mp.zonaMorta + 0.05f, 0.80f); if (mp.zonaMorta < 0.1f) mp.zonaMorta = 0.1f; gInput.Salva(); }
+        if (IsKeyPressed(KEY_MINUS) || IsKeyPressed(KEY_KP_SUBTRACT)) { mp.zonaMorta = std::max(0.1f, mp.zonaMorta - 0.05f); gInput.Salva(); }
+    } else if (IsKeyPressed(KEY_ENTER)) { attesaComando = true; tAttesa = 0; gAudio.Suona(Effetto::Conferma, 0.5f); }
+    if (IsKeyPressed(KEY_DELETE) && rigaComando < NUM_AZIONI) {
+        if (colonnaComando < 2) mp.tasti[rigaComando][colonnaComando] = 0; else mp.pulsanti[rigaComando] = 0;
+        gInput.Salva();
+    }
+    if (IsKeyPressed(KEY_R) && IsKeyDown(KEY_LEFT_CONTROL)) { mp = Mappatura::Predefinita(); gInput.Salva(); Messaggio("Comandi predefiniti ripristinati"); }
+}
+
+void Studio::DisegnaComandi() {
+    DrawRectangleGradientV(0, 0, VW, VH, Hex(0x0e1230), Hex(0x24184a));
+    const Mappatura& mp = gInput.m;
+    const char* colonne[3] = { "Tasto 1", "Tasto 2", "Joypad" };
+    for (int c = 0; c < 3; c++) Scritta(colonne[c], 100 + c * 66, 24, 10, Hex(0xffd23f));
+    for (int r = 0; r < RIGHE_COMANDI; r++) {
+        float y = 38.0f + r * 18;
+        if (r < NUM_AZIONI) {
+            bool attiva = gInput.Tenuto((Azione)r);
+            DrawRectangle(8, (int)y, 84, 16, attiva ? Hex(0x2a6a3a) : Hex(0x141a40, 220));
+            Scritta(NomeAzione((Azione)r), 12, (int)y + 3, 10, attiva ? Hex(0x8cff6a) : WHITE);
+            for (int c = 0; c < 3; c++) {
+                Rectangle cel = { 96.0f + c * 66, y, 62, 16 };
+                bool sel = r == rigaComando && c == colonnaComando;
+                Pannello(cel, sel ? Hex(0x2a2f6a) : Hex(0x101430, 220), sel ? Hex(0xffd23f) : Hex(0x2a3060));
+                const char* t = sel && attesaComando ? (std::fmod(tempo, 0.6f) < 0.3f ? "premi..." : "")
+                              : c < 2 ? NomeTasto(mp.tasti[r][c]) : NomePulsante(mp.pulsanti[r]);
+                Scritta(t, (int)cel.x + 4, (int)cel.y + 3, 10, sel ? WHITE : Hex(0xc8d0f0));
+            }
+        } else {
+            bool sel = r == rigaComando;
+            Rectangle cel = { 96, y, 194, 16 };
+            DrawRectangle(8, (int)y, 84, 16, Hex(0x141a40, 220));
+            Scritta(r == NUM_AZIONI ? "Mouse" : "Zona morta", 12, (int)y + 3, 10, WHITE);
+            Pannello(cel, sel ? Hex(0x2a2f6a) : Hex(0x101430, 220), sel ? Hex(0xffd23f) : Hex(0x2a3060));
+            Scritta(r == NUM_AZIONI ? (mp.mouseNelGioco ? "nel gioco: si (sinistro cammina, destro salta)" : "nel gioco: no")
+                                    : TextFormat("levette: %d%%  (+/- per cambiare)", (int)(mp.zonaMorta * 100 + 0.5f)),
+                    (int)cel.x + 4, (int)cel.y + 3, 10, sel ? WHITE : Hex(0xc8d0f0));
+        }
+    }
+    // Stato delle periferiche.
+    float y = 38.0f + RIGHE_COMANDI * 18 + 6;
+    int joy = gInput.Joypad();
+    const char* ultime[3] = { "tastiera", "mouse", "joypad" };
+    Scritta(TextFormat("Joypad: %s", joy >= 0 ? gInput.NomeJoypad() : "nessuno collegato"), 8, (int)y, 10, joy >= 0 ? Hex(0x8cff6a) : Hex(0xff8a8a));
+    Scritta(TextFormat("Ultima periferica usata: %s", ultime[(int)gInput.Ultima()]), 8, (int)y + 13, 10, Hex(0xc8d0f0));
+    if (joy >= 0) {
+        // Levetta sinistra: cerchio con la zona morta.
+        Vector2 c = { 270, y + 8 };
+        DrawCircleLinesV(c, 10, Hex(0x5a6aa0));
+        DrawCircleLinesV(c, 10 * mp.zonaMorta, Hex(0x3a4070));
+        DrawCircleV({ c.x + gInput.LevettaX() * 10, c.y + gInput.LevettaY() * 10 }, 3, Hex(0xffd23f));
+    }
+    // Riquadro di prova dal vivo.
+    Rectangle prova = { 298, 22, 176, 160 };
+    Pannello(prova, Hex(0x07061a, 230), Hex(0x3a4080));
+    Scritta("Prova dal vivo", (int)prova.x + 6, (int)prova.y + 4, 10, Hex(0xffd23f));
+    Vector2 m = gInput.Mouse();
+    Scritta(TextFormat("Mouse: %d, %d", (int)m.x, (int)m.y), (int)prova.x + 6, (int)prova.y + 18, 10, Hex(0xc8d0f0));
+    const char* frecce[4] = { "<", ">", "^", "v" };
+    for (int k = 0; k < 4; k++) {
+        bool on = gInput.Tenuto((Azione)k);
+        Rectangle r = { prova.x + 40 + (k == 0 ? 0 : k == 1 ? 40 : 20), prova.y + (k == 2 ? 40 : k == 3 ? 80 : 60), 18, 18 };
+        Pannello(r, on ? Hex(0xffd23f) : Hex(0x1a2050), Hex(0x3a4080));
+        ScrittaCentrata(frecce[k], (int)(r.x + 9), (int)r.y + 5, 10, on ? BLACK : WHITE);
+    }
+    const char* tasti[4] = { "Salto", "OK", "Indietro", "Pausa" };
+    for (int k = 0; k < 4; k++) {
+        bool on = gInput.Tenuto((Azione)(4 + k));
+        Rectangle r = { prova.x + 110, prova.y + 40 + k * 20, 58, 16 };
+        Pannello(r, on ? Hex(0xff5c8a) : Hex(0x1a2050), Hex(0x3a4080));
+        ScrittaCentrata(tasti[k], (int)(r.x + 29), (int)r.y + 4, 10, WHITE);
+    }
+    // Asse analogico.
+    float a = gInput.Asse();
+    DrawRectangle((int)prova.x + 10, (int)prova.y + 128, 156, 6, Hex(0x1a2050));
+    DrawRectangle((int)(prova.x + 88 + std::min(0.0f, a) * 78), (int)prova.y + 128, (int)(std::fabs(a) * 78), 6, Hex(0x8cff6a));
+    Scritta("asse orizzontale", (int)prova.x + 10, (int)prova.y + 140, 10, Hex(0x8a90c0));
+    Scritta("Le impostazioni valgono anche per i giochi creati (comandi.cfg).", 8, (int)y + 28, 10, Hex(0x8a90c0));
+    Scritta(TextFormat("Ctrl+R: ripristina   Canc: cancella"), 8, (int)y + 41, 10, Hex(0x8a90c0));
+    Intestazione("COMANDI E PERIFERICHE", attesaComando ? "Premi il nuovo tasto o pulsante (Esc annulla)"
+                                                       : "Frecce: scegli  Invio o clic: cambia  Canc: cancella  Ctrl+R: predefiniti  Esc: menu");
 }
 
 // --- Ciclo principale ----------------------------------------------------
@@ -567,9 +760,17 @@ void Studio::DisegnaClaude() {
 void Studio::Aggiorna(float dt) {
     tempo += dt;
     if (tMessaggio > 0) tMessaggio -= dt;
-    bool scrivendo = attuale == Schermata::Claude && !provaLivello;
+    bool scrivendo = (attuale == Schermata::Claude && !provaLivello) || (attuale == Schermata::Editor && editor.Scrivendo())
+                  || (attuale == Schermata::Comandi && attesaComando);
     if (IsKeyPressed(KEY_M) && !scrivendo) gAudio.MusicaAttiva(!gAudio.MusicaAttiva());
-    if (attuale != Schermata::Menu && IsKeyPressed(KEY_ESCAPE) && !(attuale == Schermata::Claude && provaLivello)) {
+    if (attuale == Schermata::Editor) {
+        editor.Aggiorna(dt);
+        if (editor.vuoleUscire) { editor.Esci(); attuale = Schermata::Menu; gAudio.Suona(Effetto::Menu); }
+        return;
+    }
+    if (attuale == Schermata::Comandi) { AggiornaComandi(dt); return; }
+    bool indietro = attuale == Schermata::Claude ? IsKeyPressed(KEY_ESCAPE) : gInput.Premuto(Azione::Indietro);
+    if (attuale != Schermata::Menu && indietro && !(attuale == Schermata::Claude && provaLivello)) {
         attuale = Schermata::Menu; gAudio.Suona(Effetto::Menu); return;
     }
     switch (attuale) {
@@ -578,12 +779,13 @@ void Studio::Aggiorna(float dt) {
         case Schermata::Personaggi: AggiornaPersonaggi(dt); break;
         case Schermata::Oggetti:
             if (IsKeyPressed(KEY_R)) { std::string e; giocoOggetti.Carica(LivelloVetrinaOggetti(), e); }
-            giocoOggetti.Aggiorna(dt, Comandi::DaTastiera());
+            giocoOggetti.Aggiorna(dt, Comandi::DaPeriferiche());
             break;
         case Schermata::Audio: AggiornaAudio(dt); break;
         case Schermata::Logica: AggiornaLogica(dt); break;
         case Schermata::Librerie: break;
         case Schermata::Claude: AggiornaClaude(dt); break;
+        default: break;
     }
 }
 
@@ -595,7 +797,7 @@ void Studio::Disegna() {
         case Schermata::Oggetti:
             giocoOggetti.Disegna();
             DrawRectangle(0, VH - 14, VW, 14, Hex(0x0b0e22, 200));
-            Scritta("3. OGGETTI   Frecce/WASD: muovi   Spazio: salta   R: ricomincia   Esc: menu", 6, VH - 12, 10, Hex(0xc8d0f0));
+            Scritta("3. OGGETTI   Frecce/WASD/joypad: muovi   Spazio/A: salta   R: ricomincia   Esc: menu", 6, VH - 12, 10, Hex(0xc8d0f0));
             break;
         case Schermata::Audio: DisegnaAudio(); break;
         case Schermata::Logica:
@@ -605,6 +807,8 @@ void Studio::Disegna() {
             break;
         case Schermata::Librerie: DisegnaLibrerie(); break;
         case Schermata::Claude: DisegnaClaude(); break;
+        case Schermata::Editor: editor.Disegna(); break;
+        case Schermata::Comandi: DisegnaComandi(); break;
     }
     if (tMessaggio > 0) {
         int w = MeasureText(messaggio.c_str(), 10) + 16;
@@ -615,40 +819,135 @@ void Studio::Disegna() {
     }
 }
 
-void Presenta(RenderTexture2D& schermo) {
-    BeginDrawing();
-    ClearBackground(BLACK);
-    float scala = std::min((float)GetScreenWidth() / VW, (float)GetScreenHeight() / VH);
+// Disegna il logo dentro un rettangolo della finestra, mantenendo le proporzioni.
+void DisegnaLogo(Rectangle r, float alfa = 1) {
+    if (gLogo.id == 0) return;
+    float s = std::min(r.width / gLogo.width, r.height / gLogo.height);
+    float w = gLogo.width * s, h = gLogo.height * s;
+    // Il logo ha scritte scure: lo appoggio su una targa chiara per farlo leggere su ogni sfondo.
+    float bordo = h * 0.12f;
+    DrawRectangleRounded({ r.x + (r.width - w) / 2 - bordo, r.y + (r.height - h) / 2 - bordo * 0.6f, w + bordo * 2, h + bordo * 1.2f },
+                         0.35f, 8, ConAlfa(Hex(0xf4f1ea), 0.92f * alfa));
+    DrawTexturePro(gLogo, { 0, 0, (float)gLogo.width, (float)gLogo.height },
+                   { r.x + (r.width - w) / 2, r.y + (r.height - h) / 2, w, h }, { 0, 0 }, 0, ConAlfa(WHITE, alfa));
+}
+
+void Studio::DisegnaSopra(Rectangle area) {
+    if (attuale != Schermata::Menu) return;
+    float s = area.width / VW;
+    DisegnaLogo({ area.x + 6 * s, area.y + 4 * s, 58 * s, 19 * s });
+}
+
+// Dove va l'immagine del gioco nella finestra: tutta la finestra, oppure la parte
+// sinistra quando a destra c'e' la chat di Claude.
+Rectangle PannelloChat(bool visibile) {
+    if (!visibile) return { 0, 0, 0, 0 };
+    float sw = (float)GetScreenWidth(), sh = (float)GetScreenHeight();
+    float w = Limita(sw * 0.30f, 340, 620);
+    return { sw - w, 0, w, sh };
+}
+
+Rectangle AreaGioco(const Rectangle& chat) {
+    float sw = (float)GetScreenWidth() - chat.width, sh = (float)GetScreenHeight();
+    float scala = std::min(sw / VW, sh / VH);
     float w = VW * scala, h = VH * scala;
-    DrawTexturePro(schermo.texture, { 0, 0, (float)VW, -(float)VH },
-                   { (GetScreenWidth() - w) / 2, (GetScreenHeight() - h) / 2, w, h }, { 0, 0 }, 0, WHITE);
-    EndDrawing();
+    return { (sw - w) / 2, (sh - h) / 2, w, h };
+}
+
+void DisegnaSchermo(RenderTexture2D& schermo, Rectangle area) {
+    DrawTexturePro(schermo.texture, { 0, 0, (float)VW, -(float)VH }, area, { 0, 0 }, 0, WHITE);
+}
+
+void CaricaRisorse() {
+    Image icona = LoadImageFromMemory(".png", ICONA_PNG, (int)sizeof(ICONA_PNG));
+    if (icona.data) { SetWindowIcon(icona); UnloadImage(icona); }
+    Image logo = LoadImageFromMemory(".png", LOGO_PNG, (int)sizeof(LOGO_PNG));
+    if (logo.data) {
+        gLogo = LoadTextureFromImage(logo);
+        GenTextureMipmaps(&gLogo);
+        SetTextureFilter(gLogo, TEXTURE_FILTER_TRILINEAR);
+        UnloadImage(logo);
+    }
+}
+
+// Finestra grande: il 90% del monitor, centrata.
+void FinestraGrande() {
+    int mon = GetCurrentMonitor();
+    int mw = GetMonitorWidth(mon), mh = GetMonitorHeight(mon);
+    if (mw <= 0 || mh <= 0) return;
+    int w = (int)(mw * 0.9f), h = (int)(mh * 0.86f);
+    SetWindowSize(w, h);
+    SetWindowPosition((mw - w) / 2, std::max(30, (mh - h) / 2));
+}
+
+// Schermata iniziale con il logo Elvantis. Ritorna false se la finestra e' stata chiusa.
+bool Presentazione(const std::string& riga1, const std::string& riga2, float durata) {
+    float t = 0;
+    gAudio.Suona(Effetto::Gemma, 0.7f);
+    while (!WindowShouldClose()) {
+        float dt = GetFrameTime();
+        t += dt;
+        gInput.Aggiorna(1, { 0, 0 });
+        bool salta = t > 0.4f && (GetKeyPressed() != 0 || IsMouseButtonPressed(MOUSE_BUTTON_LEFT) || gInput.Premuto(Azione::Conferma));
+        if (t >= durata || salta) return true;
+        float alfa = std::min(Limita(t / 0.6f, 0, 1), Limita((durata - t) / 0.5f, 0, 1));
+        float sw = (float)GetScreenWidth(), sh = (float)GetScreenHeight();
+        BeginDrawing();
+        DrawRectangleGradientV(0, 0, (int)sw, (int)sh, Hex(0x05081c), Hex(0x1a1040));
+        // Bagliore dietro al logo.
+        BeginBlendMode(BLEND_ADDITIVE);
+        DrawEllipse((int)(sw / 2), (int)(sh * 0.42f), sw * 0.32f, sh * 0.16f, ConAlfa(Hex(0x5e8cff), 0.10f * alfa));
+        EndBlendMode();
+        float lw = std::min(sw * 0.6f, 1000.0f);
+        float zoom = 0.96f + 0.04f * Limita(t / durata, 0, 1);
+        DisegnaLogo({ sw / 2 - lw * zoom / 2, sh * 0.42f - lw * 0.33f * zoom / 2, lw * zoom, lw * 0.33f * zoom }, alfa);
+        int d1 = std::max(20, (int)(sh / 26)), d2 = std::max(14, (int)(sh / 40));
+        int w1 = MeasureText(riga1.c_str(), d1), w2 = MeasureText(riga2.c_str(), d2);
+        DrawText(riga1.c_str(), (int)(sw / 2 - w1 / 2), (int)(sh * 0.66f), d1, ConAlfa(WHITE, alfa));
+        DrawText(riga2.c_str(), (int)(sw / 2 - w2 / 2), (int)(sh * 0.66f) + d1 + 14, d2, ConAlfa(Hex(0xffd2b8), alfa));
+        EndDrawing();
+    }
+    return false;
 }
 
 int GiocaPacchetto(const DatiGioco& dati) {
+    SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT);
     InitWindow(VW * 2, VH * 2, dati.titolo.c_str());
-    SetWindowState(FLAG_WINDOW_RESIZABLE);
-    SetExitKey(KEY_ESCAPE);
+    FinestraGrande();
+    SetExitKey(KEY_NULL);
     SetTargetFPS(60);
+    CaricaRisorse();
+    gInput.Carica();
     gAudio.Inizializza();
+    gAudio.ApplicaFile(dati.file);   // musiche ed effetti caricati da file nello studio
     gAudio.MusicaAttiva(true);
     RenderTexture2D schermo = LoadRenderTexture(VW, VH);
     Gioco gioco;
     gioco.titolo = dati.titolo;
+    gioco.crediti = std::string("Creato con Studio Videogiochi di ") + SVILUPPATORE;
     std::string errore;
     bool ok = gioco.Carica(dati.livello, errore);
-    while (!WindowShouldClose()) {
+    bool aperta = Presentazione(dati.titolo, std::string("Studio Videogiochi - Elvantis - sviluppatore ") + SVILUPPATORE, 2.6f);
+    while (aperta && !WindowShouldClose()) {
+        Rectangle area = AreaGioco({ 0, 0, 0, 0 });
+        gInput.Aggiorna(area.width / VW, { area.x, area.y });
         if (IsKeyPressed(KEY_F11)) ToggleBorderlessWindowed();
+        if (IsKeyPressed(KEY_ESCAPE)) break;
         if (IsKeyPressed(KEY_M)) gAudio.MusicaAttiva(!gAudio.MusicaAttiva());
         if (ok && IsKeyPressed(KEY_R)) gioco.Carica(dati.livello, errore);
-        if (ok) gioco.Aggiorna(GetFrameTime(), Comandi::DaTastiera());
+        gAudio.Aggiorna(GetFrameTime());
+        if (ok) gioco.Aggiorna(GetFrameTime(), Comandi::DaPeriferiche());
         BeginTextureMode(schermo);
         if (ok) gioco.Disegna();
         else { ClearBackground(BLACK); Scritta(("Dati del gioco non validi: " + errore).c_str(), 10, 10, 10, WHITE); }
         EndTextureMode();
-        Presenta(schermo);
+        BeginDrawing();
+        ClearBackground(BLACK);
+        DisegnaSchermo(schermo, area);
+        EndDrawing();
     }
     UnloadRenderTexture(schermo);
+    if (gLogo.id) UnloadTexture(gLogo);
     gAudio.Chiudi();
     CloseWindow();
     return 0;
@@ -682,27 +981,44 @@ int main(int argc, char** argv) {
     if (LeggiPacchettoIncluso(dati) && DeserializzaGioco(dati, gioco)) return GiocaPacchetto(gioco);
 
     SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT);
-    InitWindow(VW * 2, VH * 2, "Studio Videogiochi");
-    SetWindowMinSize(VW, VH);
+    InitWindow(VW * 2, VH * 2, "Studio Videogiochi - Elvantis");
+    FinestraGrande();
+    SetWindowMinSize(VW * 2, VH * 2);
     SetExitKey(KEY_NULL); // Esc torna al menu invece di chiudere
     SetTargetFPS(60);
+    CaricaRisorse();
+    gInput.Carica();
     gAudio.Inizializza();
     gAudio.MusicaAttiva(true);
     RenderTexture2D schermo = LoadRenderTexture(VW, VH);
 
     Studio studio;
     studio.Avvia();
-    while (!WindowShouldClose() && !studio.esci) {
+    bool aperta = Presentazione("Studio Videogiochi", std::string("Sviluppato da ") + SVILUPPATORE + " - Elvantis", 3.2f);
+    while (aperta && !WindowShouldClose() && !studio.esci) {
+        float dt = GetFrameTime();
+        Rectangle chat = PannelloChat(studio.ChatVisibile());
+        Rectangle area = AreaGioco(chat);
+        gInput.Aggiorna(area.width / VW, { area.x, area.y });
         if (IsKeyPressed(KEY_F11)) ToggleBorderlessWindowed();
-        gAudio.Aggiorna(GetFrameTime());
-        studio.Aggiorna(GetFrameTime());
+        gAudio.Aggiorna(dt);
+        studio.Aggiorna(dt);
+        if (studio.ChatVisibile()) studio.editor.AggiornaChat(PannelloChat(true));
         BeginTextureMode(schermo);
         ClearBackground(BLACK);
         studio.Disegna();
         EndTextureMode();
-        Presenta(schermo);
+        BeginDrawing();
+        ClearBackground(Hex(0x07061a));
+        chat = PannelloChat(studio.ChatVisibile());
+        area = AreaGioco(chat);
+        DisegnaSchermo(schermo, area);
+        studio.DisegnaSopra(area);
+        if (studio.ChatVisibile()) studio.editor.DisegnaChat(chat);
+        EndDrawing();
     }
     UnloadRenderTexture(schermo);
+    if (gLogo.id) UnloadTexture(gLogo);
     gAudio.Chiudi();
     CloseWindow();
     return 0;

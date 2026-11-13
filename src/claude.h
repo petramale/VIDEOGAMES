@@ -3,6 +3,7 @@
 // (uno sprite in pixel art o un livello giocabile), che poi controlla e importa.
 #pragma once
 #include <string>
+#include <vector>
 
 enum class TipoRichiesta { Sprite, Livello };
 
@@ -27,4 +28,21 @@ public:
 
     static const char* EsempioSprite();
     static const char* EsempioLivello();
+};
+
+// Chat con Claude dentro l'editor: Claude legge lo stato del progetto aperto e
+// risponde con un messaggio e un elenco di modifiche da applicare.
+struct MessaggioChat {
+    bool utente;
+    std::string testo;       // cio' che si vede nella chat
+    std::string grezzo;      // per Claude: richiesta con lo stato, oppure il JSON della risposta
+};
+
+class ChatClaude {
+public:
+    std::vector<MessaggioChat> storia;
+    void Invia(const ConfigClaude& cfg, const std::string& richiesta, const std::string& statoProgettoJson);
+    int Stato() const;                    // come Claude::Stato
+    std::string RispostaGrezza() const;   // testo della risposta (JSON) o errore
+    static std::string PromptSistema();
 };

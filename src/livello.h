@@ -3,6 +3,7 @@
 //   ^  spine               P  partenza        F  bandiera d'arrivo
 //   o  moneta   g  gemma   m  molla   c  forziere   k  lanterna (punto di controllo)
 //   e  slime (nemico)      b  pipistrello (nemico)
+// Una riga che inizia con ';' contiene le impostazioni del progetto (vedi progetto.h).
 #pragma once
 #include "comune.h"
 

@@ -24,6 +24,18 @@ public:
     void Suona(Effetto e, float volume = 1.0f);
     static const char* NomeEffetto(Effetto e);
 
+    // Musiche ed effetti da file (WAV, OGG, MP3, QOA). 'estensione' es. ".ogg".
+    // I dati devono restare validi finche' sono in uso: l'Audio ne tiene una copia.
+    bool CaricaMusica(const std::string& estensione, const std::string& dati);
+    bool CaricaEffetto(Effetto e, const std::string& estensione, const std::string& dati);
+    // Applica i file di un progetto: "musica.ogg" e "effetto_<Nome>.wav".
+    void ApplicaFile(const std::vector<std::pair<std::string, std::string>>& file);
+    void RipristinaMusica();               // torna alla colonna sonora generata
+    void RipristinaEffetto(Effetto e);     // torna all'effetto generato
+    bool MusicaDaFile() const { return musicaFile; }
+    bool EffettoDaFile(Effetto e) const { return effettoFile[(int)e]; }
+    void FermaTutto();                     // ripristina tutto ai suoni generati
+
     void MusicaAttiva(bool attiva);
     bool MusicaAttiva() const { return musicaAttiva; }
     float volumeMusica = 0.55f;
@@ -43,6 +55,10 @@ private:
 
     Sound suoni[(int)Effetto::Totale]{};
     std::vector<float> campioniEffetti[(int)Effetto::Totale];
+    Music musica{};
+    bool musicaFile = false;
+    std::string datiMusica;
+    bool effettoFile[(int)Effetto::Totale] = {};
     bool preparato = false;
     AudioStream flusso{};
     std::vector<float> brano;

@@ -4,6 +4,8 @@ Uno studio **stand-alone in C++** per creare videogiochi 2D per PC, con **Claude
 Tutto ciò che serve è dentro il repository: solo librerie open-source, nessun programma esterno,
 e lo studio crea **direttamente il file .exe** del gioco, senza compilatore.
 
+Sviluppatore: **Mario Petramale** - Elvantis.
+
 Architettura e piano completi: [Generatore di videogiochi C++: architettura e piano](https://claude.ai/artifact/4h33WsyU7LhHuhYiennan9).
 
 ## Avvio rapido con Embarcadero Dev-C++
@@ -24,10 +26,13 @@ In alternativa, da riga di comando con il `bin` di TDM-GCC nel PATH: `mingw32-ma
 | 4 | Effetti e musica | Sintetizzatore chiptune: 11 effetti generati dal codice e una colonna sonora originale (melodia con eco, basso, arpeggi, pad, batteria). Rullo di note e oscilloscopio in tempo reale. |
 | 5 | Logica di gioco | Livello completo "La valle delle gemme": salto variabile, coyote time, collisioni con tile e piattaforme, telecamera che anticipa, nemici, spine, vite, checkpoint, vittoria con fuochi d'artificio. F1 mostra i riquadri di collisione. **C crea il gioco .exe.** |
 | 6 | Librerie | Le librerie incluse, con versione, licenza e cartella (elenco anche in `librerie/librerie.json`). |
-| 7 | Crea con Claude | Descrivi uno sprite o un livello: Claude lo crea, lo studio lo controlla e lo mostra. Un livello si gioca subito con F5. F2 carica una risposta d'esempio, utile senza internet. |
+| 7 | Crea con Claude | Descrivi uno sprite o un livello: Claude lo crea, lo studio lo controlla e lo mostra. Un livello si gioca subito con F5, F3 lo apre nell'editor. F2 carica una risposta d'esempio, utile senza internet. |
+| 8 | Editor + chat Claude | Disegni il livello con mouse o joypad (terreno, piattaforme, spine, oggetti, nemici), cambi tema e ora, Tab lo provi subito, Ctrl+S salva, Ctrl+E crea il .exe. A destra la **chat con Claude** modifica il progetto aperto (livello, scenario, eroe, fisica) con anteprima immediata. F4 apre il pannello audio: trascina sulla finestra file **WAV, OGG o MP3** per la musica o per i singoli effetti; finiscono dentro l'eseguibile creato. |
+| 9 | Comandi e periferiche | Tastiera, mouse e joypad: per ogni azione due tasti e un pulsante del joypad, da cambiare con un clic; prova dal vivo, zona morta delle levette. Salvato in `comandi.cfg`, vale anche per i giochi creati. |
 
 Comandi comuni: frecce o WASD per muoversi, Spazio per saltare, M accende o spegne la musica,
-F11 schermo intero, Esc torna al menu. Funziona anche con il gamepad.
+F11 schermo intero, Esc torna al menu. Funzionano anche il mouse (nei giochi: sinistro cammina verso
+il puntatore, destro salta) e il joypad. La finestra si apre grande, al 90% dello schermo.
 
 ## Creare l'eseguibile di un gioco
 
@@ -61,7 +66,11 @@ Claude è l'unica parte che usa internet: tutto il resto dello studio funziona o
 StudioVideogiochi.dev   progetto per Embarcadero Dev-C++
 Makefile                compilazione con mingw32-make (o make su Linux)
 src/
-  main.cpp              menu dello studio, avvio dei giochi creati
+  main.cpp              menu dello studio, presentazione con il logo, avvio dei giochi creati
+  editor.*              editor dei livelli con la chat di Claude
+  progetto.*            progetto di un gioco (livello, scenario, eroe, fisica, file audio)
+  periferiche.*         tastiera, mouse, joypad e mappatura dei comandi
+  risorse_dati.h        logo e icona incorporati (generato da strumenti/incorpora.cpp)
   sfondo.*              1. sfondi e scenari
   personaggio.*         2. personaggi e animazioni
   pixelart.*            sprite in pixel art (formato JSON di Claude)
@@ -73,6 +82,8 @@ src/
   pacchetto.*           costruttore dell'eseguibile
   sistema.*             funzioni di Windows (WinHTTP, percorso dell'eseguibile)
 esempi/                 livelli di esempio in formato testo
+risorse/                logo Elvantis e icona dell'eseguibile (studio.rc)
+strumenti/incorpora.cpp trasforma file binari in array C++
 librerie/               raylib 5.5 e nlohmann/json con le loro licenze
 ```
 

@@ -8,11 +8,19 @@
 #include "personaggio.h"
 #include "livello.h"
 #include "particelle.h"
+#include "progetto.h"
 
 struct Comandi {
-    bool sinistra = false, destra = false, salto = false, saltoPremuto = false;
-    static Comandi DaTastiera();
+    float asse = 0;                 // -1 sinistra .. 1 destra (anche analogico)
+    bool salto = false, saltoPremuto = false;
+    bool mouseGuida = false;        // mouse: cammina verso il puntatore
+    float mouseX = 0;               // posizione del puntatore sullo schermo virtuale
+    static Comandi DaPeriferiche(); // tastiera + mouse + joypad, secondo la mappatura
 };
+
+// Disegna un oggetto del livello (usato anche dalla tavolozza dell'editor).
+void DisegnaOggetto(const Oggetto& o, float camX, float camY, float tempo, bool bandieraVinta);
+Rectangle BoxOggetto(const Oggetto& o);
 
 class Gioco {
 public:
@@ -22,11 +30,13 @@ public:
 
     Sfondo sfondo;
     Eroe eroe;
+    ParametriFisica fisica;
     bool mostraEtichette = false;   // nomi degli oggetti (vetrina della categoria 3)
     bool mostraCollisioni = false;  // riquadri di collisione (categoria 5)
     bool cicloGiorno = true;        // l'ora del giorno avanza lentamente
     bool mostraHud = true;
     std::string titolo = "La valle delle gemme";
+    std::string crediti;            // riga mostrata alla vittoria (giochi creati)
 
     int monete = 0, gemme = 0, vite = 3;
     float tempo = 0;
@@ -40,7 +50,7 @@ private:
     void AggiornaOggetti(float dt);
     void Ferisci(float spintaX);
     void Rinasci();
-    void DisegnaOggetto(const Oggetto& o) const;
+    void DisegnaOggettoConInfo(const Oggetto& o) const;
     void DisegnaHud() const;
 
     Livello livello;
