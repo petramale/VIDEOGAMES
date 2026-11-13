@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITOLO}}</title>
+<style>
+  body { margin: 0; background: #111; color: #eee; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; }
+  h1 { font-size: 1.4rem; margin: 12px 0 4px; }
+  p { margin: 4px 0 12px; color: #aaa; }
+  canvas { max-width: 100%; border: 2px solid #444; }
+</style>
+</head>
+<body>
+<h1>{{TITOLO}}</h1>
+<p>Frecce o WASD per muoverti. Raccogli tutti gli oggetti ed evita i nemici. Premi R per ricominciare.</p>
+<canvas id="schermo"></canvas>
+<script>
+const CONFIG = {{CONFIG}};
+const tela = document.getElementById("schermo");
+const ctx = tela.getContext("2d");
+tela.width = CONFIG.larghezza;
+tela.height = CONFIG.altezza;
+
+const tasti = {};
+addEventListener("keydown", e => { tasti[e.key.toLowerCase()] = true; if (e.key.toLowerCase() === "r") inizia(); });
+addEventListener("keyup", e => { tasti[e.key.toLowerCase()] = false; });
+
+const casuale = (min, max) => Math.random() * (max - min) + min;
+let giocatore, oggetti, nemici, punti, inizio, stato;
+
+function inizia() {
+  giocatore = { x: tela.width / 2, y: tela.height / 2, r: 14 };
+  oggetti = Array.from({ length: CONFIG.oggetti.quantita }, () => ({ x: casuale(20, tela.width - 20), y: casuale(20, tela.height - 20), r: 8 }));
+  nemici = Array.from({ length: CONFIG.nemici.quantita }, () => {
+    const angolo = casuale(0, Math.PI * 2);
+    return { x: casuale(0, tela.width), y: casuale(0, 80), r: 16, vx: Math.cos(angolo) * CONFIG.nemici.velocita, vy: Math.sin(angolo) * CONFIG.nemici.velocita };
+  });
+  punti = 0; inizio = performance.now(); stato = "gioco";
+}
+
+const tocca = (a, b) => Math.hypot(a.x - b.x, a.y - b.y) < a.r + b.r;
+
+function aggiorna() {
+  if (stato !== "gioco") return;
+  const v = CONFIG.giocatore.velocita;
+  if (tasti["arrowleft"] || tasti["a"]) giocatore.x -= v;
+  if (tasti["arrowright"] || tasti["d"]) giocatore.x += v;
+  if (tasti["arrowup"] || tasti["w"]) giocatore.y -= v;
+  if (tasti["arrowdown"] || tasti["s"]) giocatore.y += v;
+  giocatore.x = Math.max(giocatore.r, Math.min(tela.width - giocatore.r, giocatore.x));
+  giocatore.y = Math.max(giocatore.r, Math.min(tela.height - giocatore.r, giocatore.y));
+
+  for (const n of nemici) {
+    n.x += n.vx; n.y += n.vy;
+    if (n.x < n.r || n.x > tela.width - n.r) n.vx *= -1;
+    if (n.y < n.r || n.y > tela.height - n.r) n.vy *= -1;
+    if (tocca(n, giocatore)) stato = "sconfitta";
+  }
+  oggetti = oggetti.filter(o => { if (tocca(o, giocatore)) { punti++; return false; } return true; });
+  if (oggetti.length === 0) stato = "vittoria";
+  if (tempoRimasto() <= 0 && stato === "gioco") stato = "sconfitta";
+}
+
+const tempoRimasto = () => Math.max(0, CONFIG.tempo_limite - Math.floor((performance.now() - inizio) / 1000));
+
+function cerchio(o, colore) { ctx.fillStyle = colore; ctx.beginPath(); ctx.arc(o.x, o.y, o.r, 0, Math.PI * 2); ctx.fill(); }
+
+function disegna() {
+  ctx.fillStyle = CONFIG.colore_sfondo; ctx.fillRect(0, 0, tela.width, tela.height);
+  oggetti.forEach(o => cerchio(o, CONFIG.oggetti.colore));
+  nemici.forEach(n => cerchio(n, CONFIG.nemici.colore));
+  cerchio(giocatore, CONFIG.giocatore.colore);
+  ctx.fillStyle = "#fff"; ctx.font = "18px sans-serif"; ctx.textAlign = "left";
+  ctx.fillText(`Punti: ${punti}   Tempo: ${tempoRimasto()}s`, 10, 24);
+  if (stato !== "gioco") {
+    ctx.fillStyle = "rgba(0,0,0,0.6)"; ctx.fillRect(0, 0, tela.width, tela.height);
+    ctx.fillStyle = "#fff"; ctx.font = "36px sans-serif"; ctx.textAlign = "center";
+    ctx.fillText(stato === "vittoria" ? "Hai vinto!" : "Game over", tela.width / 2, tela.height / 2);
+    ctx.font = "18px sans-serif"; ctx.fillText("Premi R per ricominciare", tela.width / 2, tela.height / 2 + 36);
+  }
+}
+
+function ciclo() { aggiorna(); disegna(); requestAnimationFrame(ciclo); }
+inizia();
+ciclo();
+</script>
+</body>
+</html>

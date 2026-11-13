@@ -1,0 +1,9 @@
+{
+  "titolo": "Caccia alle Stelle",
+  "genere": "raccolta",
+  "colore_sfondo": "#1d2b53",
+  "giocatore": { "colore": "#ffec27", "velocita": 4 },
+  "oggetti": { "colore": "#00e436", "quantita": 12 },
+  "nemici": { "colore": "#ff004d", "quantita": 3, "velocita": 2 },
+  "tempo_limite": 60
+}
