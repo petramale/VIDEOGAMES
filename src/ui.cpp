@@ -1,7 +1,11 @@
 #include "ui.h"
 #include "audio.h"
 #include "progetto.h"
+#include "caratteri_dati.h"
+#include <cmath>
 #include <cstring>
+#include <map>
+#include <vector>
 
 namespace Ui {
 namespace {
@@ -47,16 +51,53 @@ bool MouseSu(Rectangle r) {
 
 bool Cliccato(Rectangle r, int tasto) { return MouseSu(r) && IsMouseButtonPressed(tasto); }
 
-static Font Carattere() { return GetFontDefault(); }
+// Carattere Outfit (SIL Open Font License, risorse/caratteri), incluso nell'eseguibile.
+// Ogni dimensione si prepara la prima volta che serve, alla misura esatta in pixel: il testo
+// resta nitido a ogni risoluzione della finestra.
+static Font CaratterePer(int dim, bool forte) {
+    static std::map<int, Font> cache[2];
+    dim = std::max(6, std::min(160, dim));
+    auto& c = cache[forte ? 1 : 0];
+    auto it = c.find(dim);
+    if (it != c.end()) return it->second;
+    if (!IsWindowReady()) return GetFontDefault();
+    const unsigned char* dati = forte ? OUTFIT_BOLD_TTF : OUTFIT_REGULAR_TTF;
+    int n = forte ? (int)sizeof(OUTFIT_BOLD_TTF) : (int)sizeof(OUTFIT_REGULAR_TTF);
+    std::vector<int> codici;
+    for (int k = 32; k < 256; k++) if (k < 127 || k >= 160) codici.push_back(k);
+    for (int k : { 0x2022, 0x2026, 0x2014, 0x2190, 0x2192, 0x2191, 0x2193, 0x20AC, 0x2019, 0x201C, 0x201D }) codici.push_back(k);
+    Font f = LoadFontFromMemory(".ttf", dati, n, dim, codici.data(), (int)codici.size());
+    if (f.texture.id == 0) f = GetFontDefault();
+    else SetTextureFilter(f.texture, TEXTURE_FILTER_BILINEAR);
+    c[dim] = f;
+    return f;
+}
+static float Spaziatura(int dim) { return dim * 0.02f; }
+// Outfit ha lettere piu' piccole del carattere di raylib: lo ingrandisco un po' perche' riempia lo stesso spazio.
+static int Misura(int dim) { return (int)std::lround(dim * 1.14f); }
 
 void Testo(const std::string& t, float x, float y, Color c, int dim) {
     if (dim <= 0) dim = T();
-    DrawTextEx(Carattere(), t.c_str(), { std::round(x), std::round(y) }, (float)dim, dim / 10.0f, c);
+    int m = Misura(dim);
+    DrawTextEx(CaratterePer(m, false), t.c_str(), { std::round(x), std::round(y - dim * 0.08f) }, (float)m, Spaziatura(m), c);
+}
+
+void TestoForte(const std::string& t, float x, float y, Color c, int dim) {
+    if (dim <= 0) dim = T();
+    int m = Misura(dim);
+    DrawTextEx(CaratterePer(m, true), t.c_str(), { std::round(x), std::round(y - dim * 0.08f) }, (float)m, Spaziatura(m), c);
 }
 
 int Larghezza(const std::string& t, int dim) {
     if (dim <= 0) dim = T();
-    return (int)MeasureTextEx(Carattere(), t.c_str(), (float)dim, dim / 10.0f).x;
+    int m = Misura(dim);
+    return (int)std::ceil(MeasureTextEx(CaratterePer(m, false), t.c_str(), (float)m, Spaziatura(m)).x);
+}
+
+int LarghezzaForte(const std::string& t, int dim) {
+    if (dim <= 0) dim = T();
+    int m = Misura(dim);
+    return (int)std::ceil(MeasureTextEx(CaratterePer(m, true), t.c_str(), (float)m, Spaziatura(m)).x);
 }
 
 void TestoCentrato(const std::string& t, Rectangle r, Color c, int dim) {

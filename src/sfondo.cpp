@@ -45,13 +45,15 @@ Color Sfondo::ColoreOrizzonte() const { Color a, b; Cielo(a, b); return b; }
 void Sfondo::Montagne(float camX, int strato, Color colore, float fattore, float base, float ampiezza, float scala) const {
     const TemaSfondo& t = Temi()[tema];
     float off = camX * fattore;
-    for (int x = 0; x < VW; x++) {
+    const int q = std::max(1, (int)gScalaHD);
+    for (int i = 0; i < VW * q; i++) {
+        float x = i / (float)q;
         float wx = (x + off) / scala + t.seme * 37 + strato * 100;
         float h = Rumore1(wx) * 0.6f + Rumore1(wx * 2.3f) * 0.28f + Rumore1(wx * 5.1f) * 0.12f;
-        int y = (int)(base - h * ampiezza);
-        DrawRectangle(x, y, 1, VH - y, colore);
+        float y = base - h * ampiezza;
+        DrawRectangleRec({ x, y, 1.0f / q, VH - y }, colore);
         // Riflesso della luce sulle creste.
-        DrawRectangle(x, y, 1, 1, Mescola(colore, WHITE, 0.18f));
+        DrawRectangleRec({ x, y, 1.0f / q, 1 }, Mescola(colore, WHITE, 0.18f));
     }
 }
 
@@ -180,13 +182,15 @@ void Sfondo::DisegnaStrato(const StratoSfondo& s, float camX, float dy) const {
     } else if (s.tipo == "montagne" || s.tipo == "colline") {
         bool colline = s.tipo == "colline";
         float scala = colline ? 150.0f : 70.0f;
-        for (int x = 0; x < VW; x++) {
+        const int q = std::max(1, (int)gScalaHD);
+        for (int i = 0; i < VW * q; i++) {
+            float x = i / (float)q;
             float wx = (x + off) / scala + sem;
             float h = colline ? Rumore1(wx) * 0.8f + Rumore1(wx * 1.7f) * 0.2f
                               : Rumore1(wx) * 0.6f + Rumore1(wx * 2.3f) * 0.28f + Rumore1(wx * 5.1f) * 0.12f;
-            int y = (int)(base - h * s.ampiezza);
-            DrawRectangle(x, y, 1, VH - y + (int)std::fabs(dy) + 1, c);
-            DrawRectangle(x, y, 1, 1, Mescola(c, WHITE, colline ? 0.1f : 0.18f));
+            float y = base - h * s.ampiezza;
+            DrawRectangleRec({ x, y, 1.0f / q, VH - y + std::fabs(dy) + 1 }, c);
+            DrawRectangleRec({ x, y, 1.0f / q, 1 }, Mescola(c, WHITE, colline ? 0.1f : 0.18f));
         }
     } else if (s.tipo == "foresta") {
         float passo = 14;

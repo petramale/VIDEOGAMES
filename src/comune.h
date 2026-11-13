@@ -73,3 +73,16 @@ inline void Pannello(Rectangle r, Color fondo, Color bordo) {
     DrawRectangleRec(r, fondo);
     DrawRectangleLinesEx(r, 1, bordo);
 }
+
+// Risoluzione alta: il gioco si disegna in una texture grande VW*gScalaHD x VH*gScalaHD.
+// Le coordinate restano quelle virtuali (480x270): ogni telecamera si moltiplica per gScalaHD.
+extern float gScalaHD;
+inline Camera2D CameraHD(Vector2 offset, Vector2 target, float zoom) {
+    Camera2D c{};
+    c.offset = { offset.x * gScalaHD, offset.y * gScalaHD };
+    c.target = target;
+    c.zoom = zoom * gScalaHD;
+    return c;
+}
+inline void BaseHD() { BeginMode2D(CameraHD({ 0, 0 }, { 0, 0 }, 1)); }
+inline void FineCameraHD() { EndMode2D(); BaseHD(); }

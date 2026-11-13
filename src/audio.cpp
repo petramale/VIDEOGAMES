@@ -1,4 +1,5 @@
 #include "audio.h"
+#include "progetto_gioco.h"
 #include <cstring>
 
 Audio gAudio;
@@ -432,6 +433,7 @@ void Audio::ComponiStile(int n) {
 }
 
 void Audio::ScegliBrano(int n) {
+    if (!branoPersonale.empty()) { branoPersonale.clear(); RipristinaMusica(); branoAttuale = -2; }
     n = (int)Limita((float)n, 0, (float)Brani().size() - 1);
     if (n == branoAttuale && !brano.empty()) return;
     auto it = archivio.find(n);
@@ -510,12 +512,19 @@ void Audio::Chiudi() {
     StopAudioStream(flusso);
     UnloadAudioStream(flusso);
     for (auto& s : suoni) UnloadSound(s);
+    for (auto& s : effettiPersonali) if (IsSoundValid(s.second)) UnloadSound(s.second);
+    effettiPersonali.clear();
     CloseAudioDevice();
     pronto = false;
 }
 
 void Audio::Suona(Effetto e, float volume) {
     if (!pronto || muto) return;
+    auto so = sostituzioni.find((int)e);
+    if (so != sostituzioni.end()) {
+        auto it = effettiPersonali.find(so->second);
+        if (it != effettiPersonali.end()) { SetSoundVolume(it->second, volume * volumeEffetti); PlaySound(it->second); return; }
+    }
     Sound& s = suoni[(int)e];
     SetSoundVolume(s, volume * volumeEffetti);
     SetSoundPitch(s, 1.0f + Casuale(-0.03f, 0.03f)); // piccola variazione: meno ripetitivo
@@ -599,4 +608,150 @@ void Audio::ApplicaFile(const std::vector<std::pair<std::string, std::string>>& 
             for (int i = 0; i < (int)Effetto::Totale; i++)
                 if (nome == std::string("effetto_") + NomeEffetto((Effetto)i)) CaricaEffetto((Effetto)i, est, f.second);
     }
+}
+
+// --- Brani ed effetti della libreria del gioco ---------------------------------------------
+
+std::vector<float> Audio::RenderBrano(const Brano& b) {
+    float sedicesimo = 60.0f / std::max(30.0f, b.bpm) / 4;
+    float durata = b.battute * 16 * sedicesimo;
+    size_t len = (size_t)(durata * SR);
+    std::vector<float> out(std::max<size_t>(len, 1), 0.0f);
+    for (size_t ti = 0; ti < b.tracce.size(); ti++) {
+        const TracciaBrano& t = b.tracce[ti];
+        std::vector<float> traccia(out.size(), 0.0f);
+        for (const NotaBrano& n : t.note) {
+            size_t s0 = (size_t)(n.inizio * sedicesimo * SR);
+            if (s0 >= out.size()) continue;
+            float dur = n.durata * sedicesimo;
+            Oscillatore osc;
+            Rng rng; rng.s = (unsigned)(s0 * 31 + n.altezza);
+            if (t.batteria || t.strumento == 4) {
+                // batteria: 35-36 cassa, 37-40 rullante, 42-46 charleston, altro piatto
+                int a = n.altezza;
+                float lung = a <= 36 ? 0.28f : (a <= 40 ? 0.18f : (a <= 44 ? 0.05f : 0.35f));
+                size_t l = (size_t)(lung * SR);
+                float fase = 0;
+                for (size_t k = 0; k < l; k++) {
+                    float tk = (float)k / SR, v = 0;
+                    if (a <= 36) { float f = 45 + 110 * std::exp(-tk * 28); fase += f / SR; v = std::sin(fase * 2 * PI) * std::exp(-tk * 12) * 1.1f; }
+                    else if (a <= 40) { fase += 185.0f / SR; v = rng.Prossimo() * std::exp(-tk * 20) * 0.55f + std::sin(fase * 2 * PI) * std::exp(-tk * 30) * 0.4f; }
+                    else if (a <= 44) v = rng.Prossimo() * std::exp(-tk * 70) * 0.35f;
+                    else v = rng.Prossimo() * std::exp(-tk * 7) * 0.25f;
+                    traccia[(s0 + k) % traccia.size()] += v;
+                }
+                continue;
+            }
+            static const Onda onde[] = { Onda::Quadra, Onda::Triangolo, Onda::Dente, Onda::Seno, Onda::Rumore };
+            Onda o = onde[std::min(4, std::max(0, t.strumento))];
+            float duty = t.strumento == 0 ? (ti == 0 ? 0.5f : 0.25f) : 0.5f;
+            float f = Midi(n.altezza);
+            float rel = 0.04f;
+            size_t l = (size_t)((dur + rel) * SR);
+            for (size_t k = 0; k < l; k++) {
+                float tk = (float)k / SR;
+                float env = tk < 0.006f ? tk / 0.006f : (tk < dur ? 1 - 0.3f * std::min(1.0f, (tk - 0.006f) / 0.15f) : 0.7f * std::max(0.0f, 1 - (tk - dur) / rel));
+                float vib = tk > 0.15f ? 0.004f * std::sin(2 * PI * 5.5f * tk) : 0;
+                traccia[(s0 + k) % traccia.size()] += osc.Passo(o, f * (1 + vib), duty) * env * (o == Onda::Dente ? 0.6f : 1.0f);
+            }
+        }
+        float vol = t.volume * 0.5f;
+        size_t eco = (size_t)(sedicesimo * 3 * SR);
+        for (size_t i = 0; i < out.size(); i++) {
+            out[i] += traccia[i] * vol;
+            if (ti == 0 && !t.batteria) out[(i + eco) % out.size()] += traccia[i] * vol * 0.25f;
+        }
+    }
+    for (auto& c : out) c = std::tanh(c * 1.2f) * 0.9f;
+    return out;
+}
+
+std::vector<float> Audio::RenderEffettoLibreria(const EffettoSuono& e) {
+    static const Onda onde[] = { Onda::Quadra, Onda::Triangolo, Onda::Dente, Onda::Seno, Onda::Rumore };
+    Segmento s{ onde[std::min(4, std::max(0, e.onda))], std::max(20.0f, e.f0), std::max(20.0f, e.f1), std::max(0.01f, e.durata), e.volume, 0.0f, e.duty, e.vibratoHz, e.vibrato };
+    std::vector<Traccia> tr = { { s } };
+    if (e.rumore > 0.01f && s.onda != Onda::Rumore) {
+        Segmento r = s; r.onda = Onda::Rumore; r.v0 = e.volume * e.rumore; r.f0 *= 4; r.f1 *= 4;
+        tr.push_back({ r });
+    }
+    return ::RenderEffetto(tr);
+}
+
+Sound Audio::CaricaEffettoPersonale(const EffettoSuono& e) {
+    Sound snd{};
+    if (!e.file.empty() && !e.dati.empty()) {
+        size_t p = e.file.find_last_of('.');
+        std::string est = p == std::string::npos ? ".wav" : e.file.substr(p);
+        for (auto& c : est) c = (char)std::tolower((unsigned char)c);
+        Wave w = LoadWaveFromMemory(est.c_str(), (const unsigned char*)e.dati.data(), (int)e.dati.size());
+        if (IsWaveValid(w)) { snd = LoadSoundFromWave(w); UnloadWave(w); }
+        return snd;
+    }
+    std::vector<short> pcm = InPcm(RenderEffettoLibreria(e), 1.0f);
+    return LoadSoundFromWave(ComeWave(pcm));
+}
+
+namespace {
+std::string FirmaEffetto(const EffettoSuono& e) {
+    return e.nome + TextFormat("|%d|%.1f|%.1f|%.3f|%.2f|%.2f|%.3f|%.1f|%.2f|%s|%zu", e.onda, e.f0, e.f1, e.durata, e.volume, e.duty,
+                               e.vibrato, e.vibratoHz, e.rumore, e.file.c_str(), e.dati.size());
+}
+}
+
+void Audio::SuonaEffetto(const EffettoSuono& e, float volume) {
+    if (!pronto || muto) return;
+    std::string k = FirmaEffetto(e);
+    auto it = effettiPersonali.find(k);
+    if (it == effettiPersonali.end()) it = effettiPersonali.emplace(k, CaricaEffettoPersonale(e)).first;
+    if (!IsSoundValid(it->second)) return;
+    SetSoundVolume(it->second, volume * volumeEffetti);
+    PlaySound(it->second);
+}
+
+void Audio::SostituisciEffetto(Effetto e, const EffettoSuono* def) {
+    if (!def) { sostituzioni.erase((int)e); return; }
+    if (!pronto) return;
+    std::string k = FirmaEffetto(*def);
+    if (!effettiPersonali.count(k)) effettiPersonali[k] = CaricaEffettoPersonale(*def);
+    sostituzioni[(int)e] = k;
+}
+
+void Audio::TogliSostituzioni() { sostituzioni.clear(); }
+
+void Audio::SuonaBrano(const Brano& b) {
+    std::string firma = b.nome + TextFormat("|%.1f|%d|%zu", b.bpm, b.battute, b.dati.size());
+    for (auto& t : b.tracce) { firma += TextFormat("|%d:%zu", t.strumento, t.note.size()); for (auto& n : t.note) firma += TextFormat(",%.1f%.1f%d", n.inizio, n.durata, n.altezza); }
+    if (firma == branoPersonale && (musicaFile || !brano.empty())) return;
+    if (!b.file.empty() && !b.dati.empty()) {
+        size_t p = b.file.find_last_of('.');
+        std::string est = p == std::string::npos ? ".ogg" : b.file.substr(p);
+        for (auto& c : est) c = (char)std::tolower((unsigned char)c);
+        if (CaricaMusica(est, b.dati)) { branoPersonale = firma; return; }
+    }
+    RipristinaMusica();
+    std::vector<float> c = RenderBrano(b);
+    {
+        std::lock_guard<std::mutex> g(blocco);
+        brano.swap(c);
+        note.clear();
+        durata = brano.size() / (float)SR;
+        bpm = b.bpm;
+        posizione.store(0);
+    }
+    bpmPersonale = b.bpm;
+    branoPersonale = firma;
+    branoAttuale = -1;
+}
+
+void Audio::FermaBranoPersonale() {
+    if (branoPersonale.empty()) return;
+    branoPersonale.clear();
+    RipristinaMusica();
+    int n = 0;
+    branoAttuale = -2;
+    ScegliBrano(n);
+}
+
+float Audio::SedicesimoAttuale() const {
+    return TempoBrano() / (60.0f / std::max(30.0f, bpm) / 4);
 }

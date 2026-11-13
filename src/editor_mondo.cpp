@@ -58,7 +58,56 @@ Oggetto DaMappa(const OggettoMappa& om, float t) {
     return o;
 }
 
+// Musica della mappa: il brano della libreria del gioco se c'e', altrimenti quello generato.
+void MusicaMappa(const Mappa& m, const ProgettoGioco* p) {
+    if (!IsAudioDeviceReady()) return;
+    if (p && !m.brano.empty()) {
+        if (const Brano* b = p->TrovaBrano(m.brano)) { if (gAudio.BranoPersonale() != b->nome) gAudio.SuonaBrano(*b); return; }
+    }
+    if (!gAudio.BranoPersonale().empty() || gAudio.BranoAttuale() != m.musica) gAudio.ScegliBrano(m.musica);
+}
+
 } // namespace
+
+int EditorMondo::NumeroMenu() { return NUM_MENU; }
+const char* EditorMondo::NomeMenu(int i) { return i >= 0 && i < NUM_MENU ? MENU[i] : ""; }
+std::vector<std::pair<std::string, std::string>> EditorMondo::VociDelMenu(int i) {
+    std::vector<std::pair<std::string, std::string>> v;
+    if (i < 0 || i >= NUM_MENU) return v;
+    for (auto& x : VociMenu()[i]) v.push_back({ x.testo, x.tasto });
+    return v;
+}
+bool EditorMondo::VoceAttiva(int menu, int voce) const {
+    if (menu == 4 && voce == 0) return griglia;
+    if (menu == 4 && voce == 1) return anteprimaSfondo;
+    if (menu == 4 && voce == 2) return inquadratura;
+    return false;
+}
+
+void EditorMondo::Sostituisci(const Mondo& m) {
+    annulla.push_back(mondo);
+    if (annulla.size() > 60) annulla.erase(annulla.begin());
+    ripeti.clear();
+    mondo = m;
+    if (mondo.mappe.empty()) { Mappa vuota; vuota.Nuova(80, 20, Vista::Laterale); mondo.mappe.push_back(vuota); }
+    mappa = std::min(mappa, (int)mondo.mappe.size() - 1);
+    Ricostruisci();
+}
+
+const Disegno* EditorMondo::DisegnoLibreria(const std::string& tipo) const {
+    if (!progetto) return nullptr;
+    if (auto* p = progetto->Personaggio(tipo)) return &p->disegno;
+    if (auto* o = progetto->Oggetto(tipo)) return &o->disegno;
+    return nullptr;
+}
+
+Rectangle EditorMondo::BoxMappa(const OggettoMappa& o) const {
+    if (const Disegno* d = DisegnoLibreria(o.tipo)) {
+        float w = d->LarghezzaMondo(), h = d->AltezzaMondo();
+        return { o.x - w / 2, o.y - h, w, h };
+    }
+    return BoxOggetto(DaMappa(o, 0));
+}
 
 // ---------------------------------------------------------------------------
 
@@ -86,7 +135,7 @@ void EditorMondo::Entra() {
     vuoleUscire = false;
     cfg = ConfigClaude::Carica();
     CaricaImmagini();
-    gAudio.ScegliBrano(M().musica);
+    MusicaMappa(M(), progetto);
 }
 
 void EditorMondo::Esci() {
@@ -128,6 +177,8 @@ void EditorMondo::Ripeti() {
 void EditorMondo::Ricostruisci() {
     std::string errore;
     if (!vista.DaMappa(M(), errore)) Avvisa("Mappa non valida: " + errore);
+    vista.caselleLibreria.clear();
+    if (progetto) for (auto& c : progetto->caselle) vista.caselleLibreria.push_back({ c.carattere, &c.disegno });
     sfondo.tema = M().tema; sfondo.ora = M().ora;
     sfondo.generato = M().sfondoGenerato;
     sfondo.cieloPersonale = M().cieloPersonale;
@@ -141,7 +192,7 @@ void EditorMondo::CambiaMappa(int i) {
     selezionato = -1;
     Ricostruisci();
     Inquadra();
-    if (IsAudioDeviceReady()) gAudio.ScegliBrano(M().musica);
+    MusicaMappa(M(), progetto);
 }
 
 void EditorMondo::Inquadra() {
@@ -163,7 +214,7 @@ Vector2 EditorMondo::MondoDaSchermo(Vector2 p) const {
 int EditorMondo::OggettoSotto(Vector2 w) const {
     const auto& ogg = mondo.mappe[mappa].oggetti;
     for (int i = (int)ogg.size() - 1; i >= 0; i--) {
-        Rectangle b = BoxOggetto(DaMappa(ogg[i], 0));
+        Rectangle b = BoxMappa(ogg[i]);
         b.x -= 2; b.y -= 2; b.width += 4; b.height += 4;
         if (CheckCollisionPointRec(w, b)) return i;
     }
@@ -407,33 +458,34 @@ void EditorMondo::AvviaProva(bool daQui) {
     }
     std::string errore;
     prova = Gioco{};
-    if (!prova.CaricaMondo(copia, errore)) { Avvisa("Non si puo' provare: " + errore); return; }
+    bool ok;
+    if (progetto) { ProgettoGioco p = *progetto; p.mondo = copia; ok = prova.CaricaProgetto(p, errore); }
+    else ok = prova.CaricaMondo(copia, errore);
+    if (!ok) { Avvisa("Non si puo' provare: " + errore); return; }
     provando = true;
     tProva = 0;
     Ui::TogliFuoco();
-    gAudio.ScegliBrano(prova.musica);
+    if (!prova.MusicaDellaLibreria()) gAudio.ScegliBrano(prova.musica);
     gAudio.Suona(Effetto::Conferma);
 }
 
 void EditorMondo::FrameProva(float dt) {
     tProva += dt;
-    if (tProva > 0.2f && (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_F5))) { provando = false; gAudio.ScegliBrano(M().musica); return; }
+    if (tProva > 0.2f && (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_F5))) { provando = false; gAudio.TogliSostituzioni(); MusicaMappa(M(), progetto); return; }
     if (IsKeyPressed(KEY_R) || (prova.finito && gInput.Premuto(Azione::Conferma))) prova.Ricomincia();
     if (IsKeyPressed(KEY_F1)) prova.mostraCollisioni = !prova.mostraCollisioni;
     if (IsKeyPressed(KEY_F9)) prova.mostraFps = !prova.mostraFps;
     prova.Aggiorna(dt, Comandi::DaPeriferiche());
-    if (prova.musica != gAudio.BranoAttuale()) gAudio.ScegliBrano(prova.musica);
-    BeginTextureMode(rtGioco);
-    ClearBackground(BLACK);
-    prova.Disegna();
-    DrawRectangle(0, VH - 13, VW, 13, Hex(0x0b0e22, 190));
-    Scritta("PROVA   Esc o F5: torna all'editor   R: ricomincia   F1: collisioni", 6, VH - 11, 10, Hex(0xc8d0f0));
-    EndTextureMode();
+    if (!prova.MusicaDellaLibreria() && (prova.musica != gAudio.BranoAttuale() || !gAudio.BranoPersonale().empty())) gAudio.ScegliBrano(prova.musica);
     float sw = (float)GetScreenWidth(), sh = (float)GetScreenHeight();
     float s = std::min(sw / VW, sh / VH);
+    prova.DisegnaHD(rtGioco, std::max(1, std::min(4, (int)std::ceil(s))));
     Rectangle area = { (sw - VW * s) / 2, (sh - VH * s) / 2, VW * s, VH * s };
     ClearBackground(BLACK);
-    DrawTexturePro(rtGioco.texture, { 0, 0, (float)VW, -(float)VH }, area, { 0, 0 }, 0, WHITE);
+    DrawTexturePro(rtGioco.texture, { 0, 0, (float)rtGioco.texture.width, -(float)rtGioco.texture.height }, area, { 0, 0 }, 0, WHITE);
+    int dim = std::max(12, (int)(sh / 60));
+    DrawRectangle(0, (int)(area.y + area.height - dim * 1.6f), (int)sw, (int)(dim * 1.6f), Hex(0x0b0e22, 190));
+    DrawText("PROVA   Esc o F5: torna all'editor   R: ricomincia   F1: collisioni", (int)area.x + 10, (int)(area.y + area.height - dim * 1.3f), dim, Hex(0xc8d0f0));
     postoAudio = { area.x + area.width - 44, area.y + 6, 36, 36 };
 }
 
@@ -508,19 +560,20 @@ void EditorMondo::ImportaFile(const std::string& file) {
 
 void EditorMondo::Layout(Rectangle& barra, Rectangle& schede, Rectangle& sinistra, Rectangle& centro, Rectangle& destra, Rectangle& basso) const {
     float s = Ui::S();
-    float W = (float)GetScreenWidth(), H = (float)GetScreenHeight();
+    float X = 0, Y = 0, W = (float)GetScreenWidth(), H = (float)GetScreenHeight();
     float hb = std::round(28 * s), hs = std::round(30 * s), hbasso = std::round(58 * s);
+    if (incorporato) { X = area.x; Y = area.y; W = area.width; H = area.height; hb = 0; }
     float ws = std::round(196 * s), wd = std::round(std::min(410 * s, W * 0.34f));
-    barra = { 0, 0, W, hb };
-    schede = { ws, hb, W - ws - wd, hs };
-    sinistra = { 0, hb, ws, H - hb - hbasso };
-    destra = { W - wd, hb, wd, H - hb - hbasso };
-    centro = { ws, hb + hs, W - ws - wd, H - hb - hs - hbasso };
-    basso = { 0, H - hbasso, W, hbasso };
+    barra = { X, Y, W, hb };
+    schede = { X + ws, Y + hb, W - ws - wd, hs };
+    sinistra = { X, Y + hb, ws, H - hb - hbasso };
+    destra = { X + W - wd, Y + hb, wd, H - hb - hbasso };
+    centro = { X + ws, Y + hb + hs, W - ws - wd, H - hb - hs - hbasso };
+    basso = { X, Y + H - hbasso, W, hbasso };
 }
 
 void EditorMondo::Frame(float dt) {
-    Ui::Inizia(GetScreenHeight() / 900.0f);
+    if (!incorporato) Ui::Inizia(GetScreenHeight() / 900.0f);
     tempo += dt;
     if (tMessaggio > 0) tMessaggio -= dt;
     sfondo.Aggiorna(dt);
@@ -548,10 +601,12 @@ void EditorMondo::Frame(float dt) {
     Tavolozza(sinistra);
     PannelloDestro(destra);
     Strumenti(basso);
-    Ui::ApriModale();
-    BarraMenu(barra);
-    MenuTendina(barra);
-    Ui::ChiudiModale();
+    if (!incorporato) {
+        Ui::ApriModale();
+        BarraMenu(barra);
+        MenuTendina(barra);
+        Ui::ChiudiModale();
+    }
     Finestre();
 }
 
@@ -771,6 +826,9 @@ void EditorMondo::IconaCasella(char c, Rectangle r) const {
 void EditorMondo::IconaOggetto(const std::string& tipo, Rectangle r) const {
     Camera2D cam{};
     cam.offset = { r.x + r.width / 2, r.y + r.height / 2 };
+    const PersonaggioDef* eroeLib = progetto && !progetto->eroe.empty() ? progetto->Personaggio(progetto->eroe) : nullptr;
+    if (tipo == "partenza" && eroeLib) { eroeLib->disegno.DisegnaIn(r, std::max(0, eroeLib->disegno.TrovaAnimazione("fermo")), tempo); return; }
+    if (const Disegno* d = DisegnoLibreria(tipo)) { d->DisegnaIn(r, std::max(0, d->TrovaAnimazione("fermo")), tempo); return; }
     if (tipo == "partenza") {
         Eroe e;
         e.aspetto = mondo.eroe;
@@ -804,16 +862,19 @@ void EditorMondo::Tavolozza(Rectangle r) {
     int col = 3;
     float lato = (r.width - pad * (col + 1)) / col;
     std::string sopraNome;
+    Rectangle limite = r;
     auto Cella = [&](int i, float y0, const std::string& valore, bool casella, const std::string& nome) {
         Rectangle c = { r.x + pad + (i % col) * (lato + pad), y0 + (i / col) * (lato + pad), lato, lato };
         bool scelto = pennello == valore;
-        bool sopra = Ui::MouseSu(c);
+        bool sopra = Ui::MouseSu(c) && CheckCollisionPointRec(GetMousePosition(), limite);
         DrawRectangleRounded(c, 0.15f, 6, scelto ? Ui::Selezione() : sopra ? Hex(0x252b5c) : Hex(0x10132c));
         DrawRectangleRoundedLinesEx(c, 0.15f, 6, std::max(1.0f, s * (scelto ? 2 : 1)), scelto ? Ui::Accento() : sopra ? Hex(0x5a64b0) : Ui::Bordo());
         Rectangle dentro = { c.x + lato * 0.18f, c.y + lato * 0.14f, lato * 0.64f, lato * 0.64f };
-        BeginScissorMode((int)c.x + 1, (int)c.y + 1, (int)c.width - 2, (int)c.height - 2);
+        Rectangle ritaglio = GetCollisionRec({ c.x + 1, c.y + 1, c.width - 2, c.height - 2 }, limite);
+        BeginScissorMode((int)ritaglio.x, (int)ritaglio.y, (int)ritaglio.width, (int)ritaglio.height);
         if (casella) IconaCasella(valore[0], dentro); else IconaOggetto(valore, dentro);
         EndScissorMode();
+        BeginScissorMode((int)limite.x, (int)limite.y, (int)limite.width, (int)limite.height);
         if (sopra) sopraNome = nome;
         if (sopra && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
             pennello = valore;
@@ -823,17 +884,39 @@ void EditorMondo::Tavolozza(Rectangle r) {
         }
         return c.y + lato;
     };
+    // La tavolozza scorre con la rotella (la libreria del gioco puo' essere lunga).
+    float altezzaInfo = Ui::TP() * 3.2f;
+    Rectangle lista = { r.x, r.y, r.width, r.height - altezzaInfo - pad };
+    limite = lista;
+    if (Ui::MouseSu(lista)) scorriTavolozza -= GetMouseWheelMove() * 60 * s;
+    scorriTavolozza = std::max(0.0f, scorriTavolozza);
+    BeginScissorMode((int)lista.x, (int)lista.y, (int)lista.width, (int)lista.height);
+    y -= scorriTavolozza;
+    float inizio = y;
+    float fine = y;
     Ui::Testo("CASELLE", r.x + pad, y, Ui::Accento(), Ui::TP());
     y += Ui::TP() + 6 * s;
-    float fine = y;
     for (int i = 0; i < 6; i++) fine = Cella(i, y, std::string(1, CASELLE[i]), true, std::string(NOMI_CASELLE[i]) + "  (tasto " + std::to_string(i + 1) + ")");
     y = fine + pad * 1.5f;
-    Ui::Testo("OGGETTI", r.x + pad, y, Ui::Accento(), Ui::TP());
+    if (progetto && (!progetto->personaggi.empty() || !progetto->oggetti.empty())) {
+        Ui::Testo("LIBRERIA DEL GIOCO", r.x + pad, y, Ui::Accento(), Ui::TP());
+        y += Ui::TP() + 6 * s;
+        int k = 0;
+        for (auto& p : progetto->personaggi)
+            if (p.comportamento.tipo != TipoComportamento::Giocatore) fine = Cella(k++, y, p.nome, false, p.nome + " (personaggio)");
+        for (auto& o : progetto->oggetti)
+            if (o.funzione != FunzioneOggetto::Proiettile) fine = Cella(k++, y, o.nome, false, o.nome + " (oggetto)");
+        y = fine + pad * 1.5f;
+    }
+    Ui::Testo(progetto ? "OGGETTI CLASSICI" : "OGGETTI", r.x + pad, y, Ui::Accento(), Ui::TP());
     y += Ui::TP() + 6 * s;
     const auto& tipi = TipiOggetto();
     for (int i = 0; i < (int)tipi.size(); i++) fine = Cella(i, y, tipi[i], false, Maiuscola(tipi[i]));
     fine = Cella((int)tipi.size(), y, "partenza", false, "Partenza dell'eroe");
-    y = fine + pad;
+    EndScissorMode();
+    float totale = fine - inizio + pad;
+    scorriTavolozza = std::min(scorriTavolozza, std::max(0.0f, totale - lista.height));
+    y = lista.y + lista.height + pad * 0.5f;
     // Nome di cio' che c'e' sotto il mouse, oppure del pennello attuale.
     std::string info = sopraNome.empty() ? "Pennello: " + (pennello.size() == 1 ? std::string(NOMI_CASELLE[std::string(CASELLE).find(pennello[0])])
                                                                                     : Maiuscola(pennello)) : sopraNome;
@@ -1042,9 +1125,12 @@ void EditorMondo::VistaMappa(Rectangle r, float dt) {
     Decorazioni(false);
     vista.Disegna(camX, camY, tempo, alto ? 0.0f : notte * 0.6f, alto, vw, vh);
     for (const auto& o : m.oggetti) {
-        Oggetto og = DaMappa(o, tempo);
-        if (og.pos.x < camX - 64 || og.pos.x > camX + vw + 64 || og.pos.y < camY - 64 || og.pos.y > camY + vh + 64) continue;
-        DisegnaOggetto(og, camX, camY, tempo, false);
+        if (o.x < camX - 96 || o.x > camX + vw + 96 || o.y < camY - 96 || o.y > camY + vh + 96) continue;
+        if (const Disegno* d = DisegnoLibreria(o.tipo)) {
+            d->DisegnaBase(std::max(0, d->TrovaAnimazione("fermo")), tempo, { o.x - camX, o.y - camY }, false);
+            continue;
+        }
+        DisegnaOggetto(DaMappa(o, tempo), camX, camY, tempo, false);
     }
     Decorazioni(true);
     EndMode2D();
@@ -1065,10 +1151,14 @@ void EditorMondo::VistaMappa(Rectangle r, float dt) {
     }
     DrawRectangleLinesEx({ -linea * 2, -linea * 2, W + linea * 4, H + linea * 4 }, linea * 2, Hex(0xffd23f, 160));
     // Partenza dell'eroe e inquadratura del gioco.
-    Eroe e;
-    e.aspetto = mondo.eroe;
-    e.pos = m.partenza;
-    e.Disegna(tempo);
+    const PersonaggioDef* eroeLib = progetto && !progetto->eroe.empty() ? progetto->Personaggio(progetto->eroe) : nullptr;
+    if (eroeLib) eroeLib->disegno.DisegnaBase(std::max(0, eroeLib->disegno.TrovaAnimazione("fermo")), tempo, m.partenza, false);
+    else {
+        Eroe e;
+        e.aspetto = mondo.eroe;
+        e.pos = m.partenza;
+        e.Disegna(tempo);
+    }
     DrawCircleLinesV({ m.partenza.x, m.partenza.y - 10 }, 14, ConAlfa(WHITE, 0.5f + 0.3f * std::sin(tempo * 4)));
     if (inquadratura) {
         float zc = std::max(0.25f, m.telecamera.zoom);
@@ -1102,7 +1192,7 @@ void EditorMondo::VistaMappa(Rectangle r, float dt) {
         DrawTextEx(GetFontDefault(), dove.c_str(), { o.x - 12, o.y - 40 - ds }, ds, ds / 10, Hex(0x5ef0ff));
     }
     if (selezionato >= 0 && selezionato < (int)m.oggetti.size()) {
-        Rectangle b = BoxOggetto(DaMappa(m.oggetti[selezionato], tempo));
+        Rectangle b = BoxMappa(m.oggetti[selezionato]);
         DrawRectangleLinesEx({ b.x - 3, b.y - 3, b.width + 6, b.height + 6 }, linea * 2, ConAlfa(Hex(0xffd23f), 0.6f + 0.4f * std::sin(tempo * 8)));
     }
     if (decorazioneScelta >= 0 && decorazioneScelta < (int)m.decorazioni.size()) {
@@ -1279,8 +1369,10 @@ void EditorMondo::PannelloDestro(Rectangle r) {
     DrawLineEx({ r.x, r.y }, { r.x, r.y + r.height }, 1, Ui::Bordo());
     const char* nomi[] = { "Proprieta'", "Mondo", "Strati", "Claude" };
     float pad = 6 * s, h = 30 * s;
-    float w = (r.width - pad * 5) / 4;
-    for (int i = 0; i < 4; i++) {
+    int schede = incorporato ? 3 : 4;   // nell'officina la chat con Claude e' quella comune, a destra
+    if (incorporato && pannello == SchedaDestra::Claude) pannello = SchedaDestra::Proprieta;
+    float w = (r.width - pad * (schede + 1)) / schede;
+    for (int i = 0; i < schede; i++) {
         if (Ui::Pulsante({ r.x + pad + i * (w + pad), r.y + pad, w, h }, i == 3 ? (chatInAttesa ? "Claude..." : "Claude") : nomi[i], (int)pannello == i)) {
             pannello = (SchedaDestra)i;
             scorriPannello = 0;
@@ -1873,7 +1965,14 @@ void EditorMondo::Scorciatoie() {
     if (IsKeyPressed(KEY_ESCAPE)) {
         if (sceltaArrivo) { sceltaArrivo = false; CambiaMappa(portaMappa); selezionato = portaIndice; Avvisa("Scelta dell'arrivo annullata"); }
         else if (selezionato >= 0 || decorazioneScelta >= 0) { selezionato = -1; decorazioneScelta = -1; }
-        else vuoleUscire = true;
+        else if (!incorporato) vuoleUscire = true;
+        return;
+    }
+    if (Ctrl() && incorporato) {   // salva, apri, nuovo e .exe li gestisce l'officina
+        if (IsKeyPressed(KEY_Z)) { if (Maiusc()) Ripeti(); else Annulla(); }
+        if (IsKeyPressed(KEY_Y)) Ripeti();
+        if (IsKeyPressed(KEY_C)) Esegui(1, 2);
+        if (IsKeyPressed(KEY_V)) Esegui(1, 3);
         return;
     }
     if (Ctrl()) {
@@ -1888,8 +1987,8 @@ void EditorMondo::Scorciatoie() {
         return;
     }
     if (IsKeyPressed(KEY_DELETE)) Esegui(1, 4);
-    if (IsKeyPressed(KEY_F1)) finestra = 3;
-    if (IsKeyPressed(KEY_F3)) { pannello = SchedaDestra::Claude; Ui::DaiFuoco("chat"); }
+    if (IsKeyPressed(KEY_F1) && !incorporato) finestra = 3;
+    if (IsKeyPressed(KEY_F3) && !incorporato) { pannello = SchedaDestra::Claude; Ui::DaiFuoco("chat"); }
     if (IsKeyPressed(KEY_F5)) AvviaProva(false);
     if (IsKeyPressed(KEY_F6)) AvviaProva(true);
     if (IsKeyPressed(KEY_G)) griglia = !griglia;

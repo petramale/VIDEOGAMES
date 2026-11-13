@@ -30,6 +30,22 @@ public:
     Rectangle PostoAudio() const { return postoAudio; }
     const Mondo& MondoAperto() const { return mondo; }
 
+    // Dentro l'officina: la libreria del gioco, l'area dello schermo e i menu li da' l'officina.
+    const ProgettoGioco* progetto = nullptr;
+    bool incorporato = false;
+    Rectangle area{ 0, 0, 0, 0 };
+    void Sostituisci(const Mondo& m);          // il mondo cambiato da fuori (Claude, scenari...): si puo' annullare
+    bool Modificato() const { return modificato; }
+    void SegnaSalvato() { modificato = false; }
+    void AggiornaVista() { Ricostruisci(); }
+    void MostraMappa(int i) { CambiaMappa(i); }
+    int MappaAperta() const { return mappa; }
+    void Esegui(int menu, int voce);
+    static int NumeroMenu();
+    static const char* NomeMenu(int i);
+    static std::vector<std::pair<std::string, std::string>> VociDelMenu(int i);
+    bool VoceAttiva(int menu, int voce) const;
+
 private:
     // Dati
     Mondo mondo;
@@ -116,7 +132,9 @@ private:
     void ControllaChat();
     void CaricaImmagini();
     void ImportaFile(const std::string& file);
-    void Esegui(int menu, int voce);
+    const Disegno* DisegnoLibreria(const std::string& tipo) const;
+    Rectangle BoxMappa(const OggettoMappa& o) const;
+    float scorriTavolozza = 0;
 
     // Disegno e input delle parti
     void Layout(Rectangle& barra, Rectangle& schede, Rectangle& sinistra, Rectangle& centro, Rectangle& destra, Rectangle& basso) const;

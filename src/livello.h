@@ -42,9 +42,12 @@ bool TipoDaNome(const std::string& nome, TipoOggetto& t);
 constexpr int NUM_TIPI_OGGETTO = 15;
 
 struct Mappa;
+struct Disegno;
 
 class Livello {
 public:
+    // Caselle disegnate nella libreria del gioco (carattere -> disegno); le altre sono quelle del motore.
+    std::vector<std::pair<char, const Disegno*>> caselleLibreria;
     bool Carica(const std::string& testo, std::string& errore);
     bool DaMappa(const Mappa& m, std::string& errore);   // nuovo formato
     char Cella(int x, int y) const;

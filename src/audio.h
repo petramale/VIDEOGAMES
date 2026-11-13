@@ -16,6 +16,9 @@ struct EventoNota {
     int midi;
 };
 
+struct Brano;
+struct EffettoSuono;
+
 class Audio {
 public:
     void Prepara();          // genera suoni e musica (non serve la scheda audio)
@@ -43,6 +46,19 @@ public:
     static const std::vector<const char*>& Brani();
     void ScegliBrano(int n);
     int BranoAttuale() const { return branoAttuale; }
+
+    // Brani ed effetti della libreria del gioco (composti nello studio o importati da file).
+    static std::vector<float> RenderBrano(const Brano& b);      // campioni mono a 44100 Hz
+    static std::vector<float> RenderEffettoLibreria(const EffettoSuono& e);
+    void SuonaBrano(const Brano& b);             // diventa la musica di sottofondo
+    const std::string& BranoPersonale() const { return branoPersonale; }
+    void SuonaEffetto(const EffettoSuono& e, float volume = 1.0f);
+    // Un evento del gioco (salto, moneta...) suona un effetto della libreria invece di quello generato.
+    void SostituisciEffetto(Effetto e, const EffettoSuono* def);
+    void TogliSostituzioni();
+    void FermaBranoPersonale();                  // torna al brano generato
+    // Anteprima nello studio: suona questo brano dall'inizio (posizione in sedicesimi).
+    float SedicesimoAttuale() const;
 
     void MusicaAttiva(bool attiva);
     bool MusicaAttiva() const { return musicaAttiva; }
@@ -73,6 +89,11 @@ private:
     Music musica{};
     bool musicaFile = false;
     std::string datiMusica;
+    std::string branoPersonale;   // nome del brano della libreria che suona (vuoto = generato)
+    float bpmPersonale = 120;
+    std::map<std::string, Sound> effettiPersonali;
+    std::map<int, std::string> sostituzioni;
+    Sound CaricaEffettoPersonale(const EffettoSuono& e);
     bool effettoFile[(int)Effetto::Totale] = {};
     bool preparato = false;
     AudioStream flusso{};

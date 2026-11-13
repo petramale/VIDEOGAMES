@@ -27,6 +27,8 @@ bool Cliccato(Rectangle r, int tasto = MOUSE_BUTTON_LEFT);
 void Testo(const std::string& t, float x, float y, Color c, int dim = 0);
 void TestoCentrato(const std::string& t, Rectangle r, Color c, int dim = 0);
 int Larghezza(const std::string& t, int dim = 0);
+void TestoForte(const std::string& t, float x, float y, Color c, int dim = 0);   // grassetto, per i titoli
+int LarghezzaForte(const std::string& t, int dim = 0);
 // Testo a capo dentro una larghezza; restituisce l'altezza usata.
 float TestoACapo(const std::string& t, float x, float y, float larghezza, Color c, int dim = 0, bool disegna = true);
 

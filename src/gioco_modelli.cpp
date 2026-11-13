@@ -56,6 +56,7 @@ void Gioco::AggiornaProiettili(float dt) {
             continue;
         }
         if (p.amico) {
+            if (conLibreria && ProiettileSuEntita(p)) continue;
             for (auto& o : oggetti) {
                 if (!o.attivo || (o.stato > 0 && o.tipo != TipoOggetto::Boss)) continue;
                 bool nemico = o.tipo == TipoOggetto::Slime || o.tipo == TipoOggetto::Pipistrello || o.tipo == TipoOggetto::Fantasma ||

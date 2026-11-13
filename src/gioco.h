@@ -10,6 +10,9 @@
 #include "particelle.h"
 #include "progetto.h"
 #include "mondo.h"
+#include "progetto_gioco.h"
+#include <map>
+#include <set>
 
 struct Comandi {
     float asse = 0;                 // -1 sinistra .. 1 destra (anche analogico)
@@ -26,6 +29,8 @@ struct Proiettile {
     bool amico;                     // sparato dall'eroe
     float vita;
     Color colore;
+    int disegno = -1;               // oggetto della libreria che fa da proiettile (-1 = palla luminosa)
+    int danno = 1;
 };
 
 // Disegna un oggetto del livello (usato anche dalla tavolozza dell'editor).
@@ -39,7 +44,17 @@ public:
     bool CaricaMondo(const Mondo& m, std::string& errore);
     void Aggiorna(float dt, const Comandi& c);
     void Disegna();
-    void Ricomincia() { std::string e; CaricaMondo(Mondo(mondo), e); }
+    // Il gioco completo: mondo + libreria (personaggi, oggetti, caselle, scenari, brani, effetti, regole).
+    bool CaricaProgetto(const ProgettoGioco& p, std::string& errore);
+    const ProgettoGioco& Libreria() const { return lib; }
+    // Disegna in una texture ad alta risoluzione (VW*scala x VH*scala), creandola se serve.
+    void DisegnaHD(RenderTexture2D& rt, int scala);
+    void Ricomincia() { std::string e; if (conLibreria) CaricaProgetto(ProgettoGioco(lib), e); else CaricaMondo(Mondo(mondo), e); }
+    bool MusicaDellaLibreria() const { return musica < 0; }
+    std::map<std::string, float> variabili;
+    std::map<std::string, int> inventario;
+    std::string messaggio;          // testo mostrato da una regola
+    float tMessaggio = 0;
 
     Sfondo sfondo;
     Eroe eroe;
@@ -97,6 +112,55 @@ private:
     void Rinasci();
     void DisegnaOggettoConInfo(const Oggetto& o) const;
     void DisegnaHud() const;
+
+    // --- Libreria del gioco (gioco_libreria.cpp) ---
+    struct Entita {
+        bool personaggio = true;
+        int def = 0;                // indice in lib.personaggi o lib.oggetti
+        std::string nome;
+        Vector2 pos{ 0, 0 }, vel{ 0, 0 }, origine{ 0, 0 };
+        int dir = -1, energia = 1, mappaPorta = -1;
+        Vector2 destPorta{ -1, -1 };
+        bool attivo = true, aTerra = false, aperta = false, acceso = false, toccando = false, vicino = false;
+        float t = 0, tAnim = 0, timer = 0, lampeggio = 0, morte = 0, velMolt = 1, spinta = 0;
+        std::string anim;           // animazione chiesta (vuoto = automatica)
+        Color tinta = WHITE;
+    };
+    ProgettoGioco lib;
+    bool conLibreria = false;
+    int eroeDef = -1;
+    std::vector<Entita> entita;
+    std::vector<Rectangle> boxPersonaggi, boxOggetti;   // riquadro del disegno rispetto ai piedi
+    std::vector<float> timerRegole;
+    std::vector<bool> condizioniRegole;
+    std::set<std::pair<int, int>> energiaNotificata;
+    std::vector<std::string> nuoveRegoleInizio;
+    int pioggia = 0, appoggio = -1, dialogo = -1;
+    float asseInput = 0;
+    void PreparaLibreria();
+    void EntitaDellaMappa(const Mappa& m);
+    int CreaEntita(const std::string& nome, Vector2 pos);
+    Rectangle BoxEntita(const Entita& e) const;
+    const Disegno* DisegnoEntita(const Entita& e) const;
+    void AggiornaEntita(float dt, const Comandi& c);
+    void AggiornaPersonaggio(Entita& e, int i, float dt, Rectangle eroeBox);
+    void AggiornaOggettoLib(Entita& e, int i, float dt, Rectangle eroeBox);
+    void ColpisciEntita(int i, int danno);
+    bool ProiettileSuEntita(Proiettile& p);
+    void SparaDa(int i, const std::string& proiettile, int quanti);
+    void DisegnaEntita(float cx, float cy, bool decorazioni) const;
+    void DisegnaEroeLibreria(Vector2 p) const;
+    void DisegnaProiettileLib(const Proiettile& p, float cx, float cy) const;
+    void DisegnaExtraHud() const;
+    void DisegnaPioggia() const;
+    void Evento(const std::string& tipo, const std::string& chi, const std::string& conChi, int ent);
+    void EseguiRegola(const Regola& r, int ent);
+    bool Condizione(const Regola& r) const;
+    float Valore(const std::string& v) const;
+    void ImpostaValore(const std::string& v, float x);
+    void AggiornaRegole(float dt);
+    void SolidiEntita(Vector2& pos, Vector2& vel, float w, float hgt, float piediPrima, bool& aTerra, int ignora);
+    void SuonaLibreria(const std::string& effetto, float volume = 1);
 
     Livello livello;
     Mondo mondo;

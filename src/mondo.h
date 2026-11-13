@@ -68,6 +68,8 @@ struct Mappa {
     float ora = 0.35f;
     bool cicloGiorno = true;
     int musica = 0;
+    std::string scenarioLibreria;         // scenario della libreria del gioco (vuoto = quello della mappa)
+    std::string brano;                    // brano della libreria (vuoto = brano generato "musica")
     bool sfondoGenerato = true;           // false = solo cielo e strati personalizzati
     bool cieloPersonale = false;
     Color cieloAlto = Hex(0x3f8ff0), cieloBasso = Hex(0xb9e3ff);
@@ -106,6 +108,10 @@ struct Mondo {
 };
 
 bool SembraJson(const std::string& testo);
+
+// Nomi dei personaggi e degli oggetti della libreria del gioco: Controlla li accetta come tipi validi.
+void ImpostaNomiLibreria(const std::vector<std::string>& nomi);
+bool NomeInLibreria(const std::string& nome);
 
 // Mondi d'esempio del nuovo motore (fase 1): mostrano viste, telecamere e mappe collegate.
 std::vector<Mondo> MondiDiProva();

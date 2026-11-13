@@ -51,6 +51,13 @@ const char* ChiaveModoTelecamera(ModoTelecamera m) {
     }
 }
 
+namespace { std::vector<std::string> gNomiLibreria; }
+void ImpostaNomiLibreria(const std::vector<std::string>& nomi) { gNomiLibreria = nomi; }
+bool NomeInLibreria(const std::string& nome) {
+    for (auto& n : gNomiLibreria) if (n == nome) return true;
+    return false;
+}
+
 bool SembraJson(const std::string& testo) {
     size_t i = testo.find_first_not_of(" \t\r\n");
     if (i != std::string::npos && testo.compare(i, 3, "\xEF\xBB\xBF") == 0) i += 3; // BOM UTF-8
@@ -134,6 +141,8 @@ json MappaJson(const Mappa& m) {
     j["altezza"] = m.altezza;
     j["vista"] = m.vista == Vista::Alto ? "alto" : "laterale";
     j["musica"] = m.musica;
+    if (!m.scenarioLibreria.empty()) j["scenarioLibreria"] = m.scenarioLibreria;
+    if (!m.brano.empty()) j["brano"] = m.brano;
     j["scenario"] = { { "tema", m.tema }, { "ora", R(m.ora) }, { "cicloGiorno", m.cicloGiorno }, { "sfondoGenerato", m.sfondoGenerato } };
     if (m.cieloPersonale) j["cielo"] = { { "alto", Colore(m.cieloAlto) }, { "basso", Colore(m.cieloBasso) } };
     json strati = json::array();
@@ -184,6 +193,8 @@ bool MappaDaJson(const json& j, Mappa& m, std::string& errore) {
     Leggi(j, "vista", vista);
     m.vista = vista == "alto" ? Vista::Alto : Vista::Laterale;
     Leggi(j, "musica", m.musica);
+    Leggi(j, "scenarioLibreria", m.scenarioLibreria);
+    Leggi(j, "brano", m.brano);
     if (j.contains("scenario") && j["scenario"].is_object()) {
         const json& s = j["scenario"];
         Leggi(s, "tema", m.tema);
@@ -409,7 +420,7 @@ std::string Mondo::Controlla() const {
             return "mappa \"" + m.nome + "\": la partenza e' fuori dalla mappa";
         for (auto& o : m.oggetti) {
             TipoOggetto t;
-            if (!TipoDaNome(o.tipo, t)) return "mappa \"" + m.nome + "\": oggetto sconosciuto \"" + o.tipo + "\"";
+            if (!TipoDaNome(o.tipo, t) && !NomeInLibreria(o.tipo)) return "mappa \"" + m.nome + "\": oggetto sconosciuto \"" + o.tipo + "\"";
             if (o.mappa >= (int)mappe.size()) return "mappa \"" + m.nome + "\": una porta porta a una mappa che non esiste";
         }
     }

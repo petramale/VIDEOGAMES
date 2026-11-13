@@ -1,4 +1,5 @@
 #include "livello.h"
+#include "progetto_gioco.h"
 #include "mondo.h"
 #include <cctype>
 #include <cstdlib>
@@ -143,6 +144,17 @@ void Livello::DisegnaTile(int tx, int ty, float sx, float sy, float tempo, float
     char c = Cella(tx, ty);
     int x = (int)std::round(sx), y = (int)std::round(sy);
     float buio = notte * 0.45f;
+    for (auto& cl : caselleLibreria)
+        if (cl.first == c && cl.second && !cl.second->animazioni.empty()) {
+            const Disegno& d = *cl.second;
+            int anim = (Cella(tx, ty - 1) == c && d.animazioni.size() > 1) ? 1 : 0;
+            Texture2D t = d.Texture(anim, d.FotogrammaAl(anim, tempo));
+            if (t.id) {
+                Color tinta = Mescola(WHITE, Hex(0x3a4070), buio);
+                DrawTexturePro(t, { 0, 0, (float)t.width, (float)t.height }, { sx, sy, (float)TILE, (float)TILE * t.height / std::max(1, t.width) }, { 0, 0 }, 0, tinta);
+                return;
+            }
+        }
     auto Ombra = [&](unsigned int col) { return Mescola(Hex(col), Hex(0x0a0d24), buio); };
 
     if (dallAlto && (c == '#' || c == '=')) {

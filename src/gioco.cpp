@@ -4,6 +4,8 @@
 #include "progetto.h"
 #include "immagini.h"
 
+float gScalaHD = 1;
+
 namespace {
 constexpr float CADUTA_MAX = 420, ACCEL = 1000, ATTRITO = 1400, RIMBALZO = 230;
 
@@ -51,6 +53,7 @@ Comandi Comandi::DaPeriferiche() {
 }
 
 bool Gioco::Carica(const std::string& testoLivello, std::string& errore) {
+    conLibreria = false;
     Mondo m;
     if (!m.Carica(testoLivello, errore)) return false;
     return CaricaMondo(m, errore);
@@ -59,6 +62,7 @@ bool Gioco::Carica(const std::string& testoLivello, std::string& errore) {
 bool Gioco::CaricaMondo(const Mondo& m, std::string& errore) {
     std::string problema = m.Controlla();
     if (!problema.empty()) { errore = problema; return false; }
+    if (&m != &lib.mondo) { conLibreria = false; eroeDef = -1; livello.caselleLibreria.clear(); }
     Mondo copia = m;   // m potrebbe essere proprio 'mondo'
     mondo = copia;
     fisica = mondo.fisica;
@@ -74,6 +78,9 @@ bool Gioco::CaricaMondo(const Mondo& m, std::string& errore) {
         default: modello = Modello::Platform; break;
     }
     monete = gemme = 0; vite = 3; punteggio = 0; tempo = 0; mosse = 0;
+    inventario.clear();
+    variabili = conLibreria ? lib.variabili : std::map<std::string, float>();
+    if (conLibreria) PreparaLibreria();
     energia = energiaMax;
     return EntraMappa(mondo.mappaIniziale, { -1, -1 }, errore);
 }
@@ -97,6 +104,8 @@ bool Gioco::EntraMappa(int indice, Vector2 arrivo, std::string& errore) {
     musica = m.musica;
     testi = m.testi;
     oggetti = livello.Oggetti();
+    entita.clear(); appoggio = -1; dialogo = -1; pioggia = 0; energiaNotificata.clear();
+    if (conLibreria) EntitaDellaMappa(m);
     particelle.Svuota();
     proiettili.clear();
     storiaPuzzle.clear(); storiaEroe.clear();
@@ -130,6 +139,7 @@ bool Gioco::EntraMappa(int indice, Vector2 arrivo, std::string& errore) {
         if (telecamera.dirY > 0) camY = 0;
     }
     AggiornaTelecamera(1, true);
+    if (conLibreria) Evento("inizio", "gioco", m.nome, -1);
     return true;
 }
 
@@ -176,6 +186,7 @@ void Gioco::Ferisci(float spintaX) {
     if (eroe.lampeggio > 0 || vinto || finito) return;
     energia--;
     gAudio.Suona(Effetto::Colpo);
+    if (conLibreria) Evento("ferito", "eroe", "", -1);
     scossa = 0.35f;
     eroe.lampeggio = 1.6f;
     if (Laterale()) { eroe.vel = { spintaX, -200 }; eroe.CambiaStato(StatoEroe::Colpito); }
@@ -226,6 +237,7 @@ void Gioco::Fisica(float dt, const Comandi& c) {
         eroe.vel.y = -fisica.salto; bufferSalto = 0; coyote = 0; saltoTagliato = false;
         eroe.CambiaStato(StatoEroe::Salto);
         gAudio.Suona(Effetto::Salto, 0.7f);
+        if (conLibreria) Evento("salta", "eroe", "", -1);
         particelle.Polvere(eroe.pos, 6);
     }
     // Salto variabile: lasciando il tasto si salta piu' basso.
@@ -233,7 +245,9 @@ void Gioco::Fisica(float dt, const Comandi& c) {
 
     eroe.vel.y = std::min(eroe.vel.y + fisica.gravita * dt, CADUTA_MAX);
     bool eraATerra = eroe.aTerra;
+    float piediPrima = eroe.pos.y;
     MuoviConCollisioni(eroe.pos, eroe.vel, Eroe::LARGHEZZA, Eroe::ALTEZZA - 2, dt, eroe.aTerra, true);
+    if (conLibreria) SolidiEntita(eroe.pos, eroe.vel, Eroe::LARGHEZZA, Eroe::ALTEZZA - 2, piediPrima, eroe.aTerra, -1);
 
     if (eroe.aTerra && !eraATerra) {
         eroe.CambiaStato(StatoEroe::Atterraggio);
@@ -481,6 +495,7 @@ void Gioco::Aggiorna(float dt, const Comandi& c) {
         default: if (vistaAlto) FisicaLabirinto(dt, c); else Fisica(dt, c); break;
     }
     AggiornaOggetti(dt);
+    if (conLibreria) { AggiornaEntita(dt, c); AggiornaRegole(dt); }
     AggiornaProiettili(dt);
     particelle.Aggiorna(dt);
     if (vinto || finito) tFine += dt;
@@ -837,19 +852,20 @@ void Gioco::Disegna() {
     float dy = std::max(0.0f, livello.Altezza() * (float)TILE - VH - cy);
     if (!dallAlto) sfondo.Disegna(cx, dy);
     // Lo zoom ingrandisce attorno al centro dello schermo; lo sfondo resta fermo.
-    Camera2D schermo{};
-    schermo.offset = { VW / 2.0f, VH / 2.0f }; schermo.target = { VW / 2.0f, VH / 2.0f }; schermo.zoom = zoom;
-    BeginMode2D(schermo);
+    BeginMode2D(CameraHD({ VW / 2.0f, VH / 2.0f }, { VW / 2.0f, VH / 2.0f }, zoom));
     if (dallAlto) livello.DisegnaPavimento(cx, cy, sfondo.tema);
     livello.Disegna(cx, cy, tempoVisivo, dallAlto ? 0.0f : notte, dallAlto);
     DisegnaDecorazioni(cx, cy, false);
+    if (conLibreria) DisegnaEntita(cx, cy, true);
 
     float salvaX = camX, salvaY = camY;
     camX = cx; camY = cy;
     for (const auto& o : oggetti) if (o.attivo) DisegnaOggettoConInfo(o);
+    if (conLibreria) DisegnaEntita(cx, cy, false);
 
     Vector2 p = { std::round(eroe.pos.x - cx), std::round(eroe.pos.y - cy) };
-    if (modello == Modello::Sparatutto) DisegnaNave(p);
+    if (eroeDef >= 0) DisegnaEroeLibreria(p);
+    else if (modello == Modello::Sparatutto) DisegnaNave(p);
     else {
         Eroe e = eroe;
         e.pos = p;
@@ -864,21 +880,20 @@ void Gioco::Disegna() {
     }
     // Proiettili luminosi.
     BeginBlendMode(BLEND_ADDITIVE);
-    for (const auto& q : proiettili) DrawCircleV({ q.pos.x - cx, q.pos.y - cy }, q.amico ? 4.0f : 5.0f, ConAlfa(q.colore, 0.3f));
+    for (const auto& q : proiettili) if (q.disegno < 0) DrawCircleV({ q.pos.x - cx, q.pos.y - cy }, q.amico ? 4.0f : 5.0f, ConAlfa(q.colore, 0.3f));
     EndBlendMode();
     for (const auto& q : proiettili) {
+        if (q.disegno >= 0) { DisegnaProiettileLib(q, cx, cy); continue; }
         if (q.amico) DrawRectangle((int)(q.pos.x - cx) - 4, (int)(q.pos.y - cy) - 1, 8, 2, WHITE);
         else DrawCircleV({ q.pos.x - cx, q.pos.y - cy }, 2, Mescola(q.colore, WHITE, 0.4f));
     }
     DisegnaDecorazioni(cx, cy, true);
-    EndMode2D();
+    FineCameraHD();
 
     // Particelle nel sistema di riferimento del mondo, con lo stesso zoom.
-    Camera2D cam{};
-    cam.offset = { VW / 2.0f, VH / 2.0f }; cam.target = { cx + VW / 2.0f, cy + VH / 2.0f }; cam.zoom = zoom;
-    BeginMode2D(cam);
+    BeginMode2D(CameraHD({ VW / 2.0f, VH / 2.0f }, { cx + VW / 2.0f, cy + VH / 2.0f }, zoom));
     particelle.Disegna();
-    EndMode2D();
+    FineCameraHD();
     camX = salvaX; camY = salvaY;
 
     if (!dallAlto) sfondo.DisegnaPrimoPiano(cx, dy);
@@ -888,7 +903,9 @@ void Gioco::Disegna() {
         DrawRectangleGradientH(0, 0, 50, VH, Hex(0x05081c, (unsigned char)(100 * notte)), BLANK);
         DrawRectangleGradientH(VW - 50, 0, 50, VH, BLANK, Hex(0x05081c, (unsigned char)(100 * notte)));
     }
+    if (pioggia) DisegnaPioggia();
     if (mostraHud) DisegnaHud();
+    if (conLibreria) DisegnaExtraHud();
     // Dissolvenza nel passaggio da una mappa all'altra.
     float buio = mappaVerso >= 0 ? Limita(tTransizione / 0.35f, 0, 1) : Limita(-tTransizione / 0.35f, 0, 1);
     if (buio > 0) DrawRectangle(0, 0, VW, VH, ConAlfa(BLACK, buio));
