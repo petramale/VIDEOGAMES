@@ -6,6 +6,12 @@
 #include <windows.h>
 #include <winhttp.h>
 
+// Gli header di MinGW inclusi in Dev-C++ (TDM-GCC 9.2) sono piu' vecchi di Windows 8.1
+// e non conoscono questa costante: la definiamo noi con il valore ufficiale.
+#ifndef WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY
+#define WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY 4
+#endif
+
 std::string PercorsoEseguibile() {
     char buf[MAX_PATH * 2];
     DWORD n = GetModuleFileNameA(nullptr, buf, sizeof(buf));
