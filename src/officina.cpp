@@ -4,6 +4,7 @@
 #include "audio.h"
 #include "claude_progetto.h"
 #include "immagini.h"
+#include "interfaccia.h"
 #include "pacchetto.h"
 #include "periferiche.h"
 #include "progetto_json.h"
@@ -392,7 +393,7 @@ std::vector<Officina::MenuO> Officina::Menu() const {
     g.voci = { { "Nuovo gioco...", "Ctrl+N", "nuovo" }, { "Apri gioco...", "Ctrl+O", "apri" }, { "Salva gioco", "Ctrl+S", "salva" },
                { "Salva con nome", "Ctrl+Maiusc+S", "salvaNome" }, { "Prova il gioco", "F5", "prova" }, { "Crea il gioco .exe", "Ctrl+E", "exe" },
                { std::string("Stile grafico: ") + NomeStile(progetto.stile) + "...", "", "stile" }, { "Annulla", "Ctrl+Z", "annulla" },
-               { "Ripeti", "Ctrl+Y", "ripeti" }, { "Chiave di Claude...", "", "chiave" }, { "Torna alla home", "", "home" }, { "Esci dallo studio", "", "esci" } };
+               { "Ripeti", "Ctrl+Y", "ripeti" }, { "Musica dello studio", "F7", "musicaStudio", gMusicaStudio }, { "Chiave di Claude...", "", "chiave" }, { "Torna alla home", "", "home" }, { "Esci dallo studio", "", "esci" } };
     m.push_back(g);
     switch (sezione) {
         case Sezione::Mondi:
@@ -472,8 +473,8 @@ void Officina::BarraMenu() {
     std::string stato = cfg.chiave.empty() ? "Claude: manca la chiave" : chatInAttesa ? "Claude sta pensando..." : "Claude pronto";
     Color cc = cfg.chiave.empty() ? Hex(0xff8a6a) : chatInAttesa ? Ui::Accento() : Hex(0x7ee0a0);
     float wc = (float)Ui::Larghezza(stato, Ui::TP());
-    DrawCircle((int)(r.x + r.width - wc - 64 * s), (int)(r.y + r.height / 2), 4 * s, cc);
-    Ui::Testo(stato, r.x + r.width - wc - 54 * s, r.y + (r.height - Ui::TP()) / 2, cc, Ui::TP());
+    DrawCircle((int)(r.x + r.width - wc - 96 * s), (int)(r.y + r.height / 2), 4 * s, cc);
+    Ui::Testo(stato, r.x + r.width - wc - 86 * s, r.y + (r.height - Ui::TP()) / 2, cc, Ui::TP());
     postoAudio = { r.x + r.width - 34 * s, r.y + 3 * s, r.height - 6 * s, r.height - 6 * s };
 }
 
@@ -552,6 +553,7 @@ void Officina::Azione(const std::string& c) {
     else if (c == "chiave") { finestra = 6; bozzaChiave.clear(); }
     else if (c == "home") Vai(Sezione::Home);
     else if (c == "esci") esci = true;
+    else if (c == "musicaStudio") { gMusicaStudio = !gMusicaStudio; SalvaOpzioniAudio(fileOpzioni); Avvisa(gMusicaStudio ? "Musica dello studio accesa (F7)" : "Musica dello studio spenta: effetti e musica dei giochi restano attivi"); }
     else if (c == "aiuto") finestra = 3;
     else if (c == "claude") { chatAperta = true; Ui::DaiFuoco("chat"); }
     else if (c == "chat") chatAperta = !chatAperta;

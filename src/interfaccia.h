@@ -15,3 +15,8 @@ Rectangle PostoAudioLibero(Rectangle area);
 // Opzioni audio (muto, volumi) lette e scritte in un piccolo file di testo.
 void CaricaOpzioniAudio(const std::string& file);
 void SalvaOpzioniAudio(const std::string& file);
+
+// Musica di sottofondo dello studio (non quella dei giochi): spenta di serie.
+// Si accende e spegne col pulsante a nota o con F7, senza toccare gli effetti sonori.
+extern bool gMusicaStudio;
+bool PulsanteMusica(Rectangle r, const std::string& fileOpzioni);

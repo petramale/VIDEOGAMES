@@ -3,6 +3,8 @@
 #include <fstream>
 #include <sstream>
 
+bool gMusicaStudio = false;
+
 void CaricaOpzioniAudio(const std::string& file) {
     std::ifstream f(file);
     std::string riga;
@@ -14,6 +16,7 @@ void CaricaOpzioniAudio(const std::string& file) {
         if (chiave == "muto") gAudio.muto = v != 0;
         else if (chiave == "musica") gAudio.volumeMusica = Limita(v, 0, 1);
         else if (chiave == "effetti") gAudio.volumeEffetti = Limita(v, 0, 1);
+        else if (chiave == "musica_studio") gMusicaStudio = v != 0;
     }
 }
 
@@ -22,7 +25,8 @@ void SalvaOpzioniAudio(const std::string& file) {
     std::ofstream f(file);
     f << "muto " << (gAudio.muto ? 1 : 0) << "\n"
       << "musica " << gAudio.volumeMusica << "\n"
-      << "effetti " << gAudio.volumeEffetti << "\n";
+      << "effetti " << gAudio.volumeEffetti << "\n"
+      << "musica_studio " << (gMusicaStudio ? 1 : 0) << "\n";
 }
 
 static void DisegnaAltoparlante(Rectangle r, bool spento, bool sopra) {
@@ -81,4 +85,30 @@ Rectangle PostoAudioLibero(Rectangle area) {
     if (destra >= 30) { float t = std::min(s, destra - 6); return { area.x + area.width + (destra - t) / 2, area.y + 6, t, t }; }
     if (area.y >= s + 8) return { area.x + area.width - s - 6, (area.y - s) / 2, s, s };
     return AngoloAudio(area, false);
+}
+
+bool PulsanteMusica(Rectangle r, const std::string& fileOpzioni) {
+    float s = r.width;
+    bool sopra = CheckCollisionPointRec(GetMousePosition(), r);
+    bool cambia = IsKeyPressed(KEY_F7) || (sopra && IsMouseButtonPressed(MOUSE_BUTTON_LEFT));
+    if (cambia) { gMusicaStudio = !gMusicaStudio; SalvaOpzioniAudio(fileOpzioni); }
+    bool spenta = !gMusicaStudio;
+    DrawRectangleRounded(r, 0.3f, 6, sopra ? Hex(0x2a2f66, 230) : Hex(0x101430, 190));
+    DrawRectangleRoundedLinesEx(r, 0.3f, 6, std::max(1.0f, s * 0.04f), sopra ? Hex(0xffd23f) : Hex(0x8890c8));
+    Color c = spenta ? Hex(0x8890c8) : WHITE;
+    // Una croma: testa, gambo e bandierina.
+    float sp = std::max(1.5f, s * 0.07f);
+    DrawEllipse((int)(r.x + s * 0.4f), (int)(r.y + s * 0.68f), s * 0.13f, s * 0.1f, c);
+    DrawLineEx({ r.x + s * 0.52f, r.y + s * 0.68f }, { r.x + s * 0.52f, r.y + s * 0.22f }, sp, c);
+    DrawLineEx({ r.x + s * 0.52f, r.y + s * 0.22f }, { r.x + s * 0.72f, r.y + s * 0.36f }, sp, c);
+    if (spenta) DrawLineEx({ r.x + s * 0.2f, r.y + s * 0.8f }, { r.x + s * 0.8f, r.y + s * 0.2f }, sp, Hex(0xff6b6b));
+    if (sopra) {
+        const char* t = spenta ? "Musica dello studio spenta (F7)" : "Musica dello studio accesa (F7)";
+        int d = (int)Limita(s * 0.4f, 12, 20);
+        int w = MeasureText(t, d);
+        float ty = r.y + s + 6 + d + 8 > GetScreenHeight() ? r.y - d - 14 : r.y + s + 6;
+        DrawRectangle((int)(r.x + s - w - 10), (int)ty, w + 10, d + 8, Hex(0x101430, 220));
+        DrawText(t, (int)(r.x + s - w - 5), (int)ty + 4, d, WHITE);
+    }
+    return cambia;
 }

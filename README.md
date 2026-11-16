@@ -22,7 +22,8 @@ Lo studio si apre a tutta finestra, a risoluzione piena, con testi nitidi (carat
 disegnata in alta definizione.
 
 - **In alto** il menu di sistema **Gioco** (Nuovo, Apri, **Salva gioco**, Salva con nome, Prova, Crea .exe,
-  Stile grafico, Annulla, Ripeti, Chiave di Claude, Esci) e i menu della sezione aperta, che cambiano da sezione a sezione.
+  Stile grafico, Annulla, Ripeti, Musica dello studio, Chiave di Claude, Esci) e i menu della sezione aperta. La musica dello studio
+  è spenta di serie (F7 o la nota in alto la accendono): gli effetti sonori restano sempre attivi.
 - **Sotto** le schede delle sezioni (Alt+1 … Alt+8) e i pulsanti **Prova F5** e **Crea .exe**.
 - **A destra** la chat con **Claude**, presente in ogni sezione: sa dove sei e cosa hai selezionato.
 

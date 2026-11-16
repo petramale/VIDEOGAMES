@@ -630,9 +630,12 @@ int main(int argc, char** argv) {
     gAudio.Inizializza();
     const std::string opzioni = CartellaEseguibile() + "/studio.opzioni";
     CaricaOpzioniAudio(opzioni);
-    gAudio.MusicaAttiva(true);
+    // La musica dello studio e' spenta di serie (F7 o il pulsante a nota la accendono);
+    // gli effetti sonori restano sempre, e la musica suona comunque nella prova del gioco.
+    gAudio.MusicaAttiva(gMusicaStudio);
 
     Officina officina;
+    officina.fileOpzioni = opzioni;
     officina.Avvia();
     // Un file .gioco passato all'avvio (es. trascinato sull'icona) si apre subito.
     if (argc > 1 && argv[1][0] != '-') officina.ApriFile(argv[1]);
@@ -645,7 +648,10 @@ int main(int argc, char** argv) {
         gAudio.Aggiorna(dt);
         BeginDrawing();
         officina.Frame(dt);
-        PulsanteAudio(officina.PostoAudio(), opzioni);
+        Rectangle pa = officina.PostoAudio();
+        PulsanteAudio(pa, opzioni);
+        if (!officina.Provando()) PulsanteMusica({ pa.x - pa.width - 6, pa.y, pa.width, pa.height }, opzioni);
+        gAudio.MusicaAttiva(gMusicaStudio || officina.Provando() || officina.AscoltaMusica());
         EndDrawing();
     }
     officina.SalvaPrimaDiUscire();

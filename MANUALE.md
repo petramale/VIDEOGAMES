@@ -15,7 +15,11 @@ La chiave resta solo nel file `claude_chiave.txt` accanto allo studio e non fini
 ## 2. Com'è fatta l'officina
 
 - **Barra dei menu**: il menu **Gioco** è sempre presente; accanto ci sono i menu della sezione aperta e **Aiuto**.
-  In alto a destra lo stato di Claude e l'altoparlante (clic o F8 per spegnere tutto l'audio).
+  In alto a destra lo stato di Claude, la **nota** (musica dello studio, F7) e l'altoparlante (clic o F8 per spegnere tutto l'audio).
+
+**Musica dello studio**: è spenta di serie. La nota in alto a destra, il tasto F7 o il menu Gioco → Musica dello studio
+la accendono o la spengono. Gli effetti sonori restano attivi, e la musica suona comunque quando provi il gioco (F5)
+o ascolti un brano nella sezione Audio. I giochi creati hanno la loro musica, regolabile dal menu Opzioni del gioco.
 - **Schede delle sezioni**: Home, Mondi, Personaggi, Oggetti, Scenari, Audio, Logica, Librerie, Comandi
   (anche con **Alt+1 … Alt+8**). A destra **Prova F5** e **Crea .exe**.
 - **Chat di Claude** a destra (F2 la apre o la chiude, F3 porta il cursore nella chat).
@@ -32,6 +36,7 @@ La chiave resta solo nel file `claude_chiave.txt` accanto allo studio e non fini
 | Crea il gioco .exe | Ctrl+E | Crea l'eseguibile accanto allo studio |
 | Stile grafico | | Passa da **pixel art fine** a **disegnato in alta definizione** (e viceversa) |
 | Annulla / Ripeti | Ctrl+Z / Ctrl+Y | Vale anche per le modifiche fatte da Claude |
+| Musica dello studio | F7 | Accende o spegne la musica di sottofondo dello studio (spenta di serie) |
 | Torna alla home, Esci | | |
 
 Se chiudi la finestra senza salvare, lo studio salva da solo il lavoro (senza sovrascrivere altri giochi).
@@ -149,6 +154,7 @@ L'eseguibile è un solo file: si copia su qualsiasi PC Windows e funziona senza 
 | F1 | officina | aiuto |
 | F2 / F3 | officina | apri-chiudi la chat / scrivi a Claude |
 | F5 | ovunque | prova il gioco |
+| F7 | officina | musica dello studio accesa/spenta (gli effetti restano) |
 | F8 | ovunque | audio acceso/spento |
 | F11 | ovunque | schermo intero |
 | Alt+1…8 | officina | cambia sezione |

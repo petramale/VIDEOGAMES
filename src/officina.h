@@ -32,6 +32,9 @@ public:
     void NuovoGioco(Genere g, StileGrafico stile, const std::string& titolo);
     ProgettoGioco& Progetto() { return progetto; }
     // Alla chiusura della finestra: salva il lavoro non salvato (un file nuovo non sovrascrive altri giochi).
+    // La musica suona nello studio solo se accesa (F7) o quando serve: prova del gioco, ascolto nella sezione Audio.
+    bool AscoltaMusica() const { return sezione == Sezione::Audio && suonaBrano; }
+    std::string fileOpzioni;              // dove ricordare le opzioni audio dello studio
     void SalvaPrimaDiUscire() { if (modificato || editorMondo.Modificato()) Salva(percorso.empty()); }
 
 private:
