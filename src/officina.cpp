@@ -295,8 +295,9 @@ void Officina::FrameProva(float dt) {
     DrawTexturePro(rtProva.texture, { 0, 0, (float)rtProva.texture.width, -(float)rtProva.texture.height }, area, { 0, 0 }, 0, WHITE);
     int dim = std::max(12, (int)(sh / 60));
     DrawRectangle(0, (int)(sh - dim * 1.7f), (int)sw, (int)(dim * 1.7f), Hex(0x0b0e22, 200));
-    DrawText("PROVA DEL GIOCO   Esc o F5: torna all'officina   R: ricomincia   F1: collisioni", 12, (int)(sh - dim * 1.35f), dim, Hex(0xc8d0f0));
-    postoAudio = { area.x + area.width - 44, area.y + 6, 36, 36 };
+    DrawText("PROVA DEL GIOCO   Esc o F5: torna all'officina   R: ricomincia   F1: collisioni   F7: musica   F6: effetti", 12, (int)(sh - dim * 1.35f), dim, Hex(0xc8d0f0));
+    float hb = dim * 1.7f - 4;   // altoparlante, musica ed effetti nella barra in basso, fuori dal gioco
+    postoAudio = { sw - hb - 6, sh - hb - 2, hb, hb };
 }
 
 // --- Il fotogramma -----------------------------------------------------------------------------

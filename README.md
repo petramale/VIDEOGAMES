@@ -49,7 +49,8 @@ L'eseguibile creato parte sempre così:
 1. **intro** con il logo Elvantis, "Mario Petramale presenta", il titolo e la musica dell'intro;
 2. **"Premi un tasto"**;
 3. **menu**: 1 giocatore, 2 giocatori (a turni, con confronto dei punti), Opzioni (musica, effetti, audio, schermo intero), Crediti, Esci;
-4. **il gioco**, con pausa (Esc: riprendi, ricomincia, menu principale).
+4. **il gioco**, con pausa (Esc: riprendi, ricomincia, musica, effetti, menu principale). Musica ed effetti
+   si spengono separatamente anche con F7 e F6, nella prova (F5) come nel gioco creato.
 
 Il file creato si può copiare su qualsiasi PC Windows e funziona senza installare nulla.
 

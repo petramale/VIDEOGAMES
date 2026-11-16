@@ -485,8 +485,9 @@ void EditorMondo::FrameProva(float dt) {
     DrawTexturePro(rtGioco.texture, { 0, 0, (float)rtGioco.texture.width, -(float)rtGioco.texture.height }, area, { 0, 0 }, 0, WHITE);
     int dim = std::max(12, (int)(sh / 60));
     DrawRectangle(0, (int)(area.y + area.height - dim * 1.6f), (int)sw, (int)(dim * 1.6f), Hex(0x0b0e22, 190));
-    DrawText("PROVA   Esc o F5: torna all'editor   R: ricomincia   F1: collisioni", (int)area.x + 10, (int)(area.y + area.height - dim * 1.3f), dim, Hex(0xc8d0f0));
-    postoAudio = { area.x + area.width - 44, area.y + 6, 36, 36 };
+    DrawText("PROVA   Esc o F5: torna all'editor   R: ricomincia   F1: collisioni   F7: musica   F6: effetti", (int)area.x + 10, (int)(area.y + area.height - dim * 1.3f), dim, Hex(0xc8d0f0));
+    float hb = dim * 1.6f - 4;   // nella barra in basso, fuori dal punteggio del gioco
+    postoAudio = { area.x + area.width - hb - 6, area.y + area.height - hb - 2, hb, hb };
 }
 
 // --- Immagini importate ------------------------------------------------------------

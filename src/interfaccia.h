@@ -20,3 +20,11 @@ void SalvaOpzioniAudio(const std::string& file);
 // Si accende e spegne col pulsante a nota o con F7, senza toccare gli effetti sonori.
 extern bool gMusicaStudio;
 bool PulsanteMusica(Rectangle r, const std::string& fileOpzioni);
+
+// Musica e effetti dei giochi (prova F5 e giochi creati), separati: F7 la musica, F6 gli effetti, F8 tutto.
+extern bool gMusicaGioco;
+void CambiaMusicaGioco(const std::string& fileOpzioni);
+void CambiaEffetti(const std::string& fileOpzioni);
+void AvvisoAudio(const std::string& testo);
+// Pulsanti nota ed effetti a sinistra dell'altoparlante 'altoparlante' (gestiscono anche F7 e F6).
+void PulsantiAudioGioco(Rectangle altoparlante, const std::string& fileOpzioni);

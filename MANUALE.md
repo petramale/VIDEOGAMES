@@ -32,7 +32,7 @@ o ascolti un brano nella sezione Audio. I giochi creati hanno la loro musica, re
 | Apri | Ctrl+O | Apre un `.gioco` salvato o uno dei mondi d'esempio |
 | Salva gioco | Ctrl+S | Salva in `giochi\<titolo>.gioco` |
 | Salva con nome | Ctrl+Maiusc+S | Salva una copia con un nome nuovo |
-| Prova il gioco | F5 | Gioca subito; Esc o F5 torna all'officina, R ricomincia, F1 mostra le collisioni |
+| Prova il gioco | F5 | Gioca subito; Esc o F5 torna all'officina, R ricomincia, F1 mostra le collisioni, **F7 musica** e **F6 effetti sonori** si spengono separatamente (anche con i pulsanti in basso a destra) |
 | Crea il gioco .exe | Ctrl+E | Crea l'eseguibile accanto allo studio |
 | Stile grafico | | Passa da **pixel art fine** a **disegnato in alta definizione** (e viceversa) |
 | Annulla / Ripeti | Ctrl+Z / Ctrl+Y | Vale anche per le modifiche fatte da Claude |
@@ -69,7 +69,9 @@ Tasto sinistro = colore 1, destro = colore 2. Opzioni: forme piene, simmetria, c
 **Animazioni**: anteprima che si muove, velocità (fps), ciclo. Il motore usa questi nomi:
 `fermo`, `corsa`, `salto`, `caduta`, `colpito`, `attacco`, `vittoria`. Se un'animazione manca usa `fermo`.
 
-**Fotogrammi** (striscia in basso): + Vuoto, + Copia, sposta a sinistra/destra, Elimina.
+**Fotogrammi** (striscia in basso, su tutta la larghezza): in alto i pulsanti + Vuoto, + Copia, < > (sposta), Elimina
+(su schermi piccoli diventano +, Copia, <, >, X); sotto la sequenza dei fotogrammi, che scorre con la rotella
+o con la barra se è lunga. Il fotogramma scelto resta sempre in vista.
 
 **Proprietà**: nome, **È l'eroe** (diventa il personaggio che guidi), **Metti in mappa**, comportamento
 (Eroe, Fermo, Pattuglia, Insegue l'eroe, Vola, Torretta che spara, Boss, Parla), velocità, salto, energia, danno,
@@ -142,7 +144,10 @@ Esempi:
 1. intro con il logo Elvantis, "Mario Petramale presenta", il titolo e la musica;
 2. "Premi un tasto";
 3. menu: **1 giocatore**, **2 giocatori (a turni)**, **Opzioni** (musica, effetti, audio, schermo intero), **Crediti**, **Esci**;
-4. il gioco; **Esc** apre la pausa (Riprendi, Ricomincia, Menu principale).
+4. il gioco; **Esc** apre la pausa (Riprendi, Ricomincia, Musica, Effetti sonori, Menu principale).
+
+Nel gioco creato musica ed effetti sonori si spengono **separatamente**: **F7** la musica, **F6** gli effetti, **F8** tutto
+l'audio, oppure con i tre pulsanti in basso a destra, il menu Opzioni o la pausa. La scelta resta salvata accanto al gioco.
 
 Con 2 giocatori ognuno gioca la sua partita e alla fine si confrontano i punti.
 L'eseguibile è un solo file: si copia su qualsiasi PC Windows e funziona senza installare nulla.
@@ -155,6 +160,7 @@ L'eseguibile è un solo file: si copia su qualsiasi PC Windows e funziona senza 
 | F2 / F3 | officina | apri-chiudi la chat / scrivi a Claude |
 | F5 | ovunque | prova il gioco |
 | F7 | officina | musica dello studio accesa/spenta (gli effetti restano) |
+| F7 / F6 | prova del gioco e giochi creati | musica / effetti sonori del gioco, separati |
 | F8 | ovunque | audio acceso/spento |
 | F11 | ovunque | schermo intero |
 | Alt+1…8 | officina | cambia sezione |

@@ -224,7 +224,7 @@ bool EditorDisegno::Frame(Rectangle r, float dt) {
     float s = Ui::S();
     F();
     tAnteprima += dt;
-    float hTesta = 40 * s, hBasso = 104 * s, wSx = 86 * s, wDx = 262 * s;
+    float hTesta = 40 * s, hBasso = 118 * s, wSx = 86 * s, wDx = 262 * s;
     Rectangle testa = { r.x, r.y, r.width, hTesta };
     Rectangle sx = { r.x, r.y + hTesta, wSx, r.height - hTesta - hBasso };
     Rectangle dx = { r.x + r.width - wDx, r.y + hTesta, wDx, r.height - hTesta };
@@ -555,29 +555,71 @@ void EditorDisegno::Fotogrammi(Rectangle r) {
     DrawRectangleRec(r, Hex(0x0f1230));
     DrawLineEx({ r.x, r.y }, { r.x + r.width, r.y }, 1, Ui::Bordo());
     auto& a = d->animazioni[anim];
-    float pad = 8 * s, lato = r.height - 2 * pad - 18 * s;
-    float wPulsanti = 120 * s;
-    Rectangle striscia = { r.x + pad, r.y + pad, r.width - wPulsanti - 3 * pad, r.height - 2 * pad };
-    Ui::Testo(TextFormat("Fotogrammi di \"%s\"   (, e . per sfogliarli)", a.nome.c_str()), striscia.x, r.y + pad * 0.5f, Ui::TestoSpento(), (int)(12 * s));
-    float y = r.y + pad + 16 * s;
-    if (Ui::MouseSu(striscia)) scorriFotogrammi = std::max(0.0f, scorriFotogrammi - GetMouseWheelMove() * 60 * s);
+    float pad = 6 * s;
+    // Riga in alto: titolo a sinistra, pulsanti a destra (con nomi corti se lo spazio e' poco).
+    float hRiga = 24 * s;
+    bool stretto = r.width < 520 * s;
+    const char* nomi[5] = { stretto ? "+" : "+ Vuoto", stretto ? "Copia" : "+ Copia", "<", ">", stretto ? "X" : "Elimina" };
+    float larg[5] = { stretto ? 26 * s : 72 * s, stretto ? 52 * s : 72 * s, 26 * s, 26 * s, stretto ? 26 * s : 64 * s };
+    float wTot = 4 * 4 * s;
+    for (float l : larg) wTot += l;
+    float bx = r.x + r.width - pad - wTot, by = r.y + pad * 0.6f;
+    std::string titolo = TextFormat("Fotogrammi di \"%s\": %d", a.nome.c_str(), (int)a.fotogrammi.size());
+    BeginScissorMode((int)(r.x + pad), (int)r.y, (int)std::max(0.0f, bx - r.x - 2 * pad), (int)(hRiga + pad));
+    Ui::Testo(titolo, r.x + pad, by + (hRiga - Ui::TP()) / 2, Ui::TestoSpento(), Ui::TP());
+    EndScissorMode();
+    int premuto = -1;
+    for (int i = 0; i < 5; i++) {
+        bool abil = i == 2 ? fot > 0 : i == 3 ? fot + 1 < (int)a.fotogrammi.size() : i == 4 ? a.fotogrammi.size() > 1 : true;
+        if (Ui::Pulsante({ bx, by, larg[i], hRiga }, nomi[i], false, abil)) premuto = i;
+        bx += larg[i] + 4 * s;
+    }
+    if (premuto == 0) { Ricorda(); Fotogramma f; f.Nuovo(d->w, d->h); a.fotogrammi.insert(a.fotogrammi.begin() + fot + 1, f); fot++; cambiato = true; }
+    if (premuto == 1) { Ricorda(); Fotogramma f = F(); a.fotogrammi.insert(a.fotogrammi.begin() + fot + 1, f); fot++; cambiato = true; }
+    if (premuto == 2) { Ricorda(); std::swap(a.fotogrammi[fot], a.fotogrammi[fot - 1]); fot--; cambiato = true; }
+    if (premuto == 3) { Ricorda(); std::swap(a.fotogrammi[fot], a.fotogrammi[fot + 1]); fot++; cambiato = true; }
+    if (premuto == 4) { Ricorda(); a.fotogrammi.erase(a.fotogrammi.begin() + fot); fot = std::max(0, fot - 1); cambiato = true; }
+
+    // La sequenza: tutta la larghezza, scorre con la rotella (anche senza Maiusc) o con la barra.
+    float hBarra = 6 * s;
+    Rectangle striscia = { r.x + pad, r.y + hRiga + pad * 1.6f, r.width - 2 * pad, r.height - hRiga - pad * 2.6f - hBarra - 2 * s };
+    float lato = striscia.height;
+    float totale = a.fotogrammi.size() * (lato + pad) - pad;
+    float massimo = std::max(0.0f, totale - striscia.width);
+    if (Ui::MouseSu(striscia)) {
+        float rot = GetMouseWheelMove();
+        scorriFotogrammi -= rot * (lato + pad);
+    }
+    // Il fotogramma scelto resta sempre in vista (anche quando si sfoglia con , e .).
+    if (premuto >= 0 || IsKeyPressed(KEY_COMMA) || IsKeyPressed(KEY_PERIOD)) {
+        float x0 = fot * (lato + pad);
+        if (x0 < scorriFotogrammi) scorriFotogrammi = x0;
+        if (x0 + lato > scorriFotogrammi + striscia.width) scorriFotogrammi = x0 + lato - striscia.width;
+    }
+    scorriFotogrammi = Limita(scorriFotogrammi, 0, massimo);
     BeginScissorMode((int)striscia.x, (int)striscia.y, (int)striscia.width, (int)striscia.height);
     for (int i = 0; i < (int)a.fotogrammi.size(); i++) {
-        Rectangle b = { striscia.x + i * (lato + pad) - scorriFotogrammi, y, lato, lato };
+        Rectangle b = { striscia.x + i * (lato + pad) - scorriFotogrammi, striscia.y, lato, lato };
         if (b.x > striscia.x + striscia.width || b.x + b.width < striscia.x) continue;
         Scacchiera(b, 6 * s);
-        d->DisegnaIn({ b.x + 2, b.y + 2, b.width - 4, b.height - 4 }, anim, 0 + i / std::max(1.0f, a.fotogrammi.size() > 0 ? a.fps : 1));
+        d->DisegnaIn({ b.x + 2, b.y + 2, b.width - 4, b.height - 4 }, anim, i / std::max(1.0f, a.fps));
         bool sel = i == fot;
         DrawRectangleLinesEx(b, sel ? 3.0f : 1.0f, sel ? Ui::Accento() : Ui::MouseSu(b) ? Hex(0x5a64b0) : Ui::Bordo());
         Ui::Testo(std::to_string(i + 1), b.x + 4 * s, b.y + 2 * s, Ui::TestoSpento(), (int)(11 * s));
         if (Ui::Cliccato(b) && CheckCollisionPointRec(GetMousePosition(), striscia)) fot = i;
     }
     EndScissorMode();
-    float bx = r.x + r.width - wPulsanti - pad, bh = (r.height - 2 * pad - 9 * s) / 4;
-    float bw = (wPulsanti - 4 * s) / 2;
-    if (Ui::Pulsante({ bx, r.y + pad, wPulsanti, bh }, "+ Vuoto")) { Ricorda(); Fotogramma f; f.Nuovo(d->w, d->h); a.fotogrammi.insert(a.fotogrammi.begin() + fot + 1, f); fot++; cambiato = true; }
-    if (Ui::Pulsante({ bx, r.y + pad + (bh + 3 * s), wPulsanti, bh }, "+ Copia")) { Ricorda(); Fotogramma f = F(); a.fotogrammi.insert(a.fotogrammi.begin() + fot + 1, f); fot++; cambiato = true; }
-    if (Ui::Pulsante({ bx, r.y + pad + 2 * (bh + 3 * s), bw, bh }, "<", false, fot > 0)) { Ricorda(); std::swap(a.fotogrammi[fot], a.fotogrammi[fot - 1]); fot--; cambiato = true; }
-    if (Ui::Pulsante({ bx + bw + 4 * s, r.y + pad + 2 * (bh + 3 * s), bw, bh }, ">", false, fot + 1 < (int)a.fotogrammi.size())) { Ricorda(); std::swap(a.fotogrammi[fot], a.fotogrammi[fot + 1]); fot++; cambiato = true; }
-    if (Ui::Pulsante({ bx, r.y + pad + 3 * (bh + 3 * s), wPulsanti, bh }, "Elimina", false, a.fotogrammi.size() > 1)) { Ricorda(); a.fotogrammi.erase(a.fotogrammi.begin() + fot); fot = std::max(0, fot - 1); cambiato = true; }
+    // Barra di scorrimento (solo se la sequenza e' piu' lunga dello spazio): si trascina.
+    if (massimo > 0) {
+        Rectangle barra = { striscia.x, striscia.y + striscia.height + 3 * s, striscia.width, hBarra };
+        DrawRectangleRounded(barra, 1, 6, Hex(0x1c2150));
+        float wm = std::max(30 * s, barra.width * striscia.width / totale);
+        float xm = barra.x + (barra.width - wm) * scorriFotogrammi / massimo;
+        Rectangle maniglia = { xm, barra.y, wm, hBarra };
+        static bool trascina = false;
+        if (Ui::Cliccato({ barra.x, barra.y - 4 * s, barra.width, barra.height + 8 * s })) trascina = true;
+        if (!IsMouseButtonDown(MOUSE_BUTTON_LEFT)) trascina = false;
+        if (trascina) scorriFotogrammi = Limita((GetMousePosition().x - barra.x - wm / 2) / std::max(1.0f, barra.width - wm) * massimo, 0, massimo);
+        DrawRectangleRounded(maniglia, 1, 6, trascina || Ui::MouseSu(barra) ? Ui::Accento() : Hex(0x5a64b0));
+    }
 }

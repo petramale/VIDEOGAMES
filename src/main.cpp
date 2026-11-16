@@ -205,7 +205,7 @@ int GiocaPacchetto(const DatiGioco& dati) {
     gAudio.ApplicaFile(dati.file);   // musiche ed effetti caricati da file (vecchio formato)
     const std::string opzioni = FileAccanto(".opzioni");
     CaricaOpzioniAudio(opzioni);
-    gAudio.MusicaAttiva(true);
+    gAudio.MusicaAttiva(gMusicaGioco);
 
     // Il gioco: un progetto completo (.gioco) o un vecchio livello / mondo.
     ProgettoGioco progetto;
@@ -316,20 +316,20 @@ int GiocaPacchetto(const DatiGioco& dati) {
         } else if (fase == Fase::Opzioni) {
             Scritta2("OPZIONI", sw / 2, sh * 0.14f, (int)(dim * 1.3f), Hex(0xffe066));
             std::vector<std::string> voci = {
-                std::string("Musica: ") + (gAudio.MusicaAttiva() ? "accesa" : "spenta"),
-                std::string("Effetti sonori: ") + (gAudio.volumeEffetti > 0 ? "accesi" : "spenti"),
+                std::string("Musica: ") + (gMusicaGioco ? "accesa (F7)" : "spenta (F7)"),
+                std::string("Effetti sonori: ") + (gAudio.volumeEffetti > 0 ? "accesi (F6)" : "spenti (F6)"),
                 std::string("Audio: ") + (gAudio.muto ? "muto" : "attivo"),
                 std::string("Schermo intero: ") + (IsWindowState(FLAG_BORDERLESS_WINDOWED_MODE) ? "si'" : "no"),
                 "Indietro" };
             int v = menuOpzioni.Frame(voci, sw / 2, sh * 0.32f, dim * 1.7f, dim);
-            if (v == 0) gAudio.MusicaAttiva(!gAudio.MusicaAttiva());
-            else if (v == 1) gAudio.volumeEffetti = gAudio.volumeEffetti > 0 ? 0.0f : 1.0f;
+            if (v == 0) CambiaMusicaGioco(opzioni);
+            else if (v == 1) CambiaEffetti(opzioni);
             else if (v == 2) gAudio.muto = !gAudio.muto;
             else if (v == 3) ToggleBorderlessWindowed();
-            if (v >= 0 && v <= 2) SalvaOpzioniAudio(opzioni);
+            if (v == 2) SalvaOpzioniAudio(opzioni);
             if (v == 4 || indietro) fase = Fase::Menu;
             Scritta2("Comandi: frecce o WASD per muoversi, Spazio per saltare/sparare, Esc pausa", sw / 2, sh * 0.82f, dimP, Hex(0xa8b4e8));
-            Scritta2("Funzionano anche mouse e joypad", sw / 2, sh * 0.82f + dimP * 1.6f, dimP, Hex(0xa8b4e8));
+            Scritta2("F7 musica, F6 effetti sonori, F8 tutto l'audio. Funzionano anche mouse e joypad", sw / 2, sh * 0.82f + dimP * 1.6f, dimP, Hex(0xa8b4e8));
         } else if (fase == Fase::Crediti) {
             float lw = std::min(sw * 0.34f, 600.0f);
             DisegnaLogo({ sw / 2 - lw / 2, sh * 0.1f, lw, lw * 0.34f });
@@ -346,10 +346,14 @@ int GiocaPacchetto(const DatiGioco& dati) {
             if (tFase > 0.3f && (GetKeyPressed() != 0 || IsMouseButtonPressed(MOUSE_BUTTON_LEFT) || gInput.Premuto(Azione::Conferma) || gInput.Premuto(Azione::Indietro))) fase = Fase::Menu;
         } else if (fase == Fase::Pausa) {
             Scritta2("PAUSA", sw / 2, sh * 0.22f, (int)(dim * 1.4f), Hex(0xffe066));
-            int v = menuPausa.Frame({ "Riprendi", "Ricomincia", "Menu principale" }, sw / 2, sh * 0.42f, dim * 1.7f, dim);
+            int v = menuPausa.Frame({ "Riprendi", "Ricomincia", std::string("Musica: ") + (gMusicaGioco ? "accesa (F7)" : "spenta (F7)"),
+                                      std::string("Effetti sonori: ") + (gAudio.volumeEffetti > 0 ? "accesi (F6)" : "spenti (F6)"), "Menu principale" },
+                                    sw / 2, sh * 0.36f, dim * 1.6f, dim);
             if (v == 0 || (indietro && tFase > 0.1f)) fase = Fase::Gioca;
             else if (v == 1) { Carica(gioco); fase = Fase::Gioca; tFine = 0; }
-            else if (v == 2) { fase = Fase::Menu; MusicaMenu(); }
+            else if (v == 2) CambiaMusicaGioco(opzioni);
+            else if (v == 3) CambiaEffetti(opzioni);
+            else if (v == 4) { fase = Fase::Menu; MusicaMenu(); }
         } else if (fase == Fase::Cambio) {
             Scritta2(turno == 0 ? "GIOCATORE 1" : "GIOCATORE 2", sw / 2, sh * 0.36f, (int)(dim * 1.6f), turno == 0 ? Hex(0x7ad0ff) : Hex(0xff8a7a));
             if (turno == 1) Scritta2("Il giocatore 1 ha fatto " + std::to_string(punti[0]) + " punti", sw / 2, sh * 0.5f, dim, WHITE);
@@ -370,7 +374,10 @@ int GiocaPacchetto(const DatiGioco& dati) {
             if (tFase > 0.8f && (GetKeyPressed() != 0 || gInput.Premuto(Azione::Conferma) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT))) fase = Fase::Menu;
         }
         if (fase == Fase::Gioca && giocatori == 2) Scritta2(turno == 0 ? "G1" : "G2", area.x + dimP * 1.5f, area.y + area.height - dimP * 1.8f, dimP, turno == 0 ? Hex(0x7ad0ff) : Hex(0xff8a7a));
-        PulsanteAudio(PostoAudioLibero(area), opzioni);
+        Rectangle pa = AngoloAudio(area, true);   // in basso a destra: non copre il punteggio
+        PulsanteAudio(pa, opzioni);
+        PulsantiAudioGioco(pa, opzioni);
+        gAudio.MusicaAttiva(gMusicaGioco);
         EndDrawing();
     }
     if (rt.id) UnloadRenderTexture(rt);
@@ -651,7 +658,8 @@ int main(int argc, char** argv) {
         Rectangle pa = officina.PostoAudio();
         PulsanteAudio(pa, opzioni);
         if (!officina.Provando()) PulsanteMusica({ pa.x - pa.width - 6, pa.y, pa.width, pa.height }, opzioni);
-        gAudio.MusicaAttiva(gMusicaStudio || officina.Provando() || officina.AscoltaMusica());
+        else PulsantiAudioGioco(pa, opzioni);   // nella prova: musica (F7) ed effetti (F6) del gioco, separati
+        gAudio.MusicaAttiva(officina.Provando() ? gMusicaGioco : (gMusicaStudio || officina.AscoltaMusica()));
         EndDrawing();
     }
     officina.SalvaPrimaDiUscire();
