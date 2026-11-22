@@ -208,6 +208,7 @@ void Officina::AzioneSezione(const std::string& c) {
     } else if (c == "o:mappa" && selOggetto < (int)progetto.oggetti.size()) {
         MettiInMappa(progetto.oggetti[selOggetto].nome);
     } else if (c == "s:nuovo" || c == "s:duplica" || c == "s:elimina") {
+        SincronizzaMondo();
         Ricorda();
         schedaScenari = 0;
         if (c == "s:nuovo") {
@@ -229,6 +230,15 @@ void Officina::AzioneSezione(const std::string& c) {
                 selScenario = std::max(0, selScenario - 1);
                 MondoCambiato();
             }
+        }
+        // Uno scenario nuovo si usa subito nella mappa aperta: prima restava quello vecchio e
+        // la prova mostrava sempre lo sfondo di prima. Si cambia con "Usa nella mappa aperta"
+        // o con la scelta "Scenario" nelle proprieta' della mappa.
+        if (c != "s:elimina" && selScenario < (int)progetto.scenari.size() && !progetto.mondo.mappe.empty()) {
+            int mi = std::max(0, std::min(editorMondo.MappaAperta(), (int)progetto.mondo.mappe.size() - 1));
+            progetto.mondo.mappe[mi].scenarioLibreria = progetto.scenari[selScenario].nome;
+            MondoCambiato();
+            Avvisa("La mappa \"" + progetto.mondo.mappe[mi].nome + "\" ora usa " + progetto.scenari[selScenario].nome + ": premi F5 per provarlo");
         }
     } else if (c == "s:usa" && selScenario < (int)progetto.scenari.size()) {
         SincronizzaMondo();

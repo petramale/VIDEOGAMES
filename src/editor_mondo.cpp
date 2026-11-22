@@ -184,6 +184,12 @@ void EditorMondo::Ricostruisci() {
     sfondo.cieloPersonale = M().cieloPersonale;
     sfondo.cieloAlto = M().cieloAlto; sfondo.cieloBasso = M().cieloBasso;
     sfondo.strati = M().strati;
+    // Con uno scenario della libreria la mappa si vede come nel gioco.
+    if (const Scenario* s = (progetto && !M().scenarioLibreria.empty()) ? progetto->TrovaScenario(M().scenarioLibreria) : nullptr) {
+        sfondo.tema = s->tema; sfondo.ora = s->ora; sfondo.generato = s->sfondoGenerato;
+        sfondo.cieloPersonale = s->cieloPersonale; sfondo.cieloAlto = s->cieloAlto; sfondo.cieloBasso = s->cieloBasso;
+        sfondo.strati = s->strati;
+    }
     if (selezionato >= (int)M().oggetti.size()) selezionato = -1;
 }
 
@@ -1505,6 +1511,25 @@ void EditorMondo::PannelloProprieta(Rectangle r) {
     bool ciclo = m.cicloGiorno, gen = m.sfondoGenerato, cp = m.cieloPersonale;
     Color ca = m.cieloAlto, cb = m.cieloBasso;
     bool c = false;
+    // Scenario della libreria del gioco: se c'e', e' lui lo sfondo della mappa (anche nella prova).
+    bool conScenario = false;
+    if (progetto && !progetto->scenari.empty()) {
+        std::vector<std::string> sc = { "(sfondo della mappa)" };
+        int scelto = 0;
+        for (size_t i = 0; i < progetto->scenari.size(); i++) {
+            sc.push_back(progetto->scenari[i].nome);
+            if (progetto->scenari[i].nome == m.scenarioLibreria) scelto = (int)i + 1;
+        }
+        if (L.Prendi(hr, q) && Ui::Scelta(q, "Scenario", scelto, sc)) {
+            Ricorda();
+            m.scenarioLibreria = scelto > 0 ? sc[scelto] : std::string();
+            Ricostruisci();
+        }
+        conScenario = scelto > 0;
+        if (conScenario && L.Prendi(hr, q))
+            Ui::Testo("Sfondo dallo scenario: si modifica nella sezione Scenari.", q.x, q.y + (q.height - Ui::TP()) / 2, Ui::TestoSpento(), Ui::TP());
+    }
+    if (!conScenario) {
     if (L.Prendi(hr, q)) c |= Ui::Scelta(q, "Tema", tema, NomiTemi());
     if (L.Prendi(hr, q)) c |= Ui::Numero("mora", q, "Ora del giorno", ora, 0, 1, 0.05f, "%.2f");
     if (L.Prendi(hr, q)) c |= Ui::Interruttore(q, "Il giorno passa", ciclo);
@@ -1513,6 +1538,7 @@ void EditorMondo::PannelloProprieta(Rectangle r) {
     if (cp) {
         if (L.Prendi(hr, q)) c |= Ui::Colore("mca", q, "Cielo in alto", ca);
         if (L.Prendi(hr, q)) c |= Ui::Colore("mcb", q, "Cielo in basso", cb);
+    }
     }
     if (L.Prendi(hr, q)) c |= Ui::Scelta(q, "Musica", musica, NomiBrani());
     if (c) {

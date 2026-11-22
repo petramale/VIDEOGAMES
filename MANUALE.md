@@ -90,6 +90,9 @@ Nomi di animazione usati dal motore: porte `chiusa`/`aperta`, interruttori `spen
 
 - Scheda **Scenari**: sfondi a strati (montagne, colline, foresta, nuvole, stelle, fasce, immagini importate) con parallasse,
   colori del cielo, ora del giorno, pioggia e neve. Anteprima in alta definizione con un terreno d'esempio.
+- Ogni mappa usa **uno** scenario. Uno scenario nuovo (o duplicato) viene usato subito nella mappa aperta;
+  per cambiare scenario a una mappa usa "Usa nella mappa aperta" oppure la scelta **Scenario** nelle Proprietà della mappa
+  (sezione Mondi). Con "(sfondo della mappa)" la mappa torna al suo sfondo semplice.
 - Scheda **Caselle**: disegni le caselle del terreno (solida, piattaforma, pericolo, decorazione…) con lo stesso editor di disegno.
 
 ## 7. Audio
