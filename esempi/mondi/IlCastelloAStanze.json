@@ -1,0 +1,232 @@
+{
+ "autori": "",
+ "eroe": {
+  "capelli": "#e8c050",
+  "maglia": "#b8c0d8",
+  "mantello": "#2a5bd8",
+  "pantaloni": "#2a2f4a",
+  "pelle": "#f2c39b",
+  "scarpe": "#5a3020"
+ },
+ "fisica": {
+  "gravita": 900.0,
+  "molla": 470.0,
+  "salto": 330.0,
+  "velocita": 115.0
+ },
+ "formato": "studio-videogiochi/2",
+ "genere": "avventura",
+ "giocatori": {
+  "massimo": 1,
+  "schermoDiviso": false
+ },
+ "mappaIniziale": 0,
+ "mappe": [
+  {
+   "altezza": 34,
+   "caselle": [
+    "                              =                             =                             ",
+    "                              =                             =                             ",
+    "                              =                             =                             ",
+    "                              =                             =                             ",
+    "                              =                             =                             ",
+    "                              =                             =                             ",
+    "                              =                             =                             ",
+    "                              =                             =                             ",
+    "                              =                             =                             ",
+    "                              =                             =                             ",
+    "                              =                             =                             ",
+    "                              =                             =                             ",
+    "                              =                  -------    =                             ",
+    "              -----                                                                       ",
+    "                                                                                          ",
+    "                                                  ^^^^^                                   ",
+    "=================================================================================------===",
+    "                              =                             =                             ",
+    "                              =                             =                  -------    ",
+    "                              =                             =                             ",
+    "                              =                             =           -------           ",
+    "                              =                             =                             ",
+    "                              =                             =                             ",
+    "                              =                             =                 -------     ",
+    "                              =                             =                             ",
+    "                              =                             =                             ",
+    "                              =                             =          -------            ",
+    "                              =                             =                             ",
+    "                              =                             =                             ",
+    "                                       ---------                -------                   ",
+    "                                                                                          ",
+    "                                        ^^^^^^^                                           ",
+    "==========================================================================================",
+    "=========================================================================================="
+   ],
+   "decorazioni": [],
+   "larghezza": 90,
+   "musica": 6,
+   "nome": "Castello",
+   "oggetti": [
+    {
+     "numero": 1,
+     "tipo": "cartello",
+     "x": 72.0,
+     "y": 512.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 136.0,
+     "y": 472.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 184.0,
+     "y": 472.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 232.0,
+     "y": 472.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 280.0,
+     "y": 472.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 328.0,
+     "y": 472.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 376.0,
+     "y": 472.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 424.0,
+     "y": 472.0
+    },
+    {
+     "tipo": "slime",
+     "x": 328.0,
+     "y": 512.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 648.0,
+     "y": 440.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 680.0,
+     "y": 440.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 712.0,
+     "y": 440.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 744.0,
+     "y": 440.0
+    },
+    {
+     "tipo": "gemma",
+     "x": 840.0,
+     "y": 488.0
+    },
+    {
+     "tipo": "lanterna",
+     "x": 1000.0,
+     "y": 512.0
+    },
+    {
+     "tipo": "forziere",
+     "x": 1416.0,
+     "y": 512.0
+    },
+    {
+     "tipo": "pipistrello",
+     "x": 1208.0,
+     "y": 360.0
+    },
+    {
+     "tipo": "gemma",
+     "x": 1320.0,
+     "y": 232.0
+    },
+    {
+     "tipo": "fantasma",
+     "x": 728.0,
+     "y": 136.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 808.0,
+     "y": 168.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 840.0,
+     "y": 168.0
+    },
+    {
+     "tipo": "moneta",
+     "x": 872.0,
+     "y": 168.0
+    },
+    {
+     "tipo": "cuore",
+     "x": 584.0,
+     "y": 232.0
+    },
+    {
+     "tipo": "slime",
+     "x": 392.0,
+     "y": 256.0
+    },
+    {
+     "tipo": "gemma",
+     "x": 264.0,
+     "y": 184.0
+    },
+    {
+     "tipo": "bandiera",
+     "x": 72.0,
+     "y": 256.0
+    }
+   ],
+   "partenza": {
+    "x": 40.0,
+    "y": 512.0
+   },
+   "scenario": {
+    "cicloGiorno": false,
+    "ora": 0.92,
+    "sfondoGenerato": true,
+    "tema": 3
+   },
+   "strati": [],
+   "telecamera": {
+    "anticipo": 40.0,
+    "dirX": 1,
+    "dirY": 0,
+    "modo": "stanze",
+    "velocita": 40.0,
+    "zonaMortaX": 16.0,
+    "zonaMortaY": 24.0,
+    "zoom": 1.0
+   },
+   "testi": [
+    {
+     "en": "Rooms scroll one at a time. Go right and climb the tower!",
+     "it": "Le stanze scorrono una alla volta. Vai a destra e sali dalla torre!",
+     "numero": 1
+    }
+   ],
+   "vista": "laterale"
+  }
+ ],
+ "titolo": "Il castello a stanze"
+}

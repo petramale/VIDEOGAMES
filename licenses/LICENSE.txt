@@ -1,0 +1,76 @@
+STUDIO VIDEOGIOCHI - END USER LICENSE AGREEMENT
+
+Copyright (c) 2026 Elvantis - Mario Petramale. All rights reserved.
+
+This is proprietary software. It is not free or open-source software.
+
+1. Owner
+
+"Studio Videogiochi" (the "Software") is the exclusive property of Mario Petramale,
+trading as Elvantis (the "Owner"). The Software includes:
+- the executable;
+- the source code written for the Studio;
+- the game engine;
+- the built-in asset collections (characters, objects, backgrounds, tiles, music and
+  sound effects);
+- the Elvantis name and logo;
+- the documentation.
+
+2. Grant of license
+
+The Owner grants you a personal, non-exclusive, non-transferable license to:
+- install and use the Software on your own computers;
+- create video games with the Software.
+
+3. Restrictions
+
+Unless the Owner gives written permission, you may not:
+- copy, distribute, sell, rent, lend or publish the Software, in whole or in part;
+- modify, decompile, disassemble or reverse engineer the Software, except where the
+  law expressly allows it;
+- use the source code, the engine or the asset collections outside the Software;
+- remove or change the Elvantis logo, the name of Mario Petramale, this license or any
+  copyright notice.
+
+4. Games created with the Software
+
+Every game created with the Software contains the Owner's game engine. When it starts,
+the game shows the Elvantis logo and "Mario Petramale presenta". Its credits name
+Studio Videogiochi, Mario Petramale and Elvantis, and include the license notices of
+the third-party components.
+
+You may distribute and sell games you create with the Software, provided that:
+- you do not remove or change the Elvantis intro, the credits or the third-party
+  license notices;
+- you do not extract the engine or the built-in assets from the game. They remain the
+  property of the Owner.
+
+The original content you create, such as drawings, music, maps and text, belongs to you.
+You are responsible for having the rights to any image, sound or music you import into
+the Software.
+
+5. Third-party components
+
+The Software contains open-source libraries and a font: raylib, GLFW, miniaudio, stb,
+dr_libs, nlohmann/json, the Outfit font, and others listed in the "licenses" folder.
+These components remain under their own licenses (zlib, MIT, MIT-0, public domain,
+SIL Open Font License 1.1). Their license notices are reproduced in the "licenses"
+folder and must stay there. Those licenses allow the components to be used inside
+proprietary software. They do not make this Software open source.
+
+6. No warranty
+
+The Software is provided "as is", without warranty of any kind. To the extent permitted
+by law, the Owner is not liable for any damage arising from the use of the Software or
+of games created with it.
+
+7. Termination
+
+This license ends automatically if you breach any of its terms. You must then stop
+using the Software and delete all copies.
+
+8. Governing law
+
+This license is governed by the laws of Italy.
+
+Permissions and information: Elvantis - Mario Petramale.
