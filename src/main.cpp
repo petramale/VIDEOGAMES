@@ -23,6 +23,7 @@
 #include "progetto_gioco.h"
 #include "raccolte.h"
 #include "risorse_dati.h"
+#include "licenze_dati.h"
 #include "sistema.h"
 #include "ui.h"
 #include <cmath>
@@ -229,12 +230,13 @@ int GiocaPacchetto(const DatiGioco& dati) {
     if (ok) { Carica(vetrina); vetrina.mostraHud = false; vetrina.mostraEsito = false; }
     RenderTexture2D rt{}, rtVetrina{};
 
-    enum class Fase { Menu, Opzioni, Crediti, Gioca, Pausa, Cambio, Risultati };
+    enum class Fase { Menu, Opzioni, Crediti, Licenze, Gioca, Pausa, Cambio, Risultati };
     Fase fase = Fase::Menu;
     MenuGioco menu, menuOpzioni, menuPausa;
     int giocatori = 1, turno = 0;
     int punti[2] = { 0, 0 };
     float tFase = 0, tFine = 0, tempo = 0;
+    float scorriLicenze = 0;
 
     auto MusicaGioco = [&]() {
         if (!ok || gAudio.MusicaDaFile()) return;
@@ -335,15 +337,57 @@ int GiocaPacchetto(const DatiGioco& dati) {
             DisegnaLogo({ sw / 2 - lw / 2, sh * 0.1f, lw, lw * 0.34f });
             std::vector<std::pair<std::string, std::string>> righe = {
                 { "Gioco", dati.titolo }, { "Ideato e sviluppato da", SVILUPPATORE }, { "Studio", "Elvantis" },
-                { "Creato con", "Studio Videogiochi" }, { "Motore grafico", "raylib (licenza zlib)" }, { "Dati", "nlohmann/json (licenza MIT)" } };
+                { "Creato con", "Studio Videogiochi" }, { "Componenti open source", "raylib, GLFW, miniaudio, stb, nlohmann/json, Outfit (premi L)" } };
             float y = sh * 0.1f + lw * 0.34f + dim;
             for (auto& r : righe) {
                 Scritta2(r.first, sw / 2, y, dimP, Hex(0xa8b4e8));
                 Scritta2(r.second, sw / 2, y + dimP * 1.3f, dim, WHITE);
                 y += dimP * 1.3f + dim * 1.5f;
             }
-            Scritta2("Premi un tasto per tornare al menu", sw / 2, sh - dimP * 2.4f, dimP, Hex(0xffe066));
-            if (tFase > 0.3f && (GetKeyPressed() != 0 || IsMouseButtonPressed(MOUSE_BUTTON_LEFT) || gInput.Premuto(Azione::Conferma) || gInput.Premuto(Azione::Indietro))) fase = Fase::Menu;
+            Scritta2("L: licenze dei componenti      un altro tasto: torna al menu", sw / 2, sh - dimP * 2.4f, dimP, Hex(0xffe066));
+            if (tFase > 0.3f && IsKeyPressed(KEY_L)) { fase = Fase::Licenze; tFase = 0; scorriLicenze = 0; }
+            else if (tFase > 0.3f && (GetKeyPressed() != 0 || IsMouseButtonPressed(MOUSE_BUTTON_LEFT) || gInput.Premuto(Azione::Conferma) || gInput.Premuto(Azione::Indietro))) fase = Fase::Menu;
+        } else if (fase == Fase::Licenze) {
+            // La licenza di Studio Videogiochi e gli avvisi delle librerie (zlib, MIT, OFL...),
+            // inclusi in ogni gioco creato. Si scorrono con frecce, rotella o Pagina su/giu'.
+            static std::vector<std::string> righe;
+            if (righe.empty()) {
+                std::string tutto((const char*)LICENZE_TXT, sizeof(LICENZE_TXT));
+                size_t a = 0;
+                while (a <= tutto.size()) {
+                    size_t b = tutto.find('\n', a);
+                    std::string r = tutto.substr(a, b == std::string::npos ? std::string::npos : b - a);
+                    if (!r.empty() && r.back() == '\r') r.pop_back();
+                    righe.push_back(r);
+                    if (b == std::string::npos) break;
+                    a = b + 1;
+                }
+            }
+            int dimL = std::max(12, (int)(dimP * 0.9f));
+            float riga = dimL * 1.35f;
+            Scritta2("LICENZE / LICENSES", sw / 2, sh * 0.05f, dim, Hex(0xffe066));
+            float top = sh * 0.05f + dim * 1.8f, basso = sh - dimP * 3.2f;
+            float visibili = (basso - top) / riga;
+            float massimo = std::max(0.0f, righe.size() - visibili);
+            float passo = visibili * 0.9f;
+            scorriLicenze -= GetMouseWheelMove() * 3;
+            if (IsKeyDown(KEY_DOWN) || gInput.Tenuto(Azione::Giu)) scorriLicenze += 40 * GetFrameTime();
+            if (IsKeyDown(KEY_UP) || gInput.Tenuto(Azione::Su)) scorriLicenze -= 40 * GetFrameTime();
+            if (IsKeyPressed(KEY_PAGE_DOWN) || IsKeyPressed(KEY_SPACE)) scorriLicenze += passo;
+            if (IsKeyPressed(KEY_PAGE_UP)) scorriLicenze -= passo;
+            if (IsKeyPressed(KEY_HOME)) scorriLicenze = 0;
+            if (IsKeyPressed(KEY_END)) scorriLicenze = massimo;
+            scorriLicenze = std::max(0.0f, std::min(massimo, scorriLicenze));
+            float x = std::max(20.0f, sw / 2 - 40 * dimL * 0.55f);
+            DrawRectangleRounded({ x - 24, top - 12, sw - 2 * x + 48, basso - top + 24 }, 0.03f, 8, ConAlfa(Hex(0x0d0f24), 0.86f));
+            BeginScissorMode(0, (int)top, (int)sw, (int)(basso - top));
+            int primo = (int)scorriLicenze;
+            for (int i = primo; i < (int)righe.size() && i < primo + (int)visibili + 2; i++)
+                Ui::Testo(righe[i], x, top + (i - scorriLicenze) * riga, Hex(0xd8def8), dimL);
+            EndScissorMode();
+            Scritta2("Frecce, rotella o Pagina giu': scorri      Esc o Invio: torna ai crediti", sw / 2, sh - dimP * 2.2f, dimP, Hex(0xa8b4e8));
+            if (tFase > 0.3f && (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_BACKSPACE) || gInput.Premuto(Azione::Indietro) || gInput.Premuto(Azione::Conferma)))
+                { fase = Fase::Crediti; tFase = 0; }
         } else if (fase == Fase::Pausa) {
             Scritta2("PAUSA", sw / 2, sh * 0.22f, (int)(dim * 1.4f), Hex(0xffe066));
             int v = menuPausa.Frame({ "Riprendi", "Ricomincia", std::string("Musica: ") + (gMusicaGioco ? "accesa (F7)" : "spenta (F7)"),

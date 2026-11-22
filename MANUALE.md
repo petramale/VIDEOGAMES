@@ -169,6 +169,12 @@ l'audio, oppure con i tre pulsanti in basso a destra, il menu Opzioni o la pausa
 Con 2 giocatori ognuno gioca la sua partita e alla fine si confrontano i punti.
 L'eseguibile è un solo file: si copia su qualsiasi PC Windows e funziona senza installare nulla.
 
+**Licenza.** I giochi creati si possono regalare e vendere, a patto di non togliere l'intro Elvantis, i crediti
+e gli avvisi delle licenze, e di non estrarre il motore o le risorse incluse. Nei **Crediti** del gioco il tasto
+**L** mostra la licenza di Studio Videogiochi e quelle delle librerie open source. I disegni, le musiche e le
+mappe che crei sono tuoi; immagini e suoni importati devono essere tuoi o usabili liberamente.
+La licenza completa dello studio è in `LICENSE.txt`, gli avvisi delle librerie nella cartella `licenses`.
+
 ## 13. Tasti utili
 
 | Tasto | Dove | Cosa fa |

@@ -100,14 +100,25 @@ src/
   periferiche.*         tastiera, mouse, joypad e mappatura dei comandi
   pacchetto.*           costruttore dell'eseguibile
   sistema.*             funzioni di Windows (WinHTTP, percorso dell'eseguibile)
-  risorse_dati.h        logo e icona incorporati; caratteri_dati.h il carattere Outfit
+  risorse_dati.h        logo e icona incorporati; caratteri_dati.h il carattere Outfit; licenze_dati.h le licenze
 esempi/                 mondi e livelli d'esempio
 risorse/                logo Elvantis, icona, carattere Outfit (licenza OFL)
-strumenti/incorpora.cpp trasforma file binari in array C++
+strumenti/incorpora.cpp trasforma file binari in array C++ (logo, carattere, licenze)
+licenses/               licenza dello studio e avvisi delle librerie open source
+LICENSE.txt             licenza di Studio Videogiochi (proprietaria, Elvantis - Mario Petramale)
 librerie/               raylib 5.5 e nlohmann/json con le loro licenze
 ```
 
 ## Licenze
 
-Le librerie incluse hanno licenze permissive (zlib, MIT, OFL per il carattere): i giochi creati si possono
-distribuire e vendere liberamente. I testi delle licenze sono nelle cartelle `librerie/` e `risorse/caratteri/`.
+Studio Videogiochi è **software proprietario** di Elvantis - Mario Petramale: non è software libero.
+La licenza (in inglese) è in [LICENSE.txt](LICENSE.txt). In breve: lo studio si usa sui propri computer per creare
+giochi, ma non si copia, non si rivende e non si modifica.
+
+I **giochi creati** si possono distribuire e vendere, purché restino l'intro Elvantis, i crediti e gli avvisi
+delle licenze, e senza estrarre il motore o le risorse incluse. I disegni, le musiche e le mappe originali
+restano di chi li ha creati.
+
+Le librerie open source incluse (raylib, GLFW, miniaudio, stb, dr_libs, nlohmann/json, carattere Outfit e altre)
+hanno licenze permissive (zlib, MIT, MIT-0, pubblico dominio, OFL) che ne permettono l'uso in software proprietario.
+I loro avvisi sono nella cartella [licenses/](licenses/README.txt) e, in ogni gioco creato, in **Crediti → L**.
