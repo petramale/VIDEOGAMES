@@ -14,11 +14,11 @@ bool Uguali(Color a, Color b) { return a.r == b.r && a.g == b.g && a.b == b.b &&
 
 void Scacchiera(Rectangle r, float lato) {
     DrawRectangleRec(r, Hex(0x3a3d58));
-    BeginScissorMode((int)r.x, (int)r.y, (int)r.width, (int)r.height);
+    Ui::Ritaglia((int)r.x, (int)r.y, (int)r.width, (int)r.height);
     int nx = (int)(r.width / lato) + 1, ny = (int)(r.height / lato) + 1;
     for (int y = 0; y < ny; y++)
         for (int x = (y & 1); x < nx; x += 2) DrawRectangleRec({ r.x + x * lato, r.y + y * lato, lato, lato }, Hex(0x4a4e6c));
-    EndScissorMode();
+    Ui::FineRitaglio();
 }
 
 // Colori di partenza della tavolozza: una scala pensata per la pixel art.
@@ -224,7 +224,8 @@ bool EditorDisegno::Frame(Rectangle r, float dt) {
     float s = Ui::S();
     F();
     tAnteprima += dt;
-    float hTesta = 40 * s, hBasso = 118 * s, wSx = 86 * s, wDx = 262 * s;
+    // L'intestazione va su due righe quando lo spazio e' stretto (schermi piccoli, chat aperta).
+    float hTesta = (r.width < 1030 * s ? 76 : 40) * s, hBasso = 118 * s, wSx = 86 * s, wDx = 262 * s;
     Rectangle testa = { r.x, r.y, r.width, hTesta };
     Rectangle sx = { r.x, r.y + hTesta, wSx, r.height - hTesta - hBasso };
     Rectangle dx = { r.x + r.width - wDx, r.y + hTesta, wDx, r.height - hTesta };
@@ -263,32 +264,37 @@ bool EditorDisegno::Frame(Rectangle r, float dt) {
 void EditorDisegno::Intestazione(Rectangle r) {
     float s = Ui::S();
     DrawRectangleRec(r, Hex(0x0f1230));
-    float x = r.x + 10 * s, y = r.y + 6 * s, h = r.height - 12 * s;
-    Ui::Testo(TextFormat("%d x %d pixel  -  %s", d->w, d->h, d->liscio ? "HD" : "pixel art"), x, r.y + (r.height - Ui::TP()) / 2, Ui::TestoSpento(), Ui::TP());
-    x += 230 * s;
-    Ui::NumeroIntero("ed_w", { x, y, 150 * s, h }, "Larg.", nuovaW, 4, 256);
-    x += 156 * s;
-    Ui::NumeroIntero("ed_h", { x, y, 150 * s, h }, "Alt.", nuovaH, 4, 256);
-    x += 156 * s;
-    if (Ui::Pulsante({ x, y, 104 * s, h }, "Ridimensiona", false, nuovaW != d->w || nuovaH != d->h)) {
+    bool dueRighe = r.height > 60 * s;
+    float h = (dueRighe ? 28 : r.height / s - 12) * s;
+    float x = r.x + 10 * s, y = r.y + 6 * s;
+    // Ogni elemento va avanti nella riga; se non ci sta, passa alla riga sotto.
+    auto Posto = [&](float w) {
+        if (x + w > r.x + r.width - 6 * s && x > r.x + 10 * s && dueRighe && y < r.y + 10 * s) { x = r.x + 10 * s; y += h + 8 * s; }
+        Rectangle q = { x, y, w, h };
+        x += w + 6 * s;
+        return q;
+    };
+    std::string info = TextFormat("%d x %d pixel  -  %s", d->w, d->h, d->liscio ? "HD" : "pixel art");
+    Rectangle qi = Posto((float)Ui::Larghezza(info, Ui::TP()) + 8 * s);
+    Ui::Testo(info, qi.x, qi.y + (h - Ui::TP()) / 2, Ui::TestoSpento(), Ui::TP());
+    Ui::NumeroIntero("ed_w", Posto(150 * s), "Larg.", nuovaW, 4, 256);
+    Ui::NumeroIntero("ed_h", Posto(150 * s), "Alt.", nuovaH, 4, 256);
+    if (Ui::Pulsante(Posto(104 * s), "Ridimensiona", false, nuovaW != d->w || nuovaH != d->h)) {
         Ricorda();
         d->Ridimensiona(nuovaW, nuovaH);
         adattaVista = true;
         cambiato = true;
     }
-    x += 112 * s;
-    if (Ui::Pulsante({ x, y, 96 * s, h }, "Specchia")) {
+    if (Ui::Pulsante(Posto(96 * s), "Specchia")) {
         Ricorda();
         Fotogramma& f = F();
         for (int yy = 0; yy < f.h; yy++) for (int xx = 0; xx < f.w / 2; xx++) { Color a = f.Prendi(xx, yy); f.Metti(xx, yy, f.Prendi(f.w - 1 - xx, yy)); f.Metti(f.w - 1 - xx, yy, a); }
         cambiato = true;
     }
-    x += 102 * s;
-    if (Ui::Pulsante({ x, y, 80 * s, h }, "Pulisci")) { Ricorda(); F().Nuovo(d->w, d->h); cambiato = true; }
-    x += 86 * s;
-    if (Ui::Pulsante({ x, y, 80 * s, h }, "Annulla", false, !annulla.empty())) Annulla();
-    x += 86 * s;
-    if (Ui::Pulsante({ x, y, 80 * s, h }, "Ripeti", false, !ripeti.empty())) Ripeti();
+    Ui::Aiuto("Cancella tutto il fotogramma (si annulla con Ctrl+Z).");
+    if (Ui::Pulsante(Posto(80 * s), "Pulisci")) { Ricorda(); F().Nuovo(d->w, d->h); cambiato = true; }
+    if (Ui::Pulsante(Posto(80 * s), "Annulla", false, !annulla.empty())) Annulla();
+    if (Ui::Pulsante(Posto(80 * s), "Ripeti", false, !ripeti.empty())) Ripeti();
 }
 
 void EditorDisegno::Attrezzi(Rectangle r) {
@@ -338,7 +344,7 @@ void EditorDisegno::Tela(Rectangle r, float dt) {
     }
     float w = f.w * zoom, h = f.h * zoom;
     rTela = { std::round(r.x + (r.width - w) / 2 + panX), std::round(r.y + (r.height - h) / 2 + panY), w, h };
-    BeginScissorMode((int)r.x, (int)r.y, (int)r.width, (int)r.height);
+    Ui::Ritaglia((int)r.x, (int)r.y, (int)r.width, (int)r.height);
     Scacchiera(rTela, std::max(4.0f, zoom * (f.w > 64 ? 4 : 1)));
     // Buccia di cipolla: il fotogramma precedente, trasparente.
     auto& a = d->animazioni[anim];
@@ -432,7 +438,7 @@ void EditorDisegno::Tela(Rectangle r, float dt) {
             }
         }
     }
-    EndScissorMode();
+    Ui::FineRitaglio();
     if (sopra && px >= 0 && py >= 0 && px < f.w && py < f.h)
         Ui::Testo(TextFormat("%d, %d   zoom %.0fx", px, py, zoom), r.x + 8 * s, r.y + r.height - Ui::TP() - 6 * s, Ui::TestoSpento(), Ui::TP());
     else
@@ -522,7 +528,7 @@ void EditorDisegno::Animazioni(Rectangle r) {
     float h = 26 * s;
     float altezzaElenco = r.y + r.height - y - h - 10 * s;
     Rectangle elenco = { r.x, y, r.width, std::max(h, altezzaElenco) };
-    BeginScissorMode((int)elenco.x, (int)elenco.y, (int)elenco.width, (int)elenco.height);
+    Ui::Ritaglia((int)elenco.x, (int)elenco.y, (int)elenco.width, (int)elenco.height);
     if (Ui::MouseSu(elenco)) scorriAnimazioni = std::max(0.0f, scorriAnimazioni - GetMouseWheelMove() * 40 * s);
     for (int i = 0; i < (int)anims.size(); i++) {
         Rectangle b = { r.x, y + i * (h + 3 * s) - scorriAnimazioni, r.width, h };
@@ -530,7 +536,7 @@ void EditorDisegno::Animazioni(Rectangle r) {
         std::string t = anims[i].nome + TextFormat("  (%d)", (int)anims[i].fotogrammi.size());
         if (Ui::Pulsante(b, t, i == anim) && CheckCollisionPointRec(GetMousePosition(), elenco)) { anim = i; fot = 0; tAnteprima = 0; }
     }
-    EndScissorMode();
+    Ui::FineRitaglio();
     y = r.y + r.height - h;
     float w3 = (r.width - 8 * s) / 3;
     // Nomi utili per il motore: fermo, corsa, salto, caduta, colpito, vittoria, attacco, aperto, acceso, interno...
@@ -565,9 +571,9 @@ void EditorDisegno::Fotogrammi(Rectangle r) {
     for (float l : larg) wTot += l;
     float bx = r.x + r.width - pad - wTot, by = r.y + pad * 0.6f;
     std::string titolo = TextFormat("Fotogrammi di \"%s\": %d", a.nome.c_str(), (int)a.fotogrammi.size());
-    BeginScissorMode((int)(r.x + pad), (int)r.y, (int)std::max(0.0f, bx - r.x - 2 * pad), (int)(hRiga + pad));
+    Ui::Ritaglia((int)(r.x + pad), (int)r.y, (int)std::max(0.0f, bx - r.x - 2 * pad), (int)(hRiga + pad));
     Ui::Testo(titolo, r.x + pad, by + (hRiga - Ui::TP()) / 2, Ui::TestoSpento(), Ui::TP());
-    EndScissorMode();
+    Ui::FineRitaglio();
     int premuto = -1;
     for (int i = 0; i < 5; i++) {
         bool abil = i == 2 ? fot > 0 : i == 3 ? fot + 1 < (int)a.fotogrammi.size() : i == 4 ? a.fotogrammi.size() > 1 : true;
@@ -597,7 +603,7 @@ void EditorDisegno::Fotogrammi(Rectangle r) {
         if (x0 + lato > scorriFotogrammi + striscia.width) scorriFotogrammi = x0 + lato - striscia.width;
     }
     scorriFotogrammi = Limita(scorriFotogrammi, 0, massimo);
-    BeginScissorMode((int)striscia.x, (int)striscia.y, (int)striscia.width, (int)striscia.height);
+    Ui::Ritaglia((int)striscia.x, (int)striscia.y, (int)striscia.width, (int)striscia.height);
     for (int i = 0; i < (int)a.fotogrammi.size(); i++) {
         Rectangle b = { striscia.x + i * (lato + pad) - scorriFotogrammi, striscia.y, lato, lato };
         if (b.x > striscia.x + striscia.width || b.x + b.width < striscia.x) continue;
@@ -608,7 +614,7 @@ void EditorDisegno::Fotogrammi(Rectangle r) {
         Ui::Testo(std::to_string(i + 1), b.x + 4 * s, b.y + 2 * s, Ui::TestoSpento(), (int)(11 * s));
         if (Ui::Cliccato(b) && CheckCollisionPointRec(GetMousePosition(), striscia)) fot = i;
     }
-    EndScissorMode();
+    Ui::FineRitaglio();
     // Barra di scorrimento (solo se la sequenza e' piu' lunga dello spazio): si trascina.
     if (massimo > 0) {
         Rectangle barra = { striscia.x, striscia.y + striscia.height + 3 * s, striscia.width, hBarra };

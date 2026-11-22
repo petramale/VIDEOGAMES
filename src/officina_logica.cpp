@@ -350,7 +350,7 @@ void Officina::Librerie(Rectangle r, float dt) {
     int n = conti[categoriaLib];
     if (Ui::MouseSu(griglia)) scorriLib -= GetMouseWheelMove() * 80 * s;
     scorriLib = Limita(scorriLib, 0, std::max(0.0f, ((n + col - 1) / col) * (ch + gap) - griglia.height));
-    BeginScissorMode((int)griglia.x, (int)griglia.y, (int)griglia.width, (int)griglia.height);
+    Ui::Ritaglia((int)griglia.x, (int)griglia.y, (int)griglia.width, (int)griglia.height);
     int apri = -1, duplica = -1, elimina = -1;
     for (int i = 0; i < n; i++) {
         Rectangle c = { x + (i % col) * (cw + gap), griglia.y + (i / col) * (ch + gap) - scorriLib, cw, ch };
@@ -394,7 +394,7 @@ void Officina::Librerie(Rectangle r, float dt) {
             if (Ui::Pulsante({ c.x + 16 * s + 2 * pw, py, pw, 24 * s }, "Togli")) elimina = i;
         }
     }
-    EndScissorMode();
+    Ui::FineRitaglio();
     auto Vai2 = [&](int i) {
         switch (categoriaLib) {
             case 0: selPersonaggio = i; Vai(Sezione::Personaggi); break;
@@ -431,13 +431,13 @@ void Officina::Librerie(Rectangle r, float dt) {
     float rw = (w - 8 * s) / colR;
     if (Ui::MouseSu(lista)) scorriRaccolte -= GetMouseWheelMove() * 60 * s;
     scorriRaccolte = Limita(scorriRaccolte, 0, std::max(0.0f, ((NumeroRaccolte() + 1) / colR) * (rh + 4 * s) - lista.height));
-    BeginScissorMode((int)lista.x, (int)lista.y, (int)lista.width, (int)lista.height);
+    Ui::Ritaglia((int)lista.x, (int)lista.y, (int)lista.width, (int)lista.height);
     for (int i = 0; i < NumeroRaccolte(); i++) {
         Rectangle b = { x + (i % colR) * (rw + 8 * s), y + (i / colR) * (rh + 4 * s) - scorriRaccolte, rw, rh };
         if (b.y + b.height < lista.y || b.y > lista.y + lista.height) continue;
         if (Ui::Pulsante(b, NomeRaccolta(i), raccoltaScelta == i) && CheckCollisionPointRec(GetMousePosition(), lista)) raccoltaScelta = i;
     }
-    EndScissorMode();
+    Ui::FineRitaglio();
     y += hLista + 12 * s;
     const Raccolta& rac = CreaRaccolta(raccoltaScelta, progetto.stile);
     Ui::Testo(rac.nome, x, y, Ui::Accento(), Ui::T());

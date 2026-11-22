@@ -23,6 +23,9 @@ o ascolti un brano nella sezione Audio. I giochi creati hanno la loro musica, re
 - **Schede delle sezioni**: Home, Mondi, Personaggi, Oggetti, Scenari, Audio, Logica, Librerie, Comandi
   (anche con **Alt+1 … Alt+8**). A destra **Prova F5** e **Crea .exe**.
 - **Chat di Claude** a destra (F2 la apre o la chiude, F3 porta il cursore nella chat).
+- **Aiuto sui pulsanti**: fermati con il mouse su un pulsante, una scelta, un campo o una casella della tavolozza
+  e dopo un attimo compare un riquadro che spiega a cosa serve. Vale in tutte le sezioni. Se il nome di una scelta
+  è troppo lungo e si vede accorciato con "...", il riquadro lo mostra per intero.
 
 ### Il menu Gioco
 
@@ -54,7 +57,18 @@ L'editor delle mappe. Ogni mondo ha una o più **mappe** (schede in alto, `+` pe
 - **Strumenti in basso**: Pennello (B), Gomma (E), Riempi (F), Rettangolo (R), Seleziona (V), Contagocce (I); Griglia, Sfondo, Inquadratura.
 - **Pannello a destra**: *Proprietà* (della mappa o dell'oggetto selezionato: misura, vista laterale o dall'alto, tema, ora del giorno, musica, telecamera, partenza dell'eroe), *Mondo* (titolo, genere, fisica), *Strati* (strati dello sfondo e decorazioni).
 - Le **porte** si collegano scegliendo nelle Proprietà la mappa d'arrivo e poi il punto d'arrivo.
-- Ctrl+C / Ctrl+V copiano e incollano la selezione, Canc la cancella.
+
+### Selezionare, cancellare, copiare
+
+- **Un oggetto o un personaggio**: strumento **Seleziona (V)** e clic sull'oggetto. Si sposta trascinandolo,
+  **Canc** (o Backspace) lo cancella, **Ctrl+C** e poi **Ctrl+V** lo duplicano. Le sue proprietà compaiono a destra.
+- **Un gruppo di blocchi**: con **Seleziona (V)** clicca su un punto senza oggetti e **trascina**: compare un
+  riquadro azzurro. Poi **Canc** cancella tutte le caselle e gli oggetti dentro il riquadro, **Ctrl+C** li copia
+  e **Ctrl+V** li incolla dove c'è il mouse. Gli stessi comandi sono anche pulsanti nel pannello a destra
+  ("Blocchi selezionati"). **Esc** toglie la selezione.
+- **Cancellare a mano**: strumento **Gomma (E)** oppure il **tasto destro** sulla mappa con qualunque strumento.
+- Attenzione: cliccando una casella o un oggetto della tavolozza lo strumento torna Pennello, per disegnare subito.
+- Tutto si annulla con **Ctrl+Z**.
 
 ## 4. Personaggi
 
@@ -169,6 +183,9 @@ L'eseguibile è un solo file: si copia su qualsiasi PC Windows e funziona senza 
 | Alt+1…8 | officina | cambia sezione |
 | Ctrl+S, Ctrl+O, Ctrl+N, Ctrl+E | officina | salva, apri, nuovo, crea .exe |
 | Ctrl+Z, Ctrl+Y | officina | annulla, ripeti |
+| Canc / Backspace | Mondi | cancella l'oggetto o i blocchi selezionati |
+| Ctrl+C, Ctrl+V | Mondi | copia e incolla l'oggetto o i blocchi selezionati |
+| Esc | Mondi | toglie la selezione |
 
 ## 14. File e cartelle
 

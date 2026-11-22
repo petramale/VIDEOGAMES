@@ -47,6 +47,14 @@ bool Colore(const std::string& id, Rectangle r, const std::string& etichetta, Co
 
 bool StaScrivendo();               // un campo di testo ha la tastiera
 void TogliFuoco();
+
+// Help contestuale: fermando il mouse su un controllo compare un riquadro con la sua funzione.
+void Aiuto(const std::string& testo);            // spiegazione del prossimo controllo (al posto di quella di serie)
+void Suggerimento(Rectangle r, const std::string& testo);   // per controlli disegnati a mano
+const char* Spiegazione(const std::string& etichetta);    // aiuto.cpp (nullptr se manca)
+void Ritaglia(int x, int y, int w, int h);          // come BeginScissorMode, ma si puo' annidare
+void FineRitaglio();
+void DisegnaAiuto();                              // alla fine del fotogramma, sopra a tutto
 void DaiFuoco(const std::string& id);   // il campo con questo id riceve la tastiera (testo vuoto)
 std::string Fuoco();
 

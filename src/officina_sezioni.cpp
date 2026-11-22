@@ -68,7 +68,7 @@ int Officina::Elenco(Rectangle r, const std::string& titolo, std::vector<std::st
     if (Ui::MouseSu(lista)) scorriLista -= GetMouseWheelMove() * 60 * s;
     scorriLista = Limita(scorriLista, 0, std::max(0.0f, nomi.size() * (h + 4 * s) - lista.height));
     scelto = (int)Limita((float)scelto, 0, std::max(0.0f, (float)nomi.size() - 1));
-    BeginScissorMode((int)lista.x, (int)lista.y, (int)lista.width, (int)lista.height);
+    Ui::Ritaglia((int)lista.x, (int)lista.y, (int)lista.width, (int)lista.height);
     for (int i = 0; i < (int)nomi.size(); i++) {
         Rectangle b = { r.x + pad, lista.y + i * (h + 4 * s) - scorriLista, r.width - 2 * pad, h };
         if (b.y + b.height < lista.y || b.y > lista.y + lista.height) continue;
@@ -81,7 +81,7 @@ int Officina::Elenco(Rectangle r, const std::string& titolo, std::vector<std::st
         Ui::TestoACapo(nomi[i], ic.x + ic.width + 8 * s, b.y + 8 * s, b.width - ic.width - 20 * s, sel ? WHITE : Ui::TestoChiaro(), Ui::TP());
         if (sopra && IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !sel) { scelto = i; scorriProprieta = 0; gAudio.Suona(Effetto::Menu, 0.3f); }
     }
-    EndScissorMode();
+    Ui::FineRitaglio();
     if (!puoNuovo) return 0;
     float bw = (r.width - 4 * pad) / 3, y = r.y + r.height - hb - pad;
     if (Ui::Pulsante({ r.x + pad, y, bw, hb }, "+ Nuovo", true)) return 1;
@@ -318,7 +318,7 @@ void Officina::Personaggi(Rectangle r, float dt) {
     PersonaggioDef prima = p;
     bool cambiato = false;
     Colonna col(area, s, scorriProprieta);
-    BeginScissorMode((int)area.x, (int)area.y, (int)area.width, (int)area.height);
+    Ui::Ritaglia((int)area.x, (int)area.y, (int)area.width, (int)area.height);
     col.Sezione("PERSONAGGIO");
     Rectangle q = col.Riga(30);
     std::string nome = p.nome;
@@ -392,7 +392,7 @@ void Officina::Personaggi(Rectangle r, float dt) {
     if (col.Vede(q))
         Ui::TestoACapo("fermo, corsa, salto, caduta, colpito, attacco, vittoria. Se ne manca una si usa \"fermo\". "
                        "Il disegno guarda a destra: il motore lo specchia.", q.x, q.y, q.width, Ui::TestoSpento(), (int)(13 * s));
-    EndScissorMode();
+    Ui::FineRitaglio();
     scorriProprieta = std::min(scorriProprieta, std::max(0.0f, col.Altezza() - area.height));
     if (cambiato) {
         ProgettoGioco vecchio = progetto;
@@ -437,7 +437,7 @@ void Officina::Oggetti(Rectangle r, float dt) {
     OggettoDef prima = o;
     bool cambiato = false;
     Colonna col(area, s, scorriProprieta);
-    BeginScissorMode((int)area.x, (int)area.y, (int)area.width, (int)area.height);
+    Ui::Ritaglia((int)area.x, (int)area.y, (int)area.width, (int)area.height);
     col.Sezione("OGGETTO");
     Rectangle q = col.Riga(30);
     std::string nome = o.nome;
@@ -509,7 +509,7 @@ void Officina::Oggetti(Rectangle r, float dt) {
         q = col.Riga(28);
         if (col.Vede(q) && Ui::Campo("o_var", q, o.variabile, 30)) cambiato = true;
     }
-    EndScissorMode();
+    Ui::FineRitaglio();
     scorriProprieta = std::min(scorriProprieta, std::max(0.0f, col.Altezza() - area.height));
     if (cambiato) {
         ProgettoGioco vecchio = progetto;
@@ -638,7 +638,7 @@ void Officina::Scenari(Rectangle r, float dt) {
     for (auto& c : progetto.caselle) terrenoScenario.caselleLibreria.push_back({ c.carattere, &c.disegno });
     float salva = gScalaHD;
     gScalaHD = pw / VW;
-    BeginScissorMode((int)prev.x, (int)prev.y, (int)prev.width, (int)prev.height);
+    Ui::Ritaglia((int)prev.x, (int)prev.y, (int)prev.width, (int)prev.height);
     BeginMode2D(CameraHD({ prev.x / gScalaHD, prev.y / gScalaHD }, { 0, 0 }, 1));
     anteprimaScenario.Disegna(camScenario, 0);
     float cx = std::fmod(camScenario, 120.0f * TILE - VW);
@@ -653,7 +653,7 @@ void Officina::Scenari(Rectangle r, float dt) {
         }
     }
     EndMode2D();
-    EndScissorMode();
+    Ui::FineRitaglio();
     gScalaHD = salva;
     DrawRectangleLinesEx(prev, 1, Ui::Bordo());
     float y = prev.y + prev.height + 12 * s;
@@ -673,7 +673,7 @@ void Officina::Scenari(Rectangle r, float dt) {
     Scenario prima = sc;
     bool cambiato = false;
     Colonna col(area, s, scorriProprieta);
-    BeginScissorMode((int)area.x, (int)area.y, (int)area.width, (int)area.height);
+    Ui::Ritaglia((int)area.x, (int)area.y, (int)area.width, (int)area.height);
     col.Sezione("SCENARIO");
     Rectangle q = col.Riga(30);
     std::string nome = sc.nome;
@@ -738,7 +738,7 @@ void Officina::Scenari(Rectangle r, float dt) {
         }
         Leva("In primo piano", st.primoPiano);
     }
-    EndScissorMode();
+    Ui::FineRitaglio();
     scorriProprieta = std::min(scorriProprieta, std::max(0.0f, col.Altezza() - area.height));
     if (cambiato) {
         ProgettoGioco vecchio = progetto;

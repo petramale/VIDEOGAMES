@@ -68,7 +68,13 @@ static Font CaratterePer(int dim, bool forte) {
     for (int k : { 0x2022, 0x2026, 0x2014, 0x2190, 0x2192, 0x2191, 0x2193, 0x20AC, 0x2019, 0x201C, 0x201D }) codici.push_back(k);
     Font f = LoadFontFromMemory(".ttf", dati, n, dim, codici.data(), (int)codici.size());
     if (f.texture.id == 0) f = GetFontDefault();
-    else SetTextureFilter(f.texture, TEXTURE_FILTER_BILINEAR);
+    else {
+        SetTextureFilter(f.texture, TEXTURE_FILTER_BILINEAR);
+        // Ai caratteri piccoli raylib arrotonda per difetto la larghezza dello spazio e le
+        // parole si attaccano ("Apriungioco" su schermi piccoli): lo spazio ha una misura minima.
+        for (int i = 0; i < f.glyphCount; i++)
+            if (f.glyphs[i].value == 32) f.glyphs[i].advanceX = std::max(f.glyphs[i].advanceX, (int)std::lround(dim * 0.28f));
+    }
     c[dim] = f;
     return f;
 }
@@ -133,7 +139,76 @@ float TestoACapo(const std::string& t, float x, float y, float larghezza, Color 
     return yy - y;
 }
 
+
+// --- Help contestuale -------------------------------------------------------------------------
+static std::string aiutoProssimo, aiutoOra, aiutoPrima;
+static float tAiuto = 0;
+
+void Aiuto(const std::string& testo) { aiutoProssimo = testo; }
+
+void Suggerimento(Rectangle r, const std::string& testo) {
+    if (!testo.empty() && MouseSu(r)) aiutoOra = testo;
+}
+
+// Ogni controllo si registra: se il mouse ci sta sopra, la sua spiegazione diventa quella da mostrare.
+static void Registra(Rectangle r, const std::string& etichetta) {
+    std::string t = aiutoProssimo;
+    aiutoProssimo.clear();
+    if (t.empty()) { const char* sp = Spiegazione(etichetta); if (sp) t = sp; }
+    Suggerimento(r, t);
+}
+
+// Ritagli annidati: un campo dentro un pannello che scorre ritaglia solo la sua parte
+// e poi rimette il ritaglio del pannello (raylib da solo ne conosce uno).
+static std::vector<Rectangle> ritagli;
+static void ApplicaRitaglio() {
+    if (ritagli.empty()) { EndScissorMode(); return; }
+    const Rectangle& r = ritagli.back();
+    BeginScissorMode((int)r.x, (int)r.y, (int)std::max(0.0f, r.width), (int)std::max(0.0f, r.height));
+}
+void Ritaglia(int x, int y, int w, int h) {
+    Rectangle r = { (float)x, (float)y, (float)std::max(0, w), (float)std::max(0, h) };
+    if (!ritagli.empty()) {
+        const Rectangle& p = ritagli.back();
+        float x0 = std::max(r.x, p.x), y0 = std::max(r.y, p.y);
+        float x1 = std::min(r.x + r.width, p.x + p.width), y1 = std::min(r.y + r.height, p.y + p.height);
+        r = { x0, y0, std::max(0.0f, x1 - x0), std::max(0.0f, y1 - y0) };
+    }
+    ritagli.push_back(r);
+    ApplicaRitaglio();
+}
+void FineRitaglio() {
+    if (!ritagli.empty()) ritagli.pop_back();
+    ApplicaRitaglio();
+}
+
+void DisegnaAiuto() {
+    if (!ritagli.empty()) {   // sicurezza: nessun ritaglio resta aperto da un fotogramma all'altro
+        static int avvisi = 0;
+        if (avvisi++ < 5) TraceLog(LOG_WARNING, "Ui: %d ritagli rimasti aperti", (int)ritagli.size());
+        ritagli.clear(); EndScissorMode();
+    }
+    if (!aiutoOra.empty() && aiutoOra == aiutoPrima) tAiuto += GetFrameTime(); else tAiuto = 0;
+    aiutoPrima = aiutoOra;
+    aiutoOra.clear();
+    if (aiutoPrima.empty() || tAiuto < 0.45f || IsMouseButtonDown(MOUSE_BUTTON_LEFT)) return;
+    float s = S(), larg = 340 * s, pad = 9 * s;
+    int dim = TP();
+    float h = TestoACapo(aiutoPrima, 0, 0, larg, WHITE, dim, false) + 2 * pad;
+    float w = std::min(larg, (float)Larghezza(aiutoPrima, dim)) + 2 * pad;
+    Vector2 m = GetMousePosition();
+    float x = m.x + 16 * s, y = m.y + 22 * s;
+    if (x + w > GetScreenWidth() - 4) x = GetScreenWidth() - 4 - w;
+    if (y + h > GetScreenHeight() - 4) y = m.y - h - 8 * s;
+    float k = Limita((tAiuto - 0.45f) * 6, 0, 1);
+    Rectangle r = { std::max(4.0f, x), std::max(4.0f, y), w, h };
+    DrawRectangleRounded({ r.x + 3 * s, r.y + 4 * s, r.width, r.height }, 0.2f, 6, Hex(0x000000, (unsigned char)(90 * k)));
+    DrawRectangleRounded(r, 0.2f, 6, Hex(0x1b2050, (unsigned char)(245 * k)));
+    DrawRectangleRoundedLinesEx(r, 0.2f, 6, std::max(1.0f, s), ConAlfa(Accento(), k));
+    TestoACapo(aiutoPrima, r.x + pad, r.y + pad, larg, ConAlfa(WHITE, k), dim, true);
+}
 bool Pulsante(Rectangle r, const std::string& testo, bool attivo, bool abilitato) {
+    Registra(r, testo);
     bool sopra = abilitato && MouseSu(r);
     Color fondo = attivo ? Selezione() : sopra ? Hex(0x252b5c) : Pannello();
     DrawRectangleRounded(r, 0.25f, 6, fondo);
@@ -197,19 +272,20 @@ bool Campo(const std::string& id, Rectangle r, std::string& testo, size_t massim
     DrawRectangleRec(r, mio ? Hex(0x0a0c1e) : Hex(0x10132c));
     DrawRectangleLinesEx(r, std::max(1.0f, scala), mio ? Accento() : sopra ? Hex(0x5a64b0) : Bordo());
     const std::string& mostra = mio ? bozza : testo;
-    BeginScissorMode((int)r.x + 2, (int)r.y, (int)r.width - 4, (int)r.height);
+    Ritaglia((int)r.x + 2, (int)r.y, (int)r.width - 4, (int)r.height);
     int dim = TP();
     float w = (float)Larghezza(mostra, dim);
     float x = r.x + 6 * scala;
     if (w > r.width - 14 * scala) x -= w - (r.width - 14 * scala);   // si vede la fine mentre si scrive
     Testo(mostra, x, r.y + (r.height - dim) / 2, TestoChiaro(), dim);
     if (mio && std::fmod(lampeggio, 1.0f) < 0.6f) DrawRectangle((int)(x + w + 2), (int)(r.y + 4 * scala), (int)std::max(1.0f, 2 * scala), (int)(r.height - 8 * scala), Accento());
-    EndScissorMode();
+    FineRitaglio();
     return confermato;
 }
 
 bool Numero(const std::string& id, Rectangle r, const std::string& etichetta, float& v, float minimo, float massimo,
             float passo, const char* formato) {
+    Registra(r, etichetta);
     int dim = TP();
     float le = etichetta.empty() ? 0 : r.width * 0.45f;
     if (le > 0) Testo(etichetta, r.x, r.y + (r.height - dim) / 2, TestoSpento(), dim);
@@ -235,6 +311,7 @@ bool NumeroIntero(const std::string& id, Rectangle r, const std::string& etichet
 }
 
 bool Interruttore(Rectangle r, const std::string& etichetta, bool& v) {
+    Registra(r, etichetta);
     int dim = TP();
     float h = r.height * 0.7f, w = h * 1.8f;
     Rectangle tasto = { r.x + r.width - w, r.y + (r.height - h) / 2, w, h };
@@ -248,6 +325,7 @@ bool Interruttore(Rectangle r, const std::string& etichetta, bool& v) {
 }
 
 bool Scelta(Rectangle r, const std::string& etichetta, int& v, const std::vector<std::string>& voci) {
+    Registra(r, etichetta);
     if (voci.empty()) return false;
     int dim = TP();
     float le = etichetta.empty() ? 0 : r.width * 0.45f;
@@ -264,13 +342,28 @@ bool Scelta(Rectangle r, const std::string& etichetta, int& v, const std::vector
     v = (v % n + n) % n;
     DrawRectangleRec(centro, Hex(0x10132c));
     DrawRectangleLinesEx(centro, std::max(1.0f, scala), MouseSu(centro) ? Hex(0x5a64b0) : Bordo());
-    BeginScissorMode((int)centro.x, (int)centro.y, (int)centro.width, (int)centro.height);
-    TestoCentrato(voci[v], centro, TestoChiaro(), dim);
-    EndScissorMode();
+    // Una voce lunga si rimpicciolisce un po' e, se non basta, si accorcia con "..."
+    // (il nome intero compare nel riquadro d'aiuto quando ci si ferma sopra).
+    std::string voce = voci[v];
+    float spazio = centro.width - 10 * scala;
+    int d = dim;
+    if (Larghezza(voce, d) > spazio) d = std::max(8, (int)(dim * 0.85f));
+    if (Larghezza(voce, d) > spazio) {
+        if (MouseSu(centro)) aiutoOra = etichetta.empty() ? voce : etichetta + ": " + voce;
+        while (voce.size() > 1 && Larghezza(voce + "...", d) > spazio) {
+            voce.pop_back();
+            while (!voce.empty() && ((unsigned char)voce.back() & 0xC0) == 0x80) voce.pop_back();   // non spezzare le lettere accentate
+        }
+        voce += "...";
+    }
+    Ritaglia((int)centro.x, (int)centro.y, (int)centro.width, (int)centro.height);
+    TestoCentrato(voce, centro, TestoChiaro(), d);
+    FineRitaglio();
     return v != vecchio;
 }
 
 bool Colore(const std::string& id, Rectangle r, const std::string& etichetta, Color& c) {
+    Registra(r, etichetta);
     int dim = TP();
     float le = etichetta.empty() ? 0 : r.width * 0.45f;
     if (le > 0) Testo(etichetta, r.x, r.y + (r.height - dim) / 2, TestoSpento(), dim);

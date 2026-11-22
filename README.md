@@ -26,10 +26,11 @@ disegnata in alta definizione.
   è spenta di serie (F7 o la nota in alto la accendono): gli effetti sonori restano sempre attivi.
 - **Sotto** le schede delle sezioni (Alt+1 … Alt+8) e i pulsanti **Prova F5** e **Crea .exe**.
 - **A destra** la chat con **Claude**, presente in ogni sezione: sa dove sei e cosa hai selezionato.
+- **Aiuto sui pulsanti**: fermandosi con il mouse su un pulsante compare un riquadro che ne spiega la funzione.
 
 | Sezione | Cosa si fa |
 | --- | --- |
-| Mondi | Editor delle mappe a blocchi: caselle, oggetti, porte fra mappe, scroll in 4 direzioni, telecamera, strati dello sfondo. Nella tavolozza ci sono anche i personaggi e gli oggetti della libreria del gioco. |
+| Mondi | Editor delle mappe a blocchi: caselle, oggetti, selezione di blocchi (cancella, copia, incolla), porte fra mappe, scroll in 4 direzioni, telecamera, strati dello sfondo. Nella tavolozza ci sono anche i personaggi e gli oggetti della libreria del gioco. |
 | Personaggi | Disegni e animi i personaggi (matita, gomma, secchio, linee, forme, simmetria, cipolla), importi immagini o fogli di sprite, scegli il comportamento (eroe, fermo, pattuglia, insegue, vola, torretta, boss, amico che parla) e i suoni. Ogni personaggio si salva nel gioco e si usa nelle mappe o come eroe. |
 | Oggetti | Oggetti disegnati con la loro funzione: decorazione, da raccogliere, cura, chiave, porta, molla, cassa da spingere, interruttore, piattaforma mobile, pericolo, arrivo, proiettile. |
 | Scenari | Sfondi a strati con parallasse, cielo, ora del giorno, pioggia e neve; le caselle del terreno disegnate a mano. |
@@ -94,6 +95,7 @@ src/
   gioco*.cpp, gioco.h   motore: fisica, collisioni, telecamera, libreria, regole, disegno HD
   mondo.*               mondi e mappe in JSON
   ui.*                  controlli dell'interfaccia (pulsanti, campi, scelte, colori)
+  aiuto.cpp             le spiegazioni dei pulsanti (aiuto che compare fermandosi col mouse)
   audio.*               sintetizzatore, brani ed effetti
   periferiche.*         tastiera, mouse, joypad e mappatura dei comandi
   pacchetto.*           costruttore dell'eseguibile

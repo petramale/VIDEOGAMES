@@ -94,6 +94,16 @@ private:
     Mondo primaDiSpostare;         // per annullare lo spostamento di un oggetto
     bool spostato = false;
     int decorazioneScelta = -1;
+    // Blocchi selezionati con lo strumento Seleziona (trascinando su caselle senza oggetti).
+    bool blocchi = false, areaTrascina = false;
+    int ax0 = 0, ay0 = 0, ax1 = 0, ay1 = 0;
+    std::vector<std::string> appuntiBlocchi;      // caselle copiate (righe)
+    std::vector<OggettoMappa> appuntiArea;        // oggetti copiati, relativi all'angolo
+    bool ultimiAppuntiArea = false;
+    Rectangle AreaCaselle() const { return { (float)std::min(ax0, ax1), (float)std::min(ay0, ay1), (float)(std::abs(ax1 - ax0) + 1), (float)(std::abs(ay1 - ay0) + 1) }; }
+    void CancellaArea();
+    void CopiaArea();
+    void IncollaArea(int cx, int cy);
     std::string nomeMappaBozza;
 
     // Prova del gioco

@@ -196,6 +196,8 @@ void EditorMondo::Ricostruisci() {
 void EditorMondo::CambiaMappa(int i) {
     mappa = (int)Limita((float)i, 0, (float)mondo.mappe.size() - 1);
     selezionato = -1;
+    decorazioneScelta = -1;
+    blocchi = false; areaTrascina = false;
     Ricostruisci();
     Inquadra();
     MusicaMappa(M(), progetto);
@@ -690,11 +692,17 @@ void EditorMondo::Esegui(int menu, int voce) {
         case 10: Annulla(); break;
         case 11: Ripeti(); break;
         case 12:
-            if (selezionato >= 0) { appunti = M().oggetti[selezionato]; appuntiPieni = true; Avvisa("Copiato: " + appunti.tipo); }
-            else Avvisa("Seleziona prima un oggetto");
+            if (blocchi) CopiaArea();
+            else if (selezionato >= 0) { appunti = M().oggetti[selezionato]; appuntiPieni = true; ultimiAppuntiArea = false; Avvisa("Copiato: " + appunti.tipo); }
+            else Avvisa("Con lo strumento Seleziona (V) clicca un oggetto, oppure trascina sui blocchi");
             break;
         case 13:
-            if (appuntiPieni) {
+            if (ultimiAppuntiArea && !appuntiBlocchi.empty()) {
+                Vector2 w = MondoDaSchermo(GetMousePosition());
+                bool sopraVista = CheckCollisionPointRec(GetMousePosition(), rVista);
+                Rectangle a = AreaCaselle();
+                IncollaArea(sopraVista ? (int)std::floor(w.x / TILE) : (int)a.x + 1, sopraVista ? (int)std::floor(w.y / TILE) : (int)a.y);
+            } else if (appuntiPieni) {
                 Ricorda();
                 OggettoMappa o = appunti;
                 Vector2 w = MondoDaSchermo(GetMousePosition());
@@ -705,7 +713,8 @@ void EditorMondo::Esegui(int menu, int voce) {
             }
             break;
         case 14:
-            if (selezionato >= 0) { Ricorda(); M().oggetti.erase(M().oggetti.begin() + selezionato); selezionato = -1; }
+            if (blocchi) CancellaArea();
+            else if (selezionato >= 0) { Ricorda(); M().oggetti.erase(M().oggetti.begin() + selezionato); selezionato = -1; }
             else if (decorazioneScelta >= 0 && decorazioneScelta < (int)M().decorazioni.size()) {
                 Ricorda(); M().decorazioni.erase(M().decorazioni.begin() + decorazioneScelta); decorazioneScelta = -1;
             }
@@ -770,7 +779,7 @@ void EditorMondo::Schede(Rectangle r) {
     float s = Ui::S();
     DrawRectangleRec(r, Hex(0x0f1230));
     float x = r.x + 6 * s;
-    BeginScissorMode((int)r.x, (int)r.y, (int)r.width, (int)r.height);
+    Ui::Ritaglia((int)r.x, (int)r.y, (int)r.width, (int)r.height);
     for (int i = 0; i < (int)mondo.mappe.size(); i++) {
         const Mappa& m = mondo.mappe[i];
         std::string t = m.nome + (m.vista == Vista::Alto ? "  (alto)" : "");
@@ -788,7 +797,7 @@ void EditorMondo::Schede(Rectangle r) {
     }
     Rectangle piu = { x, r.y + 5 * s, r.height - 8 * s, r.height - 8 * s };
     if (Ui::Pulsante(piu, "+")) Esegui(3, 0);
-    EndScissorMode();
+    Ui::FineRitaglio();
 }
 
 // --- Tavolozza --------------------------------------------------------------------------
@@ -878,11 +887,10 @@ void EditorMondo::Tavolozza(Rectangle r) {
         DrawRectangleRoundedLinesEx(c, 0.15f, 6, std::max(1.0f, s * (scelto ? 2 : 1)), scelto ? Ui::Accento() : sopra ? Hex(0x5a64b0) : Ui::Bordo());
         Rectangle dentro = { c.x + lato * 0.18f, c.y + lato * 0.14f, lato * 0.64f, lato * 0.64f };
         Rectangle ritaglio = GetCollisionRec({ c.x + 1, c.y + 1, c.width - 2, c.height - 2 }, limite);
-        BeginScissorMode((int)ritaglio.x, (int)ritaglio.y, (int)ritaglio.width, (int)ritaglio.height);
+        Ui::Ritaglia((int)ritaglio.x, (int)ritaglio.y, (int)ritaglio.width, (int)ritaglio.height);
         if (casella) IconaCasella(valore[0], dentro); else IconaOggetto(valore, dentro);
-        EndScissorMode();
-        BeginScissorMode((int)limite.x, (int)limite.y, (int)limite.width, (int)limite.height);
-        if (sopra) sopraNome = nome;
+        Ui::FineRitaglio();
+        if (sopra) { sopraNome = nome; Ui::Suggerimento(c, nome + (casella ? ": clic per sceglierla, poi disegna sulla mappa. Tasto destro sulla mappa cancella." : ": clic per sceglierlo, poi clic sulla mappa per metterlo. Tasto destro sulla mappa cancella.")); }
         if (sopra && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
             pennello = valore;
             if (strumento == Strumento::Gomma || strumento == Strumento::Seleziona || strumento == Strumento::Contagocce) strumento = Strumento::Pennello;
@@ -897,7 +905,7 @@ void EditorMondo::Tavolozza(Rectangle r) {
     limite = lista;
     if (Ui::MouseSu(lista)) scorriTavolozza -= GetMouseWheelMove() * 60 * s;
     scorriTavolozza = std::max(0.0f, scorriTavolozza);
-    BeginScissorMode((int)lista.x, (int)lista.y, (int)lista.width, (int)lista.height);
+    Ui::Ritaglia((int)lista.x, (int)lista.y, (int)lista.width, (int)lista.height);
     y -= scorriTavolozza;
     float inizio = y;
     float fine = y;
@@ -920,7 +928,7 @@ void EditorMondo::Tavolozza(Rectangle r) {
     const auto& tipi = TipiOggetto();
     for (int i = 0; i < (int)tipi.size(); i++) fine = Cella(i, y, tipi[i], false, Maiuscola(tipi[i]));
     fine = Cella((int)tipi.size(), y, "partenza", false, "Partenza dell'eroe");
-    EndScissorMode();
+    Ui::FineRitaglio();
     float totale = fine - inizio + pad;
     scorriTavolozza = std::min(scorriTavolozza, std::max(0.0f, totale - lista.height));
     y = lista.y + lista.height + pad * 0.5f;
@@ -1033,6 +1041,7 @@ void EditorMondo::VistaMappa(Rectangle r, float dt) {
                     break;
                 case Strumento::Seleziona:
                     if (premuto) {
+                        blocchi = false;
                         int i = OggettoSotto(w);
                         selezionato = i;
                         decorazioneScelta = -1;
@@ -1053,7 +1062,18 @@ void EditorMondo::VistaMappa(Rectangle r, float dt) {
                                     break;
                                 }
                             }
+                            if (decorazioneScelta < 0) {
+                                // Niente sotto il mouse: si selezionano i blocchi trascinando.
+                                blocchi = false; areaTrascina = true;
+                                ax0 = ax1 = (int)Limita((float)cx, 0, (float)m.larghezza - 1);
+                                ay0 = ay1 = (int)Limita((float)cy, 0, (float)m.altezza - 1);
+                            }
                         }
+                    }
+                    if (areaTrascina) {
+                        ax1 = (int)Limita((float)cx, 0, (float)m.larghezza - 1);
+                        ay1 = (int)Limita((float)cy, 0, (float)m.altezza - 1);
+                        if (!giu) { areaTrascina = false; blocchi = true; pannello = SchedaDestra::Proprieta; }
                     }
                     if (spostando && giu) {
                         float nx = w.x - presa.x, ny = w.y - presa.y;
@@ -1104,15 +1124,15 @@ void EditorMondo::VistaMappa(Rectangle r, float dt) {
         DrawTexturePro(rtSfondo.texture, { (VW - sw) / 2, -(VH - (VH - sh) / 2), sw, -sh }, r, { 0, 0 }, 0, WHITE);
     } else if (!alto) {
         // Scacchiera: si vede bene dove non c'e' niente.
-        BeginScissorMode((int)r.x, (int)r.y, (int)r.width, (int)r.height);
+        Ui::Ritaglia((int)r.x, (int)r.y, (int)r.width, (int)r.height);
         float q = 32 * s;
         for (float y = r.y; y < r.y + r.height; y += q)
             for (float x = r.x; x < r.x + r.width; x += q)
                 if (((int)((x - r.x) / q) + (int)((y - r.y) / q)) % 2) DrawRectangleRec({ x, y, q, q }, Hex(0x20264c));
-        EndScissorMode();
+        Ui::FineRitaglio();
     }
 
-    BeginScissorMode((int)r.x, (int)r.y, (int)r.width, (int)r.height);
+    Ui::Ritaglia((int)r.x, (int)r.y, (int)r.width, (int)r.height);
     Camera2D cam{};
     cam.offset = { r.x, r.y };
     cam.target = { 0, 0 };
@@ -1198,6 +1218,12 @@ void EditorMondo::VistaMappa(Rectangle r, float dt) {
         float ds = 10 / zoom * s;
         DrawTextEx(GetFontDefault(), dove.c_str(), { o.x - 12, o.y - 40 - ds }, ds, ds / 10, Hex(0x5ef0ff));
     }
+    if (blocchi || areaTrascina) {
+        Rectangle a = AreaCaselle();
+        Rectangle q = { a.x * TILE, a.y * TILE, a.width * TILE, a.height * TILE };
+        DrawRectangleRec(q, Hex(0x5ef0ff, 45));
+        DrawRectangleLinesEx(q, linea * 2, ConAlfa(Hex(0x5ef0ff), 0.6f + 0.4f * std::sin(tempo * 6)));
+    }
     if (selezionato >= 0 && selezionato < (int)m.oggetti.size()) {
         Rectangle b = BoxMappa(m.oggetti[selezionato]);
         DrawRectangleLinesEx({ b.x - 3, b.y - 3, b.width + 6, b.height + 6 }, linea * 2, ConAlfa(Hex(0xffd23f), 0.6f + 0.4f * std::sin(tempo * 8)));
@@ -1224,7 +1250,7 @@ void EditorMondo::VistaMappa(Rectangle r, float dt) {
         }
     }
     EndMode2D();
-    EndScissorMode();
+    Ui::FineRitaglio();
 
     // Riquadri informativi sopra la mappa.
     std::string info = dentro ? TextFormat("casella %d, %d   -   zoom %.0f%%", cx, cy, zoom * 100) : TextFormat("zoom %.0f%%", zoom * 100);
@@ -1247,9 +1273,9 @@ void EditorMondo::VistaMappa(Rectangle r, float dt) {
         if (q.x + q.width > r.x + r.width - 200 * s) q.x = std::max(r.x + 8 * s, r.x + r.width - 200 * s - q.width);
         DrawRectangleRounded(q, 0.4f, 6, Hex(0x101430, (unsigned char)(235 * k)));
         DrawRectangleRoundedLinesEx(q, 0.4f, 6, std::max(1.0f, s), ConAlfa(Ui::Accento(), k));
-        BeginScissorMode((int)q.x, (int)q.y, (int)q.width, (int)q.height);
+        Ui::Ritaglia((int)q.x, (int)q.y, (int)q.width, (int)q.height);
         Ui::TestoCentrato(messaggio, q, ConAlfa(WHITE, k), Ui::T());
-        EndScissorMode();
+        Ui::FineRitaglio();
     }
 }
 
@@ -1283,9 +1309,9 @@ void EditorMondo::Minimappa(Rectangle r) {
     // Riquadro della vista; clic o trascinamento spostano la vista.
     float vw = rVista.width / zoom, vh = rVista.height / zoom;
     Rectangle v = { q.x + camX / TILE * k, q.y + camY / TILE * k, vw / TILE * k, vh / TILE * k };
-    BeginScissorMode((int)q.x - 2, (int)q.y - 2, (int)w + 4, (int)h + 4);
+    Ui::Ritaglia((int)q.x - 2, (int)q.y - 2, (int)w + 4, (int)h + 4);
     DrawRectangleLinesEx(v, std::max(1.0f, s), Hex(0xffd23f));
-    EndScissorMode();
+    Ui::FineRitaglio();
     if (Ui::MouseSu({ q.x - 4 * s, q.y - 4 * s, w + 8 * s, h + 8 * s }) && IsMouseButtonDown(MOUSE_BUTTON_LEFT) && !tratto && !spostando && !rettangolo) {
         Vector2 p = GetMousePosition();
         camX = (p.x - q.x) / k * TILE - vw / 2;
@@ -1400,10 +1426,22 @@ void EditorMondo::PannelloProprieta(Rectangle r) {
     float hr = 28 * s;
     if (Ui::MouseSu(r)) scorriPannello -= GetMouseWheelMove() * 50 * s;
     scorriPannello = std::max(0.0f, scorriPannello);
-    BeginScissorMode((int)r.x - 4, (int)r.y, (int)r.width + 8, (int)r.height);
+    Ui::Ritaglia((int)r.x - 4, (int)r.y, (int)r.width + 8, (int)r.height);
     Colonna L{ r, r.y - scorriPannello, s };
     Rectangle q;
     Mappa& m = M();
+
+    if (blocchi && selezionato < 0) {
+        Rectangle a = AreaCaselle();
+        L.Titolo("BLOCCHI SELEZIONATI");
+        L.Nota(TextFormat("%d x %d caselle, dalla casella %d, %d", (int)a.width, (int)a.height, (int)a.x, (int)a.y), WHITE);
+        if (L.Prendi(hr, q) && Ui::Pulsante(q, "Cancella i blocchi (Canc)")) CancellaArea();
+        if (L.Prendi(hr, q) && Ui::Pulsante(q, "Copia i blocchi (Ctrl+C)")) CopiaArea();
+        if (L.Prendi(hr, q) && Ui::Pulsante(q, "Deseleziona (Esc)")) blocchi = false;
+        L.Nota("Trascina con Seleziona su un altro punto per cambiare la scelta. Ctrl+V incolla i blocchi copiati dove c'e' il mouse.", Ui::TestoSpento());
+        Ui::FineRitaglio();
+        return;
+    }
 
     if (selezionato >= 0 && selezionato < (int)m.oggetti.size()) {
         OggettoMappa o = m.oggetti[selezionato];
@@ -1456,7 +1494,7 @@ void EditorMondo::PannelloProprieta(Rectangle r) {
                     sceltaArrivo = true; portaMappa = mappa; portaIndice = selezionato;
                     CambiaMappa(o.mappa);
                     Avvisa("Clicca il punto d'arrivo");
-                    EndScissorMode();
+                    Ui::FineRitaglio();
                     return;
                 }
                 if (o.destX >= 0 && L.Prendi(hr, q) && Ui::Pulsante(q, "Arrivo alla partenza della mappa")) { o.destX = o.destY = -1; c = true; }
@@ -1471,7 +1509,7 @@ void EditorMondo::PannelloProprieta(Rectangle r) {
         if (c && selezionato >= 0) { Ricorda(); m.oggetti[selezionato] = o; }
         if (duplica && selezionato >= 0) { Ricorda(); OggettoMappa d = o; d.x += TILE; m.oggetti.push_back(d); selezionato = (int)m.oggetti.size() - 1; }
         if (elimina && selezionato >= 0) Esegui(1, 4);
-        EndScissorMode();
+        Ui::FineRitaglio();
         return;
     }
 
@@ -1489,7 +1527,7 @@ void EditorMondo::PannelloProprieta(Rectangle r) {
         if (L.Prendi(hr, q) && Ui::Pulsante(q, "Torna alle proprieta' della mappa")) decorazioneScelta = -1;
         if (c) { Ricorda(); m.decorazioni[decorazioneScelta] = d; }
         if (elimina) { Ricorda(); m.decorazioni.erase(m.decorazioni.begin() + decorazioneScelta); decorazioneScelta = -1; }
-        EndScissorMode();
+        Ui::FineRitaglio();
         return;
     }
 
@@ -1581,7 +1619,7 @@ void EditorMondo::PannelloProprieta(Rectangle r) {
     if (c) { Ricorda(); m.partenza = p; }
     L.Nota("Oppure scegli \"Partenza\" nella tavolozza e clicca sulla mappa.", Ui::TestoSpento());
     L.Nota(TextFormat("Oggetti: %d   Decorazioni: %d   Strati: %d", (int)m.oggetti.size(), (int)m.decorazioni.size(), (int)m.strati.size()), Ui::TestoSpento());
-    EndScissorMode();
+    Ui::FineRitaglio();
     float tot = L.Fine() + scorriPannello - r.y;
     scorriPannello = std::min(scorriPannello, std::max(0.0f, tot - r.height + 20 * s));
 }
@@ -1591,7 +1629,7 @@ void EditorMondo::PannelloMondo(Rectangle r) {
     float hr = 28 * s;
     if (Ui::MouseSu(r)) scorriPannello -= GetMouseWheelMove() * 50 * s;
     scorriPannello = std::max(0.0f, scorriPannello);
-    BeginScissorMode((int)r.x - 4, (int)r.y, (int)r.width + 8, (int)r.height);
+    Ui::Ritaglia((int)r.x - 4, (int)r.y, (int)r.width + 8, (int)r.height);
     Colonna L{ r, r.y - scorriPannello, s };
     Rectangle q;
     L.Titolo("IL GIOCO");
@@ -1643,7 +1681,7 @@ void EditorMondo::PannelloMondo(Rectangle r) {
     std::string problema = mondo.Controlla();
     L.Nota(problema.empty() ? "Tutto in ordine: il gioco si puo' creare." : "Problema: " + problema, problema.empty() ? Hex(0x7ee0a0) : Hex(0xff8a6a));
     L.Nota(TextFormat("%d mappe nel mondo.", (int)mondo.mappe.size()), Ui::TestoSpento());
-    EndScissorMode();
+    Ui::FineRitaglio();
     float tot = L.Fine() + scorriPannello - r.y;
     scorriPannello = std::min(scorriPannello, std::max(0.0f, tot - r.height + 20 * s));
 }
@@ -1654,7 +1692,7 @@ void EditorMondo::PannelloStrati(Rectangle r) {
     Mappa& m = M();
     if (Ui::MouseSu(r)) scorriPannello -= GetMouseWheelMove() * 50 * s;
     scorriPannello = std::max(0.0f, scorriPannello);
-    BeginScissorMode((int)r.x - 4, (int)r.y, (int)r.width + 8, (int)r.height);
+    Ui::Ritaglia((int)r.x - 4, (int)r.y, (int)r.width + 8, (int)r.height);
     Colonna L{ r, r.y - scorriPannello, s };
     Rectangle q;
     L.Titolo("STRATI DELLO SFONDO");
@@ -1734,7 +1772,7 @@ void EditorMondo::PannelloStrati(Rectangle r) {
             decorazioneScelta = i; selezionato = -1; pannello = SchedaDestra::Proprieta; strumento = Strumento::Seleziona;
             camX = m.decorazioni[i].x - rVista.width / zoom / 2; camY = m.decorazioni[i].y - rVista.height / zoom / 2;
         }
-    EndScissorMode();
+    Ui::FineRitaglio();
     float tot = L.Fine() + scorriPannello - r.y;
     scorriPannello = std::min(scorriPannello, std::max(0.0f, tot - r.height + 20 * s));
 }
@@ -1807,7 +1845,7 @@ void EditorMondo::PannelloClaude(Rectangle r) {
     if (chatInAttesa) tot += 40 * s;
     if (Ui::MouseSu(storia)) scorriChat += GetMouseWheelMove() * 50 * s;
     scorriChat = Limita(scorriChat, 0, std::max(0.0f, tot - storia.height));
-    BeginScissorMode((int)storia.x, (int)storia.y, (int)storia.width, (int)storia.height);
+    Ui::Ritaglia((int)storia.x, (int)storia.y, (int)storia.width, (int)storia.height);
     if (chat.storia.empty() && !chatInAttesa) {
         Ui::TestoACapo("Claude vede tutto il mondo: mappe, oggetti, strati, telecamere. Scrivi cosa vuoi in italiano: "
                        "lui risponde e modifica il mondo. Ogni modifica si annulla con Ctrl+Z.\n\n"
@@ -1852,7 +1890,7 @@ void EditorMondo::PannelloClaude(Rectangle r) {
             DrawCircle((int)(b.x + 30 * s + k * 18 * s), (int)(b.y + b.height / 2 - 4 * s * std::max(0.0f, std::sin(tAttesa * 6 - k))), 4 * s, Hex(0xd97757));
         Ui::Testo(TextFormat("%.0fs", tAttesa), b.x + 100 * s, b.y + 9 * s, Ui::TestoSpento(), Ui::TP());
     }
-    EndScissorMode();
+    Ui::FineRitaglio();
 
     if (hIdee > 0) {
         float iy = storia.y + storia.height + 8 * s;
@@ -1914,14 +1952,14 @@ void EditorMondo::Finestre() {
             Rectangle ill = { k.x + 12 * s, k.y + 12 * s, k.width - 24 * s, k.width * 0.6f };
             DrawRectangleRec(ill, i == 1 ? Hex(0x3a6a3a) : i == 3 ? Hex(0x1a1430) : Hex(0x4a8ad0));
             float u = ill.width / 12;
-            BeginScissorMode((int)ill.x, (int)ill.y, (int)ill.width, (int)ill.height);
+            Ui::Ritaglia((int)ill.x, (int)ill.y, (int)ill.width, (int)ill.height);
             if (i == 0) for (int t = 0; t < 12; t++) DrawRectangleRec({ ill.x + t * u, ill.y + ill.height - u * (1 + (t % 4 == 2)), u, u * (1 + (t % 4 == 2)) }, Hex(0x5ac85a));
             if (i == 1) for (int t = 0; t < 14; t++) DrawCircleV({ ill.x + Hash1(t) * ill.width, ill.y + Hash1(t + 40) * ill.height }, u * 0.6f, Hex(0x1e4a2b));
             if (i == 2) { DrawTriangle({ ill.x + 2 * u, ill.y + ill.height / 2 - u }, { ill.x + 2 * u, ill.y + ill.height / 2 + u }, { ill.x + 4 * u, ill.y + ill.height / 2 }, WHITE);
                           for (int t = 0; t < 4; t++) DrawRectangleRec({ ill.x + (5 + t * 1.5f) * u, ill.y + ill.height / 2 - 1, u * 0.6f, 2 }, Hex(0xffd23f)); }
             if (i == 3) { DrawRectangleLinesEx({ ill.x + u, ill.y + u, ill.width / 2 - u, ill.height - 2 * u }, 2, Hex(0x8a90ac));
                           DrawRectangleLinesEx({ ill.x + ill.width / 2, ill.y + u, ill.width / 2 - u, ill.height - 2 * u }, 2, Hex(0x8a90ac)); }
-            EndScissorMode();
+            Ui::FineRitaglio();
             Ui::Testo(nomi[i], k.x + 12 * s, ill.y + ill.height + 14 * s, WHITE, Ui::T());
             Ui::TestoACapo(desc[i], k.x + 12 * s, ill.y + ill.height + 44 * s, k.width - 24 * s, Ui::TestoSpento(), Ui::TP());
             if (sopra && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) { NuovoMondo(i); finestra = 0; gAudio.Suona(Effetto::Conferma); }
@@ -1930,7 +1968,7 @@ void EditorMondo::Finestre() {
         if (Ui::MouseSu(c)) scorriElenco -= GetMouseWheelMove() * 60 * s;
         float hv = 52 * s;
         scorriElenco = Limita(scorriElenco, 0, std::max(0.0f, elencoMondi.size() * (hv + 6 * s) - c.height));
-        BeginScissorMode((int)c.x, (int)c.y, (int)c.width, (int)c.height);
+        Ui::Ritaglia((int)c.x, (int)c.y, (int)c.width, (int)c.height);
         for (size_t i = 0; i < elencoMondi.size(); i++) {
             Rectangle v = { c.x, c.y + i * (hv + 6 * s) - scorriElenco, c.width, hv };
             if (v.y + v.height < c.y || v.y > c.y + c.height) continue;
@@ -1947,7 +1985,7 @@ void EditorMondo::Finestre() {
                 gAudio.Suona(Effetto::Conferma);
             }
         }
-        EndScissorMode();
+        Ui::FineRitaglio();
     } else if (finestra == 3) {
         const char* righe[] = {
             "MOUSE",
@@ -1991,7 +2029,7 @@ void EditorMondo::Finestre() {
 void EditorMondo::Scorciatoie() {
     if (IsKeyPressed(KEY_ESCAPE)) {
         if (sceltaArrivo) { sceltaArrivo = false; CambiaMappa(portaMappa); selezionato = portaIndice; Avvisa("Scelta dell'arrivo annullata"); }
-        else if (selezionato >= 0 || decorazioneScelta >= 0) { selezionato = -1; decorazioneScelta = -1; }
+        else if (selezionato >= 0 || decorazioneScelta >= 0 || blocchi) { selezionato = -1; decorazioneScelta = -1; blocchi = false; }
         else if (!incorporato) vuoleUscire = true;
         return;
     }
@@ -2013,7 +2051,7 @@ void EditorMondo::Scorciatoie() {
         if (IsKeyPressed(KEY_V)) Esegui(1, 3);
         return;
     }
-    if (IsKeyPressed(KEY_DELETE)) Esegui(1, 4);
+    if (IsKeyPressed(KEY_DELETE) || IsKeyPressed(KEY_BACKSPACE)) Esegui(1, 4);
     if (IsKeyPressed(KEY_F1) && !incorporato) finestra = 3;
     if (IsKeyPressed(KEY_F3) && !incorporato) { pannello = SchedaDestra::Claude; Ui::DaiFuoco("chat"); }
     if (IsKeyPressed(KEY_F5)) AvviaProva(false);
@@ -2026,4 +2064,63 @@ void EditorMondo::Scorciatoie() {
     for (int i = 0; i < 6; i++) if (IsKeyPressed(tasti[i])) { strumento = (Strumento)i; sceltaArrivo = false; }
     for (int i = 0; i < 6; i++)
         if (IsKeyPressed(KEY_ONE + i)) { pennello = std::string(1, CASELLE[i]); if (strumento != Strumento::Riempi && strumento != Strumento::Rettangolo) strumento = Strumento::Pennello; }
+}
+
+// --- Blocchi selezionati ----------------------------------------------------------------------
+
+void EditorMondo::CancellaArea() {
+    Mappa& m = M();
+    Rectangle a = AreaCaselle();
+    Ricorda();
+    int n = 0;
+    for (int y = (int)a.y; y < (int)(a.y + a.height); y++)
+        for (int x = (int)a.x; x < (int)(a.x + a.width); x++)
+            if (m.Casella(x, y) != ' ') { m.ImpostaCasella(x, y, ' '); n++; }
+    int o = 0;
+    for (int i = (int)m.oggetti.size() - 1; i >= 0; i--) {
+        int x = (int)std::floor(m.oggetti[i].x / TILE), y = (int)std::floor((m.oggetti[i].y - 1) / TILE);
+        if (CheckCollisionPointRec({ x + 0.5f, y + 0.5f }, a)) { m.oggetti.erase(m.oggetti.begin() + i); o++; }
+    }
+    selezionato = -1;
+    blocchi = false;
+    Ricostruisci();
+    Avvisa(TextFormat("Cancellati %d blocchi e %d oggetti", n, o));
+}
+
+void EditorMondo::CopiaArea() {
+    const Mappa& m = M();
+    Rectangle a = AreaCaselle();
+    appuntiBlocchi.clear();
+    appuntiArea.clear();
+    for (int y = (int)a.y; y < (int)(a.y + a.height); y++) {
+        std::string riga;
+        for (int x = (int)a.x; x < (int)(a.x + a.width); x++) riga += m.Casella(x, y);
+        appuntiBlocchi.push_back(riga);
+    }
+    for (auto o : m.oggetti) {
+        int x = (int)std::floor(o.x / TILE), y = (int)std::floor((o.y - 1) / TILE);
+        if (!CheckCollisionPointRec({ x + 0.5f, y + 0.5f }, a)) continue;
+        o.x -= a.x * TILE; o.y -= a.y * TILE;
+        appuntiArea.push_back(o);
+    }
+    ultimiAppuntiArea = true;
+    Avvisa(TextFormat("Copiati %dx%d blocchi: Ctrl+V li incolla dove c'e' il mouse", (int)a.width, (int)a.height));
+}
+
+void EditorMondo::IncollaArea(int cx, int cy) {
+    Mappa& m = M();
+    Ricorda();
+    for (int y = 0; y < (int)appuntiBlocchi.size(); y++)
+        for (int x = 0; x < (int)appuntiBlocchi[y].size(); x++) {
+            int tx = cx + x, ty = cy + y;
+            if (tx >= 0 && ty >= 0 && tx < m.larghezza && ty < m.altezza) m.ImpostaCasella(tx, ty, appuntiBlocchi[y][x]);
+        }
+    for (auto o : appuntiArea) { o.x += cx * TILE; o.y += cy * TILE; m.oggetti.push_back(o); }
+    int w = appuntiBlocchi.empty() ? 1 : (int)appuntiBlocchi[0].size(), h = (int)appuntiBlocchi.size();
+    ax0 = std::max(0, cx); ay0 = std::max(0, cy);
+    ax1 = std::min(m.larghezza - 1, cx + w - 1); ay1 = std::min(m.altezza - 1, cy + h - 1);
+    blocchi = true;
+    selezionato = -1;
+    Ricostruisci();
+    Avvisa("Blocchi incollati");
 }

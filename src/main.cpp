@@ -605,6 +605,76 @@ int VerificaProgetti() {
         DatiGioco letto;
         Prova("pacchetto del gioco", DeserializzaGioco(SerializzaGioco(dg), letto) && EProgetto(letto.livello) && letto.livello == dg.livello);
     }
+    // Un gioco con tutto: un personaggio per ogni comportamento, un oggetto per ogni funzione,
+    // una regola per ogni evento con tutte le azioni, caselle, brano ed effetto disegnati.
+    // Si salva, si riapre uguale e gira nel motore con comandi di ogni tipo.
+    for (int st = 0; st < 2; st++) {
+        StileGrafico stile = (StileGrafico)st;
+        ProgettoGioco p = NuovoProgetto(Genere::Platform, stile, "Tutto");
+        const Raccolta& r = CreaRaccolta(0, stile);
+        Mappa& m = p.mondo.mappe[0];
+        { Mappa b = m; b.nome = "Seconda"; p.mondo.mappe.push_back(b); }
+        Mappa& m0 = p.mondo.mappe[0];
+        for (int t = 0; t < (int)TipoComportamento::Totale; t++) {
+            PersonaggioDef d = r.personaggi.empty() ? PersonaggioDef() : r.personaggi[0];
+            d.nome = std::string("P") + ChiaveComportamento((TipoComportamento)t);
+            d.comportamento.tipo = (TipoComportamento)t;
+            d.comportamento.salto = t % 2 ? 200 : 0;
+            d.comportamento.proiettile = t == (int)TipoComportamento::Spara ? "Oproiettile" : "";
+            d.comportamento.dialogo = "Ciao!";
+            p.personaggi.push_back(d);
+            OggettoMappa o; o.tipo = d.nome; o.x = 120.0f + t * 40; o.y = 200; m0.oggetti.push_back(o);
+        }
+        for (int f = 0; f < (int)FunzioneOggetto::Totale; f++) {
+            OggettoDef d = r.oggetti.empty() ? OggettoDef() : r.oggetti[0];
+            d.nome = std::string("O") + ChiaveFunzione((FunzioneOggetto)f);
+            d.funzione = (FunzioneOggetto)f;
+            d.richiede = f == (int)FunzioneOggetto::Porta ? "Ochiave" : "";
+            d.variabile = "gemme";
+            p.oggetti.push_back(d);
+            OggettoMappa o; o.tipo = d.nome; o.x = 60.0f + f * 24; o.y = 230; o.mappa = f == (int)FunzioneOggetto::Porta ? 1 : -1;
+            m0.oggetti.push_back(o);
+        }
+        p.eroe = "Pgiocatore";
+        p.variabili["gemme"] = 0;
+        const auto& ev = TipiEvento();
+        const auto& az = TipiAzione();
+        for (size_t i = 0; i < ev.size(); i++) {
+            Regola g;
+            g.evento = ev[i];
+            g.chi = i % 3 == 0 ? "eroe" : i % 3 == 1 ? "gioco" : "Ppattuglia";
+            g.conChi = ev[i] == "tasto" ? "T" : ev[i] == "ogni" ? "" : "Omoneta";
+            g.variabile = ev[i] == "variabile" ? "gemme" : "";
+            g.valore = 2;
+            for (size_t k = 0; k < az.size(); k++) {
+                if ((k + i) % 4) continue;
+                AzioneRegola a; a.tipo = az[k]; a.numero = 1;
+                a.testo = az[k] == "vai_mappa" ? "Seconda" : az[k] == "crea" ? "Oraccogli" : az[k] == "aumenta" || az[k] == "imposta" ? "gemme" : "Ciao";
+                if (az[k] == "vittoria" || az[k] == "game_over" || az[k] == "vai_mappa") continue;
+                g.azioni.push_back(a);
+            }
+            p.regole.push_back(g);
+        }
+        p.mondo.mappe[0].ImpostaCasella(5, 5, '#');
+        std::string nome = std::string("tutto il gioco (") + NomeStile(stile) + ")";
+        std::string json = p.Json(), errore;
+        ProgettoGioco q;
+        bool riletto = q.DaJson(json, errore);
+        Prova(nome + ": JSON riletto", riletto, errore);
+        if (!riletto) continue;
+        Prova(nome + ": JSON uguale", q.Json() == json);
+        Prova(nome + ": tutte le regole", q.regole.size() == ev.size() && q.personaggi.size() == p.personaggi.size() && q.oggetti.size() == p.oggetti.size());
+        Gioco gioco;
+        bool caricato = gioco.CaricaProgetto(q, errore);
+        Prova(nome + ": nel motore", caricato, errore);
+        for (int i = 0; caricato && i < 900; i++) {
+            Comandi c;
+            c.asse = (i / 90) % 2 ? 1.0f : -0.6f;
+            c.asseY = (i / 50) % 3 - 1.0f;
+            c.salto = c.saltoPremuto = i % 30 == 0;
+            gioco.Aggiorna(1 / 60.0f, c);
+        }
+    }
     TraceLog(errori ? LOG_ERROR : LOG_INFO, "Prove dei progetti: %d problemi", errori);
     return errori;
 }
@@ -655,6 +725,7 @@ int main(int argc, char** argv) {
         gAudio.Aggiorna(dt);
         BeginDrawing();
         officina.Frame(dt);
+        Ui::DisegnaAiuto();   // help contestuale sopra a tutto
         Rectangle pa = officina.PostoAudio();
         PulsanteAudio(pa, opzioni);
         if (!officina.Provando()) PulsanteMusica({ pa.x - pa.width - 6, pa.y, pa.width, pa.height }, opzioni);

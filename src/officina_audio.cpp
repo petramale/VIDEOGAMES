@@ -174,8 +174,11 @@ void Officina::Audio(Rectangle r, float dt) {
         bool cambiato = false;
         // Barra in alto: nome, tempo, battute, ascolta, componi.
         float y = centro.y + 10 * s, bx = centro.x + 14 * s, h = 30 * s;
+        // Su uno spazio stretto la barra si restringe (tutto resta visibile).
+        float k = std::min(1.0f, (centro.width - 28 * s) / ((b.file.empty() ? 1078 : 682) * s));
+        bool stretta = k < 0.97f;
         std::string nome = b.nome;
-        if (Ui::Campo("b_nome", { bx, y, 220 * s, h }, nome, 40) && !nome.empty() && nome != b.nome && !progetto.TrovaBrano(nome)) {
+        if (Ui::Campo("b_nome", { bx, y, 220 * s * k, h }, nome, 40) && !nome.empty() && nome != b.nome && !progetto.TrovaBrano(nome)) {
             Ricorda();
             for (auto& m : progetto.mondo.mappe) if (m.brano == b.nome) m.brano = nome;
             for (auto& rg : progetto.regole) for (auto& a : rg.azioni) if (a.tipo == "musica" && a.testo == b.nome) a.testo = nome;
@@ -183,18 +186,19 @@ void Officina::Audio(Rectangle r, float dt) {
             MondoCambiato();
             vecchio = b;
         }
-        bx += 228 * s;
-        if (Ui::Pulsante({ bx, y, 110 * s, h }, suonaBrano ? "Ferma" : "Ascolta", suonaBrano)) AzioneAudio("b:suona");
-        bx += 118 * s;
+        bx += 220 * s * k + 8 * s;
+        if (Ui::Pulsante({ bx, y, 110 * s * k, h }, suonaBrano ? "Ferma" : "Ascolta", suonaBrano)) AzioneAudio("b:suona");
+        bx += 110 * s * k + 8 * s;
         if (b.file.empty()) {
-            if (Ui::Numero("b_bpm", { bx, y, 190 * s, h }, "Tempo", b.bpm, 40, 260, 5)) cambiato = true;
-            bx += 198 * s;
-            if (Ui::NumeroIntero("b_bat", { bx, y, 190 * s, h }, "Battute", b.battute, 1, 64)) cambiato = true;
-            bx += 198 * s;
+            if (Ui::Numero("b_bpm", { bx, y, 190 * s * k, h }, "Tempo", b.bpm, 40, 260, 5)) cambiato = true;
+            bx += 190 * s * k + 8 * s;
+            if (Ui::NumeroIntero("b_bat", { bx, y, 190 * s * k, h }, "Battute", b.battute, 1, 64)) cambiato = true;
+            bx += 190 * s * k + 8 * s;
         }
-        if (Ui::Pulsante({ bx, y, 200 * s, h }, "Usa nella mappa aperta")) AzioneAudio("b:usa");
-        bx += 208 * s;
-        if (Ui::Pulsante({ bx, y, 110 * s, h }, "Esporta WAV")) AzioneAudio("b:wav");
+        if (stretta) Ui::Aiuto("Usa questo brano come musica della mappa aperta nell'editor dei mondi.");
+        if (Ui::Pulsante({ bx, y, 200 * s * k, h }, stretta ? "Usa nella mappa" : "Usa nella mappa aperta")) AzioneAudio("b:usa");
+        bx += 200 * s * k + 8 * s;
+        if (Ui::Pulsante({ bx, y, 110 * s * k, h }, stretta ? "WAV" : "Esporta WAV")) AzioneAudio("b:wav");
         y += h + 10 * s;
         if (!b.file.empty()) {
             Ui::TestoACapo("Brano importato dal file " + b.file + TextFormat(" (%.0f KB). Viene incluso nel gioco creato. ", b.dati.size() / 1024.0f) +
@@ -202,7 +206,9 @@ void Officina::Audio(Rectangle r, float dt) {
             return;
         }
         // Tracce.
-        float tw = std::min(240 * s, (centro.width - 28 * s) / std::max(1, (int)b.tracce.size()) - 8 * s);
+        // Le schede delle tracce lasciano posto al pulsante "+" per aggiungerne un'altra.
+        float spazioPiu = b.tracce.size() < 6 ? 52 * s : 0;
+        float tw = std::min(240 * s, (centro.width - 28 * s - spazioPiu) / std::max(1, (int)b.tracce.size()) - 8 * s);
         for (int i = 0; i < (int)b.tracce.size(); i++) {
             TracciaBrano& t = b.tracce[i];
             Rectangle tr = { centro.x + 14 * s + i * (tw + 8 * s), y, tw, 92 * s };
@@ -304,7 +310,7 @@ void Officina::PianoRoll(Rectangle r, Brano& b) {
     scorriNoteX = Limita(scorriNoteX, 0, std::max(0.0f, totW - griglia.width));
     auto YNota = [&](int n) { return r.y + (alto - n) * ch - scorriNoteY; };
     auto XSed = [&](float sd) { return griglia.x + sd * cw - scorriNoteX; };
-    BeginScissorMode((int)r.x, (int)r.y, (int)r.width, (int)r.height);
+    Ui::Ritaglia((int)r.x, (int)r.y, (int)r.width, (int)r.height);
     // Righe delle note e tastiera.
     for (int n = basso; n <= alto; n++) {
         float y = YNota(n);
@@ -345,7 +351,7 @@ void Officina::PianoRoll(Rectangle r, Brano& b) {
         float x = XSed(sd);
         DrawLineEx({ x, r.y }, { x, r.y + r.height }, 2, Ui::Accento());
     }
-    EndScissorMode();
+    Ui::FineRitaglio();
     DrawRectangleLinesEx(r, 1, Ui::Bordo());
     // Mouse.
     Vector2 m = GetMousePosition();

@@ -19,6 +19,15 @@ using nlohmann::json;
 namespace {
 
 const char* NOMI_SEZIONI[] = { "Home", "Mondi", "Personaggi", "Oggetti", "Scenari", "Audio", "Logica", "Librerie", "Comandi" };
+const char* AIUTO_SEZIONI[] = { "Pagina iniziale: nuovo gioco, apri, salva e tutte le sezioni.",
+    "Mondi (Alt+1): disegna le mappe a blocchi, metti oggetti e personaggi, porte, telecamera e scenario di ogni mappa.",
+    "Personaggi (Alt+2): disegna e anima i personaggi, scegli l'eroe e il comportamento dei nemici e degli amici.",
+    "Oggetti (Alt+3): disegna gli oggetti e scegli cosa fanno: monete, chiavi, porte, molle, pericoli...",
+    "Scenari (Alt+4): gli sfondi delle mappe (cielo, montagne, strati, meteo) e le caselle del terreno.",
+    "Audio (Alt+5): scrivi la musica, crea gli effetti sonori e scegli quale suono va con ogni evento.",
+    "Logica (Alt+6): le regole del gioco: QUANDO succede qualcosa, SE..., ALLORA fai qualcosa.",
+    "Librerie (Alt+7): tutto quello che il gioco contiene e le 22 raccolte pronte da aggiungere.",
+    "Comandi (Alt+8): tasti, mouse e joypad, con la prova dal vivo." };
 const char* TASTI_SEZIONI[] = { "", "Alt+1", "Alt+2", "Alt+3", "Alt+4", "Alt+5", "Alt+6", "Alt+7", "Alt+8" };
 
 bool Ctrl() { return IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL); }
@@ -522,6 +531,7 @@ void Officina::Schede() {
         if (attiva) DrawRectangle((int)v.x + 6, (int)v.y, (int)v.width - 12, (int)(3 * s), Ui::Accento());
         Color c = attiva ? Ui::Accento() : sopra ? WHITE : Ui::TestoSpento();
         IconaSezione(i, { v.x + 10 * s, v.y + (v.height - 22 * s) / 2, 22 * s, 22 * s }, c);
+        Ui::Suggerimento(v, AIUTO_SEZIONI[i]);
         Ui::Testo(NOMI_SEZIONI[i], v.x + 40 * s, v.y + (v.height - Ui::T()) / 2, attiva ? WHITE : c, Ui::T());
         if (sopra && IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !attiva) { Vai((Sezione)i); gAudio.Suona(Effetto::Menu, 0.35f); }
         if (sopra && TASTI_SEZIONI[i][0]) Ui::Testo(TASTI_SEZIONI[i], v.x + v.width - Ui::Larghezza(TASTI_SEZIONI[i], (int)(10 * s)) - 6 * s, v.y + 2 * s, Ui::TestoSpento(), (int)(10 * s));
@@ -643,7 +653,7 @@ void Officina::Finestre() {
             std::vector<Mondo> esempi = MondiDiProva();
             Rectangle lista = { x, y, w, f.y + f.height - pad - y };
             if (Ui::MouseSu(lista)) scorriElenco = std::max(0.0f, scorriElenco - GetMouseWheelMove() * 60 * s);
-            BeginScissorMode((int)lista.x, (int)lista.y, (int)lista.width, (int)lista.height);
+            Ui::Ritaglia((int)lista.x, (int)lista.y, (int)lista.width, (int)lista.height);
             float yy = y - scorriElenco;
             Ui::Testo("I TUOI GIOCHI (cartella giochi)", x, yy, Ui::TestoSpento(), Ui::TP());
             yy += 26 * s;
@@ -679,7 +689,7 @@ void Officina::Finestre() {
                     }
                 }
             }
-            EndScissorMode();
+            Ui::FineRitaglio();
             break;
         }
         case 3: {   // aiuto
@@ -773,7 +783,7 @@ void Officina::Home(Rectangle r) {
     sfondoHome.Aggiorna(GetFrameTime());
     // Paesaggio in alto, disegnato a risoluzione piena.
     Rectangle alto = { r.x, r.y, r.width, std::min(r.height * 0.36f, 300 * s) };
-    BeginScissorMode((int)alto.x, (int)alto.y, (int)alto.width, (int)alto.height);
+    Ui::Ritaglia((int)alto.x, (int)alto.y, (int)alto.width, (int)alto.height);
     float scala = alto.width / VW;
     float hv = alto.height / scala;
     float salva = gScalaHD;
@@ -782,7 +792,7 @@ void Officina::Home(Rectangle r) {
     sfondoHome.Disegna(tempo * 18, 0);
     EndMode2D();
     gScalaHD = salva;
-    EndScissorMode();
+    Ui::FineRitaglio();
     DrawRectangleGradientV((int)alto.x, (int)(alto.y + alto.height * 0.5f), (int)alto.width, (int)(alto.height * 0.5f) + 1, Hex(0x0d0f24, 0), Ui::Fondo());
     Ui::TestoForte("Studio Videogiochi", r.x + 40 * s, r.y + 34 * s, WHITE, (int)(48 * s));
     Ui::Testo("Elvantis  -  sviluppatore Mario Petramale", r.x + 44 * s, r.y + 92 * s, Hex(0xffd2b8), Ui::T());
@@ -990,7 +1000,7 @@ void Officina::PannelloChat(Rectangle r) {
     if (chatInAttesa) tot += 40 * s;
     if (Ui::MouseSu(storia)) scorriChat += GetMouseWheelMove() * 50 * s;
     scorriChat = Limita(scorriChat, 0, std::max(0.0f, tot - storia.height));
-    BeginScissorMode((int)storia.x, (int)storia.y, (int)storia.width, (int)std::max(1.0f, storia.height));
+    Ui::Ritaglia((int)storia.x, (int)storia.y, (int)storia.width, (int)std::max(1.0f, storia.height));
     if (chat.storia.empty() && !chatInAttesa)
         Ui::TestoACapo("Claude vede tutto il gioco: mappe, personaggi, oggetti, scenari, musica, regole. Scrivi in italiano cosa vuoi: "
                        "crea, modifica, spiega. Ogni modifica si annulla dal menu Gioco.",
@@ -1026,7 +1036,7 @@ void Officina::PannelloChat(Rectangle r) {
             DrawCircle((int)(b.x + 30 * s + k * 18 * s), (int)(b.y + b.height / 2 - 4 * s * std::max(0.0f, std::sin(tChat * 6 - k))), 4 * s, Hex(0xd97757));
         Ui::Testo(TextFormat("%.0fs", tChat), b.x + 100 * s, b.y + 9 * s, Ui::TestoSpento(), Ui::TP());
     }
-    EndScissorMode();
+    Ui::FineRitaglio();
     if (hIdee > 0) {
         float iy = storia.y + storia.height + 8 * s;
         Ui::Testo("Prova a chiedere:", x, iy, Ui::TestoSpento(), Ui::TP());
