@@ -814,7 +814,12 @@ void Gioco::DisegnaHud() const {
     DrawTriangle({ (float)x, 9 }, { (float)x + 4, 15 }, { (float)x + 8, 9 }, Hex(0x2aa8e0));
     if (modello == Modello::Labirinto) Scritta(TextFormat("%d/%d", gemme, gemmeTotali), x + 12, 4, 10, gemme >= gemmeTotali ? Hex(0x8cff6a) : WHITE);
     else Scritta(TextFormat("%d", gemme), x + 12, 4, 10, WHITE);
-    ScrittaCentrata(titolo.c_str(), VW / 2, 4, 10, Hex(0xfff3c0));
+    {   // titolo: se e' lungo resta la parte prima dei due punti, poi si accorcia
+        std::string t = titolo;
+        if (MeasureText(t.c_str(), 10) > 200 && t.find(':') != std::string::npos) t = t.substr(0, t.find(':'));
+        while (t.size() > 4 && MeasureText(t.c_str(), 10) > 200) t = t.substr(0, t.size() - 4) + "...";
+        ScrittaCentrata(t.c_str(), VW / 2, 4, 10, Hex(0xfff3c0));
+    }
     if (modello == Modello::Puzzle) Scritta(TextFormat("%s %d", lingua == 1 ? "Moves" : "Mosse", mosse), VW - 150, 4, 10, Hex(0xc8d0f0));
     Scritta(TextFormat("%06d", punteggio), VW - 96, 4, 10, Hex(0xffd23f));
     Scritta(TextFormat("%02d:%02d", (int)tempo / 60, (int)tempo % 60), VW - 36, 4, 10, WHITE);
