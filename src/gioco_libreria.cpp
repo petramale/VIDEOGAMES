@@ -5,6 +5,7 @@
 #include "audio.h"
 #include "immagini.h"
 #include "periferiche.h"
+#include "rlgl.h"
 #include <algorithm>
 #include <cctype>
 
@@ -900,6 +901,13 @@ void Gioco::DisegnaHD(RenderTexture2D& rt, int scala) {
     BaseHD();
     Disegna();
     EndMode2D();
+    // Le cose semitrasparenti (buio, pioggia, nebbia...) abbassano l'alfa della texture: qui la si
+    // riporta a 255 senza toccare i colori, cosi' l'immagine resta piena sia a schermo sia nelle foto.
+    rlDrawRenderBatchActive();
+    rlSetBlendFactorsSeparate(0 /*GL_ZERO*/, 1 /*GL_ONE*/, 1 /*GL_ONE*/, 0 /*GL_ZERO*/, 0x8006, 0x8006);
+    BeginBlendMode(BLEND_CUSTOM_SEPARATE);
+    DrawRectangle(0, 0, rt.texture.width, rt.texture.height, WHITE);
+    EndBlendMode();
     EndTextureMode();
     gScalaHD = prima;
 }

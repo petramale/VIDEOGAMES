@@ -10,7 +10,6 @@
 #include <sstream>
 
 namespace piatt {
-ProgettoGioco CreaLumina() { return ProgettoGioco(); }
 ProgettoGioco CreaNilo() { return ProgettoGioco(); }
 }
 
