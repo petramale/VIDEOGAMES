@@ -21,3 +21,5 @@ bool DeserializzaGioco(const std::string& dati, DatiGioco& g);
 
 bool LeggiPacchettoIncluso(std::string& dati);
 bool CreaEseguibile(const std::string& destinazione, const std::string& dati, std::string& errore);
+// Come CreaEseguibile, ma partendo da un altro eseguibile (es. lo studio per Windows).
+bool CreaEseguibileDa(const std::string& base, const std::string& destinazione, const std::string& dati, std::string& errore);

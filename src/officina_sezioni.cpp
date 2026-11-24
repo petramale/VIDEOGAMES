@@ -468,6 +468,7 @@ void Officina::Oggetti(Rectangle r, float dt) {
         case FunzioneOggetto::Pericolo: spiega = "Fa male a chi lo tocca."; etValore = "Danno"; break;
         case FunzioneOggetto::Arrivo: spiega = "Toccandolo si vince il livello."; etValore = "Punti"; break;
         case FunzioneOggetto::Proiettile: spiega = "Lanciato dai personaggi (o dall'eroe) che lo scelgono come proiettile."; etValore = "Danno"; break;
+        case FunzioneOggetto::Controllo: spiega = "Toccandolo si accende: dopo una caduta l'eroe riparte da qui (animazione \"accesa\")."; etValore = "Punti"; break;
         default: break;
     }
     q = col.Riga(46);
@@ -635,7 +636,7 @@ void Officina::Scenari(Rectangle r, float dt) {
         terrenoScenario.DaMappa(m, e);
     }
     terrenoScenario.caselleLibreria.clear();
-    for (auto& c : progetto.caselle) terrenoScenario.caselleLibreria.push_back({ c.carattere, &c.disegno });
+    terrenoScenario.caselleLibreria = progetto.CaselleScenario(sc.nome);
     float salva = gScalaHD;
     gScalaHD = pw / VW;
     Ui::Ritaglia((int)prev.x, (int)prev.y, (int)prev.width, (int)prev.height);
@@ -695,7 +696,7 @@ void Officina::Scenari(Rectangle r, float dt) {
         q = col.Riga(28); if (col.Vede(q) && Ui::Colore("s_cb", q, "Cielo in basso", sc.cieloBasso)) cambiato = true;
     }
     q = col.Riga(28);
-    if (col.Vede(q) && Ui::Scelta(q, "Meteo", sc.pioggia, { "Sereno", "Pioggia", "Neve" })) cambiato = true;
+    if (col.Vede(q) && Ui::Scelta(q, "Meteo", sc.pioggia, { "Sereno", "Pioggia", "Neve", "Lucciole", "Braci", "Polvere", "Bolle", "Foglie", "Polline", "Coriandoli", "Magia" })) cambiato = true;
     col.Sezione("STRATI");
     for (int i = 0; i < (int)sc.strati.size(); i++) {
         q = col.Riga(28);

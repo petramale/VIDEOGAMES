@@ -281,6 +281,7 @@ std::string Mondo::Json(bool compatto) const {
     j["genere"] = ChiaveGenere(genere);
     j["giocatori"] = { { "massimo", giocatoriMax }, { "schermoDiviso", schermoDiviso } };
     j["fisica"] = { { "gravita", fisica.gravita }, { "salto", fisica.salto }, { "velocita", fisica.velocita }, { "molla", fisica.molla } };
+    if (fisica.saltiInAria > 0) j["fisica"]["saltiInAria"] = fisica.saltiInAria;
     j["eroe"] = EroeJson(eroe);
     j["mappaIniziale"] = mappaIniziale;
     json mj = json::array();
@@ -306,7 +307,7 @@ bool Mondo::DaJson(const std::string& testo, std::string& errore) {
     if (j.contains("fisica") && j["fisica"].is_object()) {
         const json& f = j["fisica"];
         Leggi(f, "gravita", m.fisica.gravita); Leggi(f, "salto", m.fisica.salto);
-        Leggi(f, "velocita", m.fisica.velocita); Leggi(f, "molla", m.fisica.molla);
+        Leggi(f, "velocita", m.fisica.velocita); Leggi(f, "molla", m.fisica.molla); Leggi(f, "saltiInAria", m.fisica.saltiInAria);
     }
     if (j.contains("eroe") && j["eroe"].is_object()) EroeDaJson(j["eroe"], m.eroe);
     Leggi(j, "mappaIniziale", m.mappaIniziale);

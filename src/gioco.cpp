@@ -104,7 +104,7 @@ bool Gioco::EntraMappa(int indice, Vector2 arrivo, std::string& errore) {
     musica = m.musica;
     testi = m.testi;
     oggetti = livello.Oggetti();
-    entita.clear(); appoggio = -1; dialogo = -1; pioggia = 0; energiaNotificata.clear();
+    entita.clear(); appoggio = -1; dialogo = -1; pioggia = 0; buio = 0; acqua = false; energiaNotificata.clear();
     if (conLibreria) EntitaDellaMappa(m);
     particelle.Svuota();
     proiettili.clear();
@@ -233,17 +233,27 @@ void Gioco::Fisica(float dt, const Comandi& c) {
     // Salto con "coyote time" (si puo' saltare un attimo dopo il bordo) e memoria del tasto.
     coyote = eroe.aTerra ? 0.1f : coyote - dt;
     bufferSalto = (c.saltoPremuto && controllo) ? 0.12f : bufferSalto - dt;
+    if (eroe.aTerra) saltiFatti = 0;
     if (bufferSalto > 0 && coyote > 0) {
-        eroe.vel.y = -fisica.salto; bufferSalto = 0; coyote = 0; saltoTagliato = false;
+        eroe.vel.y = -fisica.salto * (acqua ? 0.6f : 1.0f); bufferSalto = 0; coyote = 0; saltoTagliato = false;
         eroe.CambiaStato(StatoEroe::Salto);
         gAudio.Suona(Effetto::Salto, 0.7f);
         if (conLibreria) Evento("salta", "eroe", "", -1);
         particelle.Polvere(eroe.pos, 6);
+    } else if (c.saltoPremuto && controllo && !eroe.aTerra && coyote <= 0 && (saltiFatti < fisica.saltiInAria || acqua)) {
+        // doppio salto: un'altra spinta a mezz'aria, con uno sbuffo di scintille (sott'acqua: una bracciata)
+        saltiFatti++;
+        eroe.vel.y = -fisica.salto * (acqua ? 0.55f : 0.9f); bufferSalto = 0; saltoTagliato = true;
+        eroe.CambiaStato(StatoEroe::Salto);
+        gAudio.Suona(Effetto::Salto, 0.6f);
+        if (conLibreria) Evento("salta", "eroe", "", -1);
+        particelle.Scintille({ eroe.pos.x, eroe.pos.y - 2 }, Hex(0xbfefff));
     }
     // Salto variabile: lasciando il tasto si salta piu' basso.
     if (!c.salto && eroe.vel.y < -90 && !saltoTagliato) { eroe.vel.y *= 0.5f; saltoTagliato = true; }
 
-    eroe.vel.y = std::min(eroe.vel.y + fisica.gravita * dt, CADUTA_MAX);
+    if (acqua) eroe.vel.y = std::min(eroe.vel.y + fisica.gravita * 0.3f * dt, 75.0f);   // si affonda piano
+    else eroe.vel.y = std::min(eroe.vel.y + fisica.gravita * dt, CADUTA_MAX);
     bool eraATerra = eroe.aTerra;
     float piediPrima = eroe.pos.y;
     MuoviConCollisioni(eroe.pos, eroe.vel, Eroe::LARGHEZZA, Eroe::ALTEZZA - 2, dt, eroe.aTerra, true);
@@ -903,6 +913,8 @@ void Gioco::Disegna() {
         DrawRectangleGradientH(0, 0, 50, VH, Hex(0x05081c, (unsigned char)(100 * notte)), BLANK);
         DrawRectangleGradientH(VW - 50, 0, 50, VH, BLANK, Hex(0x05081c, (unsigned char)(100 * notte)));
     }
+    if (acqua) DrawRectangle(0, 0, VW, VH, Hex(0x1a6ac8, 34));   // sott'acqua: tutto un po' piu' blu
+    if (buio > 0) DisegnaBuio(cx, cy);
     if (pioggia) DisegnaPioggia();
     if (mostraHud) DisegnaHud();
     if (conLibreria) DisegnaExtraHud();

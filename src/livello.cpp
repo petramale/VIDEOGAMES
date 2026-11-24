@@ -148,7 +148,11 @@ void Livello::DisegnaTile(int tx, int ty, float sx, float sy, float tempo, float
         if (cl.first == c && cl.second && !cl.second->animazioni.empty()) {
             const Disegno& d = *cl.second;
             int anim = (Cella(tx, ty - 1) == c && d.animazioni.size() > 1) ? 1 : 0;
-            Texture2D t = d.Texture(anim, d.FotogrammaAl(anim, tempo));
+            // fps 0 e piu' fotogrammi: varianti scelte dalla posizione (terreno meno ripetitivo)
+            const Animazione& an = d.animazioni[anim];
+            int fot = (an.fps <= 0 && an.fotogrammi.size() > 1) ? (int)(Hash1(tx * 7919 + ty * 104729) * an.fotogrammi.size()) % (int)an.fotogrammi.size()
+                                                               : d.FotogrammaAl(anim, tempo);
+            Texture2D t = d.Texture(anim, fot);
             if (t.id) {
                 Color tinta = Mescola(WHITE, Hex(0x3a4070), buio);
                 DrawTexturePro(t, { 0, 0, (float)t.width, (float)t.height }, { sx, sy, (float)TILE, (float)TILE * t.height / std::max(1, t.width) }, { 0, 0 }, 0, tinta);

@@ -11,3 +11,5 @@ void AggiungiFileImmagine(const std::string& nome, const std::string& dati);
 // La texture dell'immagine con quel nome; id 0 se non esiste o non si legge.
 Texture2D Immagine(const std::string& nome);
 void LiberaImmagini();
+// Filtro delle immagini: false = pixel netti (pixel art), true = morbido (grafica disegnata HD).
+void ImmaginiLisce(bool si);

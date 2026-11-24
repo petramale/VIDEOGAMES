@@ -65,6 +65,7 @@ bool Gioco::CaricaProgetto(const ProgettoGioco& p, std::string& errore) {
     // immagini importate: strati, decorazioni
     std::vector<FileIncluso> file;
     for (auto& im : lib.immagini) file.push_back(im);
+    ImmaginiLisce(lib.stile == StileGrafico::Disegnato);
     ImpostaFileImmagini(file);
     gAudio.TogliSostituzioni();
     static const std::pair<const char*, Effetto> eventi[] = { { "salto", Effetto::Salto }, { "moneta", Effetto::Moneta }, { "gemma", Effetto::Gemma },
@@ -93,7 +94,7 @@ void Gioco::PreparaLibreria() {
         energia = energiaMax;
     }
     livello.caselleLibreria.clear();
-    for (auto& c : lib.caselle) livello.caselleLibreria.push_back({ c.carattere, &c.disegno });
+    livello.caselleLibreria = lib.CaselleScenario("");
     timerRegole.assign(lib.regole.size(), 0.0f);
     condizioniRegole.assign(lib.regole.size(), false);
 }
@@ -105,6 +106,8 @@ void Gioco::EntitaDellaMappa(const Mappa& m) {
         int i = CreaEntita(om.tipo, { om.x, om.y });
         if (i >= 0) { entita[i].mappaPorta = om.mappa; entita[i].destPorta = { om.destX, om.destY }; if (om.numero > 0) entita[i].energia = om.numero; }
     }
+    // Caselle: quelle dello scenario della mappa (terreni diversi per ogni mondo), poi quelle comuni
+    livello.caselleLibreria = lib.CaselleScenario(m.scenarioLibreria);
     // Scenario della libreria
     if (const Scenario* s = m.scenarioLibreria.empty() ? nullptr : lib.TrovaScenario(m.scenarioLibreria)) {
         sfondo.tema = s->tema; sfondo.ora = s->ora; sfondo.generato = s->sfondoGenerato;
@@ -112,6 +115,7 @@ void Gioco::EntitaDellaMappa(const Mappa& m) {
         sfondo.strati = s->strati;
         if (!s->cicloGiorno) cicloGiorno = false;
         pioggia = s->pioggia;
+        buio = s->buio; acqua = s->acqua;
     }
     // Brano della libreria
     if (const Brano* b = m.brano.empty() ? nullptr : lib.TrovaBrano(m.brano)) {
@@ -509,6 +513,16 @@ void Gioco::AggiornaOggettoLib(Entita& e, int i, float dt, Rectangle box) {
         case FunzioneOggetto::Pericolo:
             if (tocca) Ferisci(eroe.pos.x < e.pos.x ? -150.0f : 150.0f);
             break;
+        case FunzioneOggetto::Controllo:
+            // punto di controllo: da qui si riparte dopo una caduta o un colpo di troppo
+            if (tocca && !e.acceso) {
+                e.acceso = true; e.anim = "accesa"; e.tAnim = 0;
+                checkpoint = { e.pos.x, e.pos.y };
+                particelle.Scintille({ r.x + r.width / 2, r.y + r.height * 0.3f }, Hex(0x9ff6ff));
+                if (!d.suono.empty() && lib.TrovaEffetto(d.suono)) SuonaLibreria(d.suono); else gAudio.Suona(Effetto::Gemma, 0.7f);
+                Evento("tocca", "eroe", d.nome, i);
+            }
+            break;
         case FunzioneOggetto::Arrivo:
             if (tocca && UscitaAperta()) {
                 vinto = true; tFine = 0;
@@ -738,6 +752,78 @@ void Gioco::DisegnaProiettileLib(const Proiettile& q, float cx, float cy) const 
 
 void Gioco::DisegnaPioggia() const {
     float cx = camX;
+    if (pioggia >= 3) {
+        // Atmosfere: particelle leggere che danno vita allo scenario.
+        // 3 lucciole, 4 braci, 5 polvere, 6 bolle, 7 foglie, 8 polline, 9 coriandoli, 10 scintille magiche
+        int n = pioggia == 5 ? 50 : pioggia == 9 ? 70 : 40;
+        bool luce = pioggia == 3 || pioggia == 4 || pioggia == 10;
+        if (luce) BeginBlendMode(BLEND_ADDITIVE);
+        for (int i = 0; i < n; i++) {
+            float h1 = Hash1(i * 7 + 1), h2 = Hash1(i * 13 + 5), h3 = Hash1(i * 29 + 11);
+            float t = tempoVisivo, par = 0.6f + h3 * 0.5f;
+            float x = 0, y = 0;
+            auto Avvolgi = [&](float vx, float vy) {
+                x = std::fmod(h1 * 2000 - cx * par + vx * t + 20000, (float)VW + 40) - 20;
+                y = std::fmod(h2 * 1000 + vy * t + 20000, (float)VH + 40) - 20;
+            };
+            switch (pioggia) {
+                case 3: {   // lucciole che vagano e pulsano
+                    Avvolgi(std::sin(i) * 6, -4 - h3 * 4);
+                    x += std::sin(t * (0.7f + h3) + i) * 14; y += std::cos(t * (0.9f + h1) + i * 2) * 8;
+                    float b = 0.5f + 0.5f * std::sin(t * (2 + h2 * 3) + i);
+                    DrawCircleV({ x, y }, 4.5f, ConAlfa(Hex(0xc8ff6a), 0.16f * b));
+                    DrawCircleV({ x, y }, 1.4f, ConAlfa(Hex(0xf0ffb0), 0.9f * b));
+                    break;
+                }
+                case 4: {   // braci che salgono tremolando
+                    Avvolgi(8 + h3 * 10, -30 - h1 * 40);
+                    x += std::sin(t * 3 + i) * 4;
+                    float b = 0.6f + 0.4f * std::sin(t * 9 + i * 3);
+                    DrawCircleV({ x, y }, 3.2f, ConAlfa(Hex(0xff6a1a), 0.18f * b));
+                    DrawCircleV({ x, y }, 0.9f + h2 * 0.6f, ConAlfa(Hex(0xffd04a), b));
+                    break;
+                }
+                case 5: {   // polvere portata dal vento
+                    Avvolgi(-50 - h3 * 60, 6 + h1 * 8);
+                    y += std::sin(t * 2 + i) * 6;
+                    DrawCircleV({ x, y }, 0.7f + h2 * 1.1f, ConAlfa(Hex(0xf2deb0), 0.35f + h1 * 0.3f));
+                    break;
+                }
+                case 6: {   // bolle che salgono ondeggiando
+                    Avvolgi(0, -22 - h1 * 26);
+                    x += std::sin(t * 2.2f + i) * 5;
+                    float r = 1.2f + h2 * 2.6f;
+                    DrawCircleLinesV({ x, y }, r, ConAlfa(Hex(0xcff4ff), 0.7f));
+                    DrawCircleV({ x - r * 0.35f, y - r * 0.35f }, r * 0.3f, ConAlfa(WHITE, 0.8f));
+                    break;
+                }
+                case 7: case 8: case 9: {   // foglie, polline, coriandoli che cadono girando
+                    Avvolgi(pioggia == 8 ? 14 : 22 + h3 * 20, pioggia == 8 ? 6 + h1 * 6 : 26 + h1 * 24);
+                    x += std::sin(t * 1.6f + i) * 10;
+                    float a = t * (2 + h2 * 3) + i;
+                    if (pioggia == 8) { DrawCircleV({ x, y }, 1.0f + h2, ConAlfa(Hex(0xfff3a0), 0.8f)); break; }
+                    static const unsigned int foglie[] = { 0xd8902a, 0xc8642a, 0x8ab83a, 0xe8b84a };
+                    static const unsigned int cori[] = { 0xff5a7a, 0xffd23f, 0x5ad8ff, 0x8aff6a, 0xc87aff };
+                    Color c = pioggia == 7 ? Hex(foglie[i % 4]) : Hex(cori[i % 5]);
+                    float w = pioggia == 7 ? 3.2f : 2.2f, hh = (pioggia == 7 ? 1.8f : 1.4f) * std::fabs(std::cos(a));
+                    DrawRectanglePro({ x, y, w, std::max(0.4f, hh) }, { w / 2, hh / 2 }, a * 40, c);
+                    break;
+                }
+                default: {  // scintille magiche
+                    Avvolgi(std::sin(i * 1.3f) * 8, -8 - h3 * 8);
+                    float b = 0.5f + 0.5f * std::sin(t * (3 + h2 * 4) + i);
+                    static const unsigned int col[] = { 0xb08aff, 0x7af0ff, 0xff8ad8 };
+                    Color c = Hex(col[i % 3]);
+                    DrawCircleV({ x, y }, 3.0f, ConAlfa(c, 0.15f * b));
+                    DrawLineEx({ x - 2 * b, y }, { x + 2 * b, y }, 0.6f, ConAlfa(c, b));
+                    DrawLineEx({ x, y - 2 * b }, { x, y + 2 * b }, 0.6f, ConAlfa(c, b));
+                    break;
+                }
+            }
+        }
+        if (luce) EndBlendMode();
+        return;
+    }
     for (int i = 0; i < (pioggia == 2 ? 90 : 140); i++) {
         float vel = pioggia == 2 ? 30 + Hash1(i) * 25 : 260 + Hash1(i) * 120;
         float x = std::fmod(Hash1(i * 7) * 900 - cx * 0.9f + (pioggia == 2 ? std::sin(tempoVisivo + i) * 12 : -tempoVisivo * 60) + 9000, (float)VW + 40) - 20;
@@ -816,4 +902,64 @@ void Gioco::DisegnaHD(RenderTexture2D& rt, int scala) {
     EndMode2D();
     EndTextureMode();
     gScalaHD = prima;
+}
+
+// Scenari bui: un velo scuro su tutto, con "buchi" di luce intorno all'eroe (la sua lanterna),
+// agli oggetti preziosi, ai punti di controllo accesi, all'arrivo e ai proiettili.
+// Il velo e' una griglia di quadratini con i colori sfumati agli angoli: morbido e veloce.
+void Gioco::DisegnaBuio(float cx, float cy) const {
+    struct Luce { float x, y, r; };
+    std::vector<Luce> luci;
+    auto Schermo = [&](float wx, float wy) { return Vector2{ ((wx - cx) - VW / 2.0f) * zoom + VW / 2.0f, ((wy - cy) - VH / 2.0f) * zoom + VH / 2.0f }; };
+    float tremolio = 1 + 0.03f * std::sin(tempoVisivo * 9) + 0.02f * std::sin(tempoVisivo * 23);
+    Vector2 e = Schermo(eroe.pos.x, eroe.pos.y - 12);
+    luci.push_back({ e.x, e.y, 92 * zoom * tremolio });
+    for (const Entita& en : entita) {
+        if (!en.attivo) continue;
+        float r = 0;
+        if (en.personaggio) r = 16;   // gli occhi dei nemici brillano nel buio
+        else {
+            const OggettoDef& d = lib.oggetti[en.def];
+            switch (d.funzione) {
+                case FunzioneOggetto::Raccogli: case FunzioneOggetto::Cura: case FunzioneOggetto::Chiave: r = 26; break;
+                case FunzioneOggetto::Arrivo: r = 70; break;
+                case FunzioneOggetto::Controllo: r = en.acceso ? 80 : 22; break;
+                case FunzioneOggetto::Interruttore: r = en.acceso ? 50 : 0; break;
+                default: break;
+            }
+        }
+        if (r <= 0) continue;
+        Rectangle b = BoxEntita(en);
+        Vector2 s = Schermo(b.x + b.width / 2, b.y + b.height / 2);
+        if (s.x < -r * zoom || s.x > VW + r * zoom || s.y < -r * zoom || s.y > VH + r * zoom) continue;
+        luci.push_back({ s.x, s.y, r * zoom });
+    }
+    for (const Proiettile& q : proiettili) { Vector2 s = Schermo(q.pos.x, q.pos.y); luci.push_back({ s.x, s.y, 22 * zoom }); }
+    const int passo = 6;
+    const int nx = VW / passo + 2, ny = VH / passo + 2;
+    std::vector<unsigned char> a((size_t)nx * ny);
+    for (int j = 0; j < ny; j++)
+        for (int i = 0; i < nx; i++) {
+            float x = (float)i * passo, y = (float)j * passo, l = 0;
+            for (const Luce& L : luci) {
+                float dx = x - L.x, dy = y - L.y, d2 = dx * dx + dy * dy;
+                if (d2 >= L.r * L.r) continue;
+                float v = 1 - std::sqrt(d2) / L.r;
+                v = v * v * (3 - 2 * v);
+                l = std::max(l, v);
+            }
+            a[(size_t)j * nx + i] = (unsigned char)(255 * buio * (1 - l));
+        }
+    const Color base = Hex(0x05040f);
+    auto C = [&](int i, int j) { Color c = base; c.a = a[(size_t)j * nx + i]; return c; };
+    for (int j = 0; j + 1 < ny; j++)
+        for (int i = 0; i + 1 < nx; i++) {
+            Color c00 = C(i, j), c10 = C(i + 1, j), c01 = C(i, j + 1), c11 = C(i + 1, j + 1);
+            if (c00.a == 0 && c10.a == 0 && c01.a == 0 && c11.a == 0) continue;
+            DrawRectangleGradientEx({ (float)i * passo, (float)j * passo, (float)passo, (float)passo }, c00, c01, c11, c10);
+        }
+    // un alone caldo intorno alla lanterna dell'eroe
+    BeginBlendMode(BLEND_ADDITIVE);
+    DrawCircleGradient((int)e.x, (int)e.y, 40 * zoom * tremolio, Hex(0xffc860, (unsigned char)(38 * buio)), Hex(0xffc860, 0));
+    EndBlendMode();
 }

@@ -90,7 +90,7 @@ struct PersonaggioDef {
 };
 
 enum class FunzioneOggetto { Decorazione, Raccogli, Cura, Chiave, Porta, Molla, Cassa, Interruttore, PiattaformaMobile,
-                             Pericolo, Arrivo, Proiettile, Totale };
+                             Pericolo, Arrivo, Proiettile, Controllo, Totale };
 const char* NomeFunzione(FunzioneOggetto f);
 const char* ChiaveFunzione(FunzioneOggetto f);
 
@@ -121,7 +121,9 @@ struct Scenario {
     bool cieloPersonale = false;
     Color cieloAlto = Hex(0x3f8ff0), cieloBasso = Hex(0xb9e3ff);
     std::vector<StratoSfondo> strati;
-    int pioggia = 0;               // 0 niente, 1 pioggia, 2 neve
+    int pioggia = 0;               // 0 niente, 1 pioggia, 2 neve, 3.. atmosfere (lucciole, braci, polvere...)
+    float buio = 0;                // 0 luce del giorno .. 1 buio pesto: si vede solo vicino alle luci
+    bool acqua = false;            // sott'acqua: si nuota (gravita' bassa, salti infiniti)
 };
 
 // Aspetto personalizzato di un tipo di casella ('#', '=', '-', '^', '.').
@@ -129,6 +131,7 @@ struct CasellaDef {
     char carattere = '#';
     std::string nome;
     Disegno disegno;               // 1 animazione, uno o piu' fotogrammi
+    std::string scenario;          // vuoto = in tutte le mappe; altrimenti solo nelle mappe con questo scenario
 };
 
 // --- Suoni e musica ------------------------------------------------------------------------
@@ -191,6 +194,7 @@ const std::vector<std::string>& NomiAzione();
 struct ProgettoGioco {
     StileGrafico stile = StileGrafico::PixelFine;
     std::string eroe;              // personaggio della libreria che fa da eroe (vuoto = quello predefinito)
+    std::string eroe2;             // eroe del giocatore 2 nella partita a turni (vuoto = lo stesso)
     Mondo mondo;
     std::vector<PersonaggioDef> personaggi;
     std::vector<OggettoDef> oggetti;
@@ -215,6 +219,8 @@ struct ProgettoGioco {
     const OggettoDef* Oggetto(const std::string& nome) const;
     const Scenario* TrovaScenario(const std::string& nome) const;
     const CasellaDef* Casella(char c) const;
+    // Caselle da usare in una mappa con quello scenario: prima quelle dello scenario, poi quelle comuni.
+    std::vector<std::pair<char, const Disegno*>> CaselleScenario(const std::string& scenario) const;
     const Brano* TrovaBrano(const std::string& nome) const;
     const EffettoSuono* TrovaEffetto(const std::string& nome) const;
     std::string NomeLibero(const std::string& base) const;   // "Drago", "Drago 2"...

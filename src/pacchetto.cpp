@@ -78,6 +78,11 @@ bool LeggiPacchettoIncluso(std::string& dati) {
 bool CreaEseguibile(const std::string& destinazione, const std::string& dati, std::string& errore) {
     std::string exe;
     if (!LeggiFile(PercorsoEseguibile(), exe)) { errore = "non riesco a leggere lo studio"; return false; }
+    return CreaEseguibileDa(exe, destinazione, dati, errore);
+}
+
+bool CreaEseguibileDa(const std::string& base, const std::string& destinazione, const std::string& dati, std::string& errore) {
+    std::string exe = base;
     exe.resize(DimensioneEseguibile(exe, nullptr));
     std::ofstream f(destinazione, std::ios::binary);
     if (!f) { errore = "non riesco a scrivere " + destinazione; return false; }

@@ -136,6 +136,9 @@ private:
     std::set<std::pair<int, int>> energiaNotificata;
     std::vector<std::string> nuoveRegoleInizio;
     int pioggia = 0, appoggio = -1, dialogo = -1;
+    float buio = 0;                 // scenari bui: si vede solo vicino alle luci
+    bool acqua = false;             // scenari sott'acqua: si nuota
+    void DisegnaBuio(float cx, float cy) const;
     float asseInput = 0;
     void PreparaLibreria();
     void EntitaDellaMappa(const Mappa& m);
@@ -181,5 +184,6 @@ private:
     float camX = 0, camY = 0, scossa = 0;
     float coyote = 0, bufferSalto = 0, tFine = 0, tPasso = 0;
     bool saltoTagliato = false;
+    int saltiFatti = 0;
     float tempoVisivo = 0;
 };

@@ -4,6 +4,7 @@
 namespace {
 std::map<std::string, std::string> dati;       // nome -> contenuto del file
 std::map<std::string, Texture2D> texture;      // gia' caricate (id 0 = non leggibile)
+bool lisce = false;                            // grafica disegnata HD: filtro morbido
 
 std::string Estensione(const std::string& nome) {
     size_t p = nome.find_last_of('.');
@@ -48,10 +49,16 @@ Texture2D Immagine(const std::string& nome) {
         Image img = LoadImageFromMemory(Estensione(nome).c_str(), (const unsigned char*)d->second.data(), (int)d->second.size());
         if (img.data) {
             tex = LoadTextureFromImage(img);
-            SetTextureFilter(tex, TEXTURE_FILTER_POINT);   // pixel art nitida
+            SetTextureFilter(tex, lisce ? TEXTURE_FILTER_BILINEAR : TEXTURE_FILTER_POINT);   // pixel art nitida o HD liscia
             UnloadImage(img);
         }
     }
     texture[nome] = tex;
     return tex;
+}
+
+void ImmaginiLisce(bool si) {
+    if (si == lisce) return;
+    lisce = si;
+    LiberaImmagini();
 }

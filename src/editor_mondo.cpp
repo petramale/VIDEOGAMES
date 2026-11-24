@@ -178,7 +178,7 @@ void EditorMondo::Ricostruisci() {
     std::string errore;
     if (!vista.DaMappa(M(), errore)) Avvisa("Mappa non valida: " + errore);
     vista.caselleLibreria.clear();
-    if (progetto) for (auto& c : progetto->caselle) vista.caselleLibreria.push_back({ c.carattere, &c.disegno });
+    if (progetto) vista.caselleLibreria = progetto->CaselleScenario(M().scenarioLibreria);
     sfondo.tema = M().tema; sfondo.ora = M().ora;
     sfondo.generato = M().sfondoGenerato;
     sfondo.cieloPersonale = M().cieloPersonale;

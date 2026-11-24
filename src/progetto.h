@@ -11,6 +11,7 @@ struct ParametriFisica {
     float salto = 305;       // velocita' iniziale del salto
     float velocita = 115;    // velocita' massima di corsa
     float molla = 470;       // spinta della molla
+    int saltiInAria = 0;     // salti in piu' a mezz'aria (1 = doppio salto)
 };
 
 // Tipo di gioco: cambia regole, comandi e visuale.

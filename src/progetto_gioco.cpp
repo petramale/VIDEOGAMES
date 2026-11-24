@@ -51,6 +51,7 @@ const char* NomeFunzione(FunzioneOggetto f) {
         case FunzioneOggetto::Pericolo: return "Pericolo (fa male)";
         case FunzioneOggetto::Arrivo: return "Arrivo (vittoria)";
         case FunzioneOggetto::Proiettile: return "Proiettile";
+        case FunzioneOggetto::Controllo: return "Punto di controllo";
         default: return "";
     }
 }
@@ -69,6 +70,7 @@ const char* ChiaveFunzione(FunzioneOggetto f) {
         case FunzioneOggetto::Pericolo: return "pericolo";
         case FunzioneOggetto::Arrivo: return "arrivo";
         case FunzioneOggetto::Proiettile: return "proiettile";
+        case FunzioneOggetto::Controllo: return "controllo";
         default: return "";
     }
 }
@@ -361,7 +363,7 @@ bool DisegnoDaJson(const json& j, Disegno& d, std::string& errore) {
     if (j.contains("palette")) palette = LeggiPalette(j["palette"]);
     auto LeggiAnimazione = [&](const json& ja, Animazione& a) -> bool {
         Leggi(ja, "nome", a.nome); Leggi(ja, "fps", a.fps); Leggi(ja, "ripeti", a.ripeti);
-        a.fps = Limita(a.fps, 0.5f, 60);
+        a.fps = a.fps <= 0 ? 0 : Limita(a.fps, 0.5f, 60);   // 0: varianti fisse (caselle)
         std::map<char, Color> pal = palette;
         if (ja.contains("palette")) for (auto& p : LeggiPalette(ja["palette"])) pal[p.first] = p.second;
         if (!ja.contains("fotogrammi") || !ja["fotogrammi"].is_array()) return true;
@@ -491,6 +493,8 @@ json ScenarioJson(const Scenario& s) {
     json j = { { "nome", s.nome }, { "tema", s.tema }, { "ora", R(s.ora) }, { "cicloGiorno", s.cicloGiorno }, { "sfondoGenerato", s.sfondoGenerato },
                { "pioggia", s.pioggia } };
     if (!s.autore.empty()) j["autore"] = s.autore;
+    if (s.buio > 0) j["buio"] = R(s.buio);
+    if (s.acqua) j["acqua"] = true;
     if (s.cieloPersonale) j["cielo"] = { { "alto", ColoreInTesto(s.cieloAlto) }, { "basso", ColoreInTesto(s.cieloBasso) } };
     json st = json::array();
     for (auto& x : s.strati) st.push_back(StratoJson(x));
@@ -503,7 +507,8 @@ bool ScenarioDaJson(const json& j, Scenario& s, std::string& errore) {
     Leggi(j, "nome", s.nome); Leggi(j, "autore", s.autore);
     if (s.nome.empty()) { errore = "lo scenario non ha un nome"; return false; }
     Leggi(j, "tema", s.tema); Leggi(j, "ora", s.ora); Leggi(j, "cicloGiorno", s.cicloGiorno); Leggi(j, "sfondoGenerato", s.sfondoGenerato);
-    Leggi(j, "pioggia", s.pioggia);
+    Leggi(j, "pioggia", s.pioggia); Leggi(j, "buio", s.buio); Leggi(j, "acqua", s.acqua);
+    s.buio = Limita(s.buio, 0, 1);
     s.tema = (int)Limita((float)s.tema, 0, (float)Sfondo::Temi().size() - 1);
     s.ora = Limita(s.ora, 0, 1);
     if (j.contains("cielo") && j["cielo"].is_object()) {
@@ -633,6 +638,7 @@ std::string ProgettoGioco::Json(bool compatto) const {
     j["formato"] = "studio-videogiochi/gioco-1";
     j["stile"] = stile == StileGrafico::Disegnato ? "disegnato" : "pixel";
     j["eroe"] = eroe;
+    if (!eroe2.empty()) j["eroe2"] = eroe2;
     j["mondo"] = json::parse(mondo.Json(true));
     json a = json::array();
     for (auto& p : personaggi) a.push_back(PersonaggioJson(p));
@@ -640,7 +646,11 @@ std::string ProgettoGioco::Json(bool compatto) const {
     a = json::array(); for (auto& o : oggetti) a.push_back(OggettoJson(o)); j["oggetti"] = a;
     a = json::array(); for (auto& s : scenari) a.push_back(ScenarioJson(s)); j["scenari"] = a;
     a = json::array();
-    for (auto& c : caselle) a.push_back({ { "carattere", std::string(1, c.carattere) }, { "nome", c.nome }, { "disegno", DisegnoJson(c.disegno) } });
+    for (auto& c : caselle) {
+        json jc = { { "carattere", std::string(1, c.carattere) }, { "nome", c.nome }, { "disegno", DisegnoJson(c.disegno) } };
+        if (!c.scenario.empty()) jc["scenario"] = c.scenario;
+        a.push_back(jc);
+    }
     j["caselle"] = a;
     a = json::array(); for (auto& b : brani) a.push_back(BranoJson(b)); j["brani"] = a;
     a = json::array(); for (auto& e : effetti) a.push_back(EffettoJson(e)); j["effetti"] = a;
@@ -663,7 +673,7 @@ bool ProgettoGioco::DaJson(const std::string& testo, std::string& errore) {
     std::string st;
     Leggi(j, "stile", st);
     p.stile = st == "disegnato" ? StileGrafico::Disegnato : StileGrafico::PixelFine;
-    Leggi(j, "eroe", p.eroe);
+    Leggi(j, "eroe", p.eroe); Leggi(j, "eroe2", p.eroe2);
     auto Elenco = [&](const char* k) -> const json* { return j.contains(k) && j[k].is_array() ? &j[k] : nullptr; };
     if (auto a = Elenco("personaggi")) for (auto& x : *a) { PersonaggioDef d; if (!PersonaggioDaJson(x, d, errore)) return false; p.personaggi.push_back(d); }
     if (auto a = Elenco("oggetti")) for (auto& x : *a) { OggettoDef d; if (!OggettoDaJson(x, d, errore)) return false; p.oggetti.push_back(d); }
@@ -672,7 +682,7 @@ bool ProgettoGioco::DaJson(const std::string& testo, std::string& errore) {
         for (auto& x : *a) {
             CasellaDef c;
             std::string car;
-            Leggi(x, "carattere", car); Leggi(x, "nome", c.nome);
+            Leggi(x, "carattere", car); Leggi(x, "nome", c.nome); Leggi(x, "scenario", c.scenario);
             if (car.size() != 1) continue;
             c.carattere = car[0];
             if (!x.contains("disegno") || !DisegnoDaJson(x["disegno"], c.disegno, errore)) return false;
@@ -762,6 +772,12 @@ const Scenario* ProgettoGioco::TrovaScenario(const std::string& nome) const {
 const CasellaDef* ProgettoGioco::Casella(char c) const {
     for (auto& p : caselle) if (p.carattere == c) return &p;
     return nullptr;
+}
+std::vector<std::pair<char, const Disegno*>> ProgettoGioco::CaselleScenario(const std::string& scenario) const {
+    std::vector<std::pair<char, const Disegno*>> v;
+    if (!scenario.empty()) for (auto& c : caselle) if (Uguale(c.scenario, scenario)) v.push_back({ c.carattere, &c.disegno });
+    for (auto& c : caselle) if (c.scenario.empty()) v.push_back({ c.carattere, &c.disegno });
+    return v;
 }
 const Brano* ProgettoGioco::TrovaBrano(const std::string& nome) const {
     for (auto& p : brani) if (Uguale(p.nome, nome)) return &p;

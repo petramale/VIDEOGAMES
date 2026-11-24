@@ -216,12 +216,17 @@ int GiocaPacchetto(const DatiGioco& dati) {
         conProgetto = progetto.DaJson(dati.livello, errore);
         if (conProgetto) for (auto& im : progetto.immagini) AggiungiFileImmagine(im.first, im.second);
     } else ImpostaFileImmagini(dati.file);
+    int turno = 0;
     auto Carica = [&](Gioco& g) {
         g = Gioco{};
         g.titolo = dati.titolo;
         g.crediti = std::string("Creato con Studio Videogiochi di ") + SVILUPPATORE;
         std::string e;
-        bool ok = conProgetto ? g.CaricaProgetto(progetto, e) : g.Carica(dati.livello, e);
+        bool ok;
+        if (conProgetto && turno == 1 && !progetto.eroe2.empty()) {
+            ProgettoGioco p2 = progetto; p2.eroe = progetto.eroe2;   // il giocatore 2 ha il suo eroe
+            ok = g.CaricaProgetto(p2, e);
+        } else ok = conProgetto ? g.CaricaProgetto(progetto, e) : g.Carica(dati.livello, e);
         if (!ok) errore = e;
         return ok;
     };
@@ -233,7 +238,7 @@ int GiocaPacchetto(const DatiGioco& dati) {
     enum class Fase { Menu, Opzioni, Crediti, Licenze, Gioca, Pausa, Cambio, Risultati };
     Fase fase = Fase::Menu;
     MenuGioco menu, menuOpzioni, menuPausa;
-    int giocatori = 1, turno = 0;
+    int giocatori = 1;
     int punti[2] = { 0, 0 };
     float tFase = 0, tFine = 0, tempo = 0;
     float scorriLicenze = 0;
@@ -728,6 +733,9 @@ int VerificaProgetti() {
 
 int main(int argc, char** argv) {
     if (argc > 2 && std::string(argv[1]) == "--prova-arte") { extern int ProvaArte(const char*); extern int ProvaPaesaggio(const char*); ProvaPaesaggio(argv[2]); return ProvaArte(argv[2]); }
+    if (argc > 3 && std::string(argv[1]) == "--crea-platform") { extern int CreaPlatformDaRigaDiComando(int, char**); return CreaPlatformDaRigaDiComando(argc, argv); }
+    if (argc > 2 && std::string(argv[1]) == "--prova-livelli") { extern int ProvaLivelliDaRigaDiComando(int, char**); return ProvaLivelliDaRigaDiComando(argc, argv); }
+    if (argc > 3 && std::string(argv[1]) == "--foto-gioco") { extern int FotoGiocoDaRigaDiComando(int, char**); return FotoGiocoDaRigaDiComando(argc, argv); }
     if (argc > 1 && std::string(argv[1]) == "--crea") return CreaDaRigaDiComando(argc, argv);
     if (argc > 1 && std::string(argv[1]) == "--verifica-mondi") { int e = VerificaMondi(); e += VerificaProgetti(); return e ? 1 : 0; }
     if (argc > 2 && std::string(argv[1]) == "--esporta-mondi") {
