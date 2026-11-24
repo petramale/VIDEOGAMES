@@ -105,3 +105,78 @@ struct OpzioniDisegno {
 Disegno CreaDisegno(const DisegnaPersonaggio& f, const OpzioniDisegno& o);
 
 }  // namespace arte
+
+// =====================================================================================
+// Paesaggi: primitive per gli strati dello sfondo (tutte in coordinate "logiche": lo schermo
+// e' 1280x720, uno strato ripetibile e' largo LS = 1920). La Tela puo' avere una risoluzione
+// diversa: chi chiama imposta la scala con K::scale prima di disegnare.
+// =====================================================================================
+namespace arte {
+constexpr float LS = 1920, HS = 720;
+
+struct Caso {   // numeri pseudo-casuali ripetibili
+    unsigned s;
+    explicit Caso(unsigned seme) : s(seme * 2654435761u + 12345u) { if (!s) s = 1; }
+    float operator()() { s ^= s << 13; s ^= s >> 17; s ^= s << 5; return (s % 1000003u) / 1000003.f; }
+};
+std::function<float(float)> RumorePeriodico(unsigned seme, int n, float caduta);
+void Ripeti(float x, float w, const std::function<void(float)>& f);   // disegna anche a x-LS / x+LS ai bordi
+
+struct Cresta {   // montagne e colline (ridge)
+    unsigned seme = 1; float base = 400, amp = 150; int k = 36; float fall = 1.05f; bool punte = false, soffitto = false;
+    std::string top, bot, light, shade, haze, strata; float hazeA = 0.55f, neve = 0, facet = 1; bool lava = false;
+};
+void DisegnaCresta(K& c, const Cresta& o);
+void RiempiSotto(K& c, float y, const std::string& col, const std::string& col2 = "");
+struct ColoriAlbero { std::string trunk, dark, mid, light, rim, spec, fruit; bool snow = false; };
+void Pino(K& c, float x, float y, float h, const ColoriAlbero& o);
+void AlberoTondo(K& c, float x, float y, float h, const ColoriAlbero& o, unsigned seme);
+void Palma(K& c, float x, float y, float h, const ColoriAlbero& o, unsigned seme);
+void Felce(K& c, float x, float y, float h, const ColoriAlbero& o, unsigned seme);
+void Cactus(K& c, float x, float y, float h, const ColoriAlbero& o);
+struct ColoriFungo { std::string stalk, stalkL, cap, dot; };
+void Fungo(K& c, float x, float y, float h, const ColoriFungo& o, unsigned seme);
+struct ColoriFiore { std::string stem, leaf, p1, p2; };
+void Fiore(K& c, float x, float y, float h, const ColoriFiore& o, unsigned seme);
+struct ColoriCristallo { std::string dark, mid, light, glow; };
+void Cristalli(K& c, float x, float y, float h, const ColoriCristallo& o, unsigned seme);
+struct ColoriEdificio { std::string wall, dark, win, win2, roof, roofc, neon, frame; float lit = 0.3f; bool chim = false, brick = false; float ww = 8, wh = 12, gx = 16, gy = 22; };
+void Edificio(K& c, float x, float y, float w, float h, const ColoriEdificio& o, unsigned seme);
+struct ColoriCastello { std::string stone, roof, flag, win, banner; };
+void Castello(K& c, float x, float y, float s, const ColoriCastello& o);
+void Piramide(K& c, float x, float y, float w, const std::string& chiaro, const std::string& scuro);
+void Colonna(K& c, float x, float y, float h, float w, const std::string& col, const std::string& fascia);
+void Ingranaggio(K& c, float x, float y, float r, const std::string& col, const std::string& buco, float rot);
+void Tubi(K& c, float y0, const std::string& col, unsigned seme);
+void Ciminiera(K& c, float x, float y, float h, float w, const std::string& col, const std::string& fascia);
+void Mesa(K& c, float x, float y, float w, float h, const std::string& chiaro, const std::string& medio, const std::string& scuro, const std::string& fascia, const std::string& cima);
+void Isola(K& c, float x, float y, float w, const std::string& terra, const std::string& erba, const ColoriAlbero& albero, unsigned seme);
+void Corallo(K& c, float x, float y, float h, const std::string& col, unsigned seme);
+void Alga(K& c, float x, float y, float h, const std::string& col, unsigned seme);
+void Cubo(K& c, float x, float y, float s, const std::string& col);
+struct ColoriNuvola { std::string base, light, shadow; };
+void Nuvola(K& c, float x, float y, float w, const ColoriNuvola& o, unsigned seme);
+void Nave(K& c, float x, float y, float s);
+// fila di elementi lungo lo strato (alberi, funghi...): f(x, base, altezza, seme)
+void Fila(unsigned seme, float base, float hmin, float hmax, float passo, const std::function<void(float, float, float, unsigned)>& f);
+
+// Cielo fisso (immagine 1280x720 logici): sfumatura, sole/luna/eclissi, stelle, aurora.
+struct Cielo {
+    std::vector<std::string> fermate;
+    bool stelle = false, aurora = false, raggi = false;
+    float sole[3] = { 0, 0, 0 }; std::string coloreSole;
+    float luna[3] = { 0, 0, 0 }; std::string coloreLuna;
+    float eclissi[3] = { 0, 0, 0 };
+    std::vector<std::pair<float, ColoriNuvola>> nuvole;   // y, colori (sparse sul cielo)
+};
+void DisegnaCielo(K& c, const Cielo& s);
+
+// Materiali del terreno: disegnati in una striscia (x0..x0+w, da y0 in giu').
+struct Materiale {
+    std::string kind = "grass", body = "#7a4a2a", top = "#6aa83a", glow, moss, stripe1, stripe2, neon;
+    std::vector<std::string> blades, flowers, cols;
+};
+void DisegnaMateriale(K& c, float x0, float w, float y0, float h, const Materiale& m, unsigned seme);
+// Primo piano scuro e sfocato (foglie, rocce, spine, pali)
+void PrimoPiano(K& c, const std::string& col, const std::string& tipo);
+}  // namespace arte
