@@ -175,7 +175,37 @@ e gli avvisi delle licenze, e di non estrarre il motore o le risorse incluse. Ne
 mappe che crei sono tuoi; immagini e suoni importati devono essere tuoi o usabili liberamente.
 La licenza completa dello studio è in `LICENSE.txt`, gli avvisi delle librerie nella cartella `licenses`.
 
-## 13. Tasti utili
+## 13. I tre grandi giochi di piattaforme
+
+Nel menu **Gioco → Apri** ci sono tre giochi completi, in fondo all'elenco (**Grandi giochi di piattaforme**).
+Si aprono come qualsiasi altro gioco: si provano con **F5**, si cambiano in tutte le sezioni, si salvano con
+**Ctrl+S** e si trasformano in .exe con **Ctrl+E**. Ognuno ha 6 mondi con 3 livelli e un guardiano (24 mappe),
+30 nemici e 6 boss disegnati apposta, 8 musiche, effetti sonori propri e due eroi (il secondo è quello del giocatore 2).
+
+| Gioco | Stile | Eroi | Mondi |
+| --- | --- | --- | --- |
+| **Lumina: le Lanterne del Mondo Spento** | disegnato HD | Lia e la lucciola Pip | Bosco delle Lucciole, Miniere di Cristallo, Città dei Tetti, Ghiacciaio dell'Aurora, Fonderia dei Vapori, Torre dell'Eclissi |
+| **Nora e Bullone: gli Ingranaggi del Tempo** | pixel art fine | Nora e il robot Bullone | Preistoria, Antico Egitto, Medioevo, Caraibi, Far West, Anno 3000 |
+| **Nilo e il Regno Capovolto** | pixel art fine | Nilo e il pinguino Fiocco | Isole del Vento, Giardino dei Giganti, Abissi di Corallo, Fabbrica dei Giocattoli, Cuore del Vulcano, Castello Sottosopra |
+
+Come si gioca: frecce o levetta per correre, **Spazio** salta (premuto di nuovo in aria fa il **doppio salto**),
+**X** lancia (raggio di luce, chiave inglese, stelle...). Le **lanterne / i lampioni / le bandierine** sono punti di
+controllo: toccati, da lì si riparte. Le **chiavi** aprono le porte chiuse; il cancello alla fine del livello del
+guardiano si apre solo dopo averlo sconfitto. Le **molle** (fiori, funghi) fanno saltare altissimo.
+
+Novità del motore usate da questi giochi, disponibili anche nei tuoi:
+- **Buio** (Scenari → Buio, da 0 a 1): si vede solo intorno all'eroe, alle monete, alle lanterne e ai colpi. In *Lumina* ogni regno è al buio.
+- **Sott'acqua** (Scenari → Sott'acqua): si nuota premendo più volte il salto, si affonda piano (*Abissi di Corallo*).
+- **Doppio salto** (Personaggi → l'eroe → Salti in aria).
+- **Punto di controllo** (Oggetti → funzione "Punto di controllo").
+- **Caselle legate a uno scenario**: ogni mondo ha il suo terreno; nell'editor dei Mondi si vedono le caselle dello scenario della mappa.
+- **Meteo** nuovi: lucciole, braci, polvere, bolle, foglie, polline, coriandoli, magia.
+- **Secondo eroe** per il giocatore 2.
+
+Gli stessi giochi si possono creare anche da riga di comando:
+`StudioVideogiochi --crea-platform A|B|C file.gioco [Gioco.exe]` (A Lumina, B Nora e Bullone, C Nilo).
+
+## 14. Tasti utili
 
 | Tasto | Dove | Cosa fa |
 | --- | --- | --- |
@@ -193,7 +223,7 @@ La licenza completa dello studio è in `LICENSE.txt`, gli avvisi delle librerie 
 | Ctrl+C, Ctrl+V | Mondi | copia e incolla l'oggetto o i blocchi selezionati |
 | Esc | Mondi | toglie la selezione |
 
-## 14. File e cartelle
+## 15. File e cartelle
 
 | Percorso | Contenuto |
 | --- | --- |

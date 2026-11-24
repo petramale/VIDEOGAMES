@@ -354,6 +354,10 @@ void Officina::Personaggi(Rectangle r, float dt) {
     };
     Num("p_vel", "Velocita'", c.velocita, 0, 400, 10);
     Num("p_salto", "Salto", c.salto, 0, 600, 20);
+    if (c.tipo == TipoComportamento::Giocatore) {
+        Rectangle rr = col.Riga(28);
+        if (col.Vede(rr) && Ui::NumeroIntero("p_aria", rr, "Salti in aria (gioco)", progetto.mondo.fisica.saltiInAria, 0, 3)) { cambiato = true; MondoCambiato(); }
+    }
     NumI("p_en", "Energia (colpi)", c.energia, 1, 99);
     NumI("p_danno", "Danno (cuori)", c.danno, 0, 9);
     Num("p_vista", "Vista (pixel)", c.vista, 0, 600, 20);
@@ -697,6 +701,8 @@ void Officina::Scenari(Rectangle r, float dt) {
     }
     q = col.Riga(28);
     if (col.Vede(q) && Ui::Scelta(q, "Meteo", sc.pioggia, { "Sereno", "Pioggia", "Neve", "Lucciole", "Braci", "Polvere", "Bolle", "Foglie", "Polline", "Coriandoli", "Magia" })) cambiato = true;
+    q = col.Riga(28); if (col.Vede(q) && Ui::Numero("s_buio", q, "Buio (0-1)", sc.buio, 0, 1, 0.05f, "%.2f")) cambiato = true;
+    Leva("Sott'acqua (si nuota)", sc.acqua);
     col.Sezione("STRATI");
     for (int i = 0; i < (int)sc.strati.size(); i++) {
         q = col.Riga(28);

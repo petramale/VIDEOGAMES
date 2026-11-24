@@ -7,6 +7,7 @@
 #include "interfaccia.h"
 #include "pacchetto.h"
 #include "periferiche.h"
+#include "platform_tre.h"
 #include "progetto_json.h"
 #include "raccolte.h"
 #include "sistema.h"
@@ -688,6 +689,29 @@ void Officina::Finestre() {
                         Avvisa("Esempio aperto: salvalo con Ctrl+S per farne il tuo gioco");
                     }
                 }
+            }
+            // I tre grandi giochi di piattaforme: vengono disegnati sul momento (qualche secondo).
+            yy += ((esempi.size() + 1) / 2) * (h + 6 * s) + 14 * s;
+            Ui::Testo("GRANDI GIOCHI DI PIATTAFORME (24 livelli ciascuno)", x, yy, Ui::TestoSpento(), Ui::TP());
+            yy += 26 * s;
+            const char* grandi[] = { "Lumina: le Lanterne del Mondo Spento", "Nora e Bullone: gli Ingranaggi del Tempo", "Nilo e il Regno Capovolto" };
+            for (int i = 0; i < 3; i++) {
+                Rectangle b = { x, yy, w, h };
+                if (Ui::Pulsante(b, grandi[i]) && CheckCollisionPointRec(GetMousePosition(), lista)) {
+                    progetto = i == 0 ? piatt::CreaLumina() : i == 1 ? piatt::CreaNoraEBullone() : piatt::CreaNilo();
+                    percorso.clear();
+                    selPersonaggio = selOggetto = selScenario = selCasella = selBrano = selEffetto = selRegola = 0;
+                    for (auto& im : progetto.immagini) AggiungiFileImmagine(im.first, im.second);
+                    annulla.clear(); ripeti.clear();
+                    editorDisegno.Chiudi();
+                    editorMondo.Apri(progetto.mondo, "", "");
+                    LibreriaCambiata();
+                    modificato = true;
+                    finestra = 0;
+                    Vai(Sezione::Mondi);
+                    Avvisa(std::string(grandi[i]) + " aperto: premi F5 per giocare, Ctrl+S per salvarlo");
+                }
+                yy += h + 6 * s;
             }
             Ui::FineRitaglio();
             break;
