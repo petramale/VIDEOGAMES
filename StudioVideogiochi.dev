@@ -28,7 +28,7 @@ Folders=raylib,studio
 IncludeVersionInfo=0
 SupportXPThemes=0
 CompilerSet=0
-UnitCount=79
+UnitCount=80
 
 [Unit1]
 FileName=src\audio.cpp
@@ -813,6 +813,16 @@ BuildCmd=
 
 [Unit79]
 FileName=src\platform_lumina.cpp
+CompileCpp=1
+Folder=studio
+Compile=1
+Link=1
+Priority=1000
+OverrideBuildCmd=0
+BuildCmd=
+
+[Unit80]
+FileName=src\platform_nilo.cpp
 CompileCpp=1
 Folder=studio
 Compile=1

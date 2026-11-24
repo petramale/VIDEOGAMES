@@ -258,6 +258,8 @@ void Gioco::Fisica(float dt, const Comandi& c) {
     float piediPrima = eroe.pos.y;
     MuoviConCollisioni(eroe.pos, eroe.vel, Eroe::LARGHEZZA, Eroe::ALTEZZA - 2, dt, eroe.aTerra, true);
     if (conLibreria) SolidiEntita(eroe.pos, eroe.vel, Eroe::LARGHEZZA, Eroe::ALTEZZA - 2, piediPrima, eroe.aTerra, -1);
+    // Sott'acqua non si esce dalla superficie (in cima alla mappa).
+    if (acqua && eroe.pos.y < 3 * TILE + Eroe::ALTEZZA) { eroe.pos.y = 3 * TILE + Eroe::ALTEZZA; eroe.vel.y = std::max(eroe.vel.y, 0.0f); }
 
     if (eroe.aTerra && !eraATerra) {
         eroe.CambiaStato(StatoEroe::Atterraggio);

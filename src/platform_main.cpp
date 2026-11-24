@@ -10,7 +10,6 @@
 #include <sstream>
 
 namespace piatt {
-ProgettoGioco CreaNilo() { return ProgettoGioco(); }
 }
 
 static bool LeggiTutto(const std::string& f, std::string& s) {
@@ -114,6 +113,9 @@ int ProvaLivelliDaRigaDiComando(int argc, char** argv) {
             for (int k = 0; k < 4; k++) { char ch = mp.Casella(tf, tg + k); if (ch == '#' || ch == '=' || ch == '-') { buco = false; break; } }
             char sotto = mp.Casella(tf, tg);
             bool spine = sotto == '^';
+            // vicino all'arrivo smette di saltare (sott'acqua altrimenti ci passerebbe sopra a nuoto)
+            for (auto& om : mp.oggetti) for (auto& o : q.oggetti)
+                if (o.funzione == FunzioneOggetto::Arrivo && o.nome == om.tipo && om.x > g.eroe.pos.x - 40 && om.x - g.eroe.pos.x < 40) { muro = buco = spine = false; fermoDa = 0; if (!g.eroe.aTerra && std::fabs(om.x - g.eroe.pos.x) < 24) c.asse = om.x > g.eroe.pos.x ? 0.3f : -0.3f; }
             tSalto--;
             if (g.eroe.aTerra && (muro || buco || spine || fermoDa > 0.3f) && tSalto <= 0) { c.salto = c.saltoPremuto = true; tSalto = 26; salti++; }
             else if (!g.eroe.aTerra && g.eroe.vel.y > 20 && (buco || muro || spine) && tSalto <= 0) { c.salto = c.saltoPremuto = true; tSalto = 30; }
