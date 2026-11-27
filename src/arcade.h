@@ -125,6 +125,8 @@ public:
 std::unique_ptr<GiocoArcade> Crea(const std::string& nome);
 // Il progetto .gioco d'esempio di un gioco arcade: dati predefiniti, musica e titolo, pronto per lo Studio.
 ProgettoGioco ProgettoArcade(const std::string& nome);
+ProgettoGioco ProgettoArcadeNuovo(const std::string& nome, const std::string& titolo);   // un livello solo, da riempire
+nlohmann::json DatiNuovoArcade(const std::string& nome);
 // Fonde i dati salvati con quelli predefiniti (le chiavi mancanti prendono il valore predefinito).
 nlohmann::json Unisci(const nlohmann::json& predefinito, const nlohmann::json& dati);
 // Rimette i dati nei limiti dello schema: quanti elementi negli elenchi, numeri fra min e max,

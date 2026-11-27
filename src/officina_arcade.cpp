@@ -37,7 +37,7 @@ std::string NomeElemento(const json& schema, const json& dati, const json& cat, 
 bool Officina::SezioneVisibile(int i) const {
     Sezione s = (Sezione)i;
     if (progetto.EArcade()) return s == Sezione::Home || s == Sezione::Arcade || s == Sezione::Audio || s == Sezione::Comandi;
-    return s != Sezione::Arcade;
+    return true;   // la scheda Gioco arcade c'e' sempre: da li' si aprono i quattro giochi arcade
 }
 
 void Officina::SincronizzaArcade() {
@@ -67,10 +67,7 @@ void Officina::ArcadeCambiato() {
 
 void Officina::Arcade(Rectangle r, float dt) {
     float s = Ui::S();
-    if (!progetto.EArcade()) {
-        Ui::TestoACapo("Questo gioco e' a mappe: per un gioco arcade usa Gioco > Nuovo gioco e scegli uno dei giochi arcade.", r.x + 30 * s, r.y + 30 * s, r.width - 60 * s, Ui::TestoChiaro(), Ui::T());
-        return;
-    }
+    if (!progetto.EArcade() || sceltaArcade) { SceltaArcade(r); return; }
     SincronizzaArcade();
     if (!schemaArcade.is_array() || schemaArcade.empty()) return;
     catArcade = std::max(0, std::min(catArcade, (int)schemaArcade.size() - 1));
@@ -95,8 +92,10 @@ void Officina::Arcade(Rectangle r, float dt) {
         }
         y += 46 * s;
     }
-    Ui::TestoACapo("Le modifiche si vedono subito nell'anteprima. F5 prova il gioco dal livello scelto; Crea .exe fa il gioco completo.",
+    float hGuida = Ui::TestoACapo("Le modifiche si vedono subito nell'anteprima. F5 prova il gioco dal livello scelto; Crea .exe fa il gioco completo.",
                    rc.x + 12 * s, y + 10 * s, rc.width - 24 * s, Ui::TestoSpento(), Ui::TP());
+    if (Ui::Pulsante({ rc.x + 8 * s, y + 20 * s + hGuida, rc.width - 16 * s, 36 * s }, "Come si usa?", true)) guidaArcade = true;
+    if (Ui::Pulsante({ rc.x + 8 * s, y + 62 * s + hGuida, rc.width - 16 * s, 36 * s }, "Altri giochi arcade")) sceltaArcade = true;
 
     // --- elenco degli elementi ---
     float x0 = rc.x + rc.width;
@@ -356,4 +355,82 @@ void Officina::FrameProvaArcade(float dt) {
     std::string t = "PROVA  " + provaArcade->Tappa() + "    Esc o F5: torna allo studio   R: ricomincia   Pag Su / Pag Giu: livello precedente / successivo   F7 musica   F6 effetti";
     DrawText(t.c_str(), 12, (int)(sh - dim * 1.35f), dim, Hex(0xc8d0f0));
     postoAudio = { sw - hb - 4, sh - hb + 2, hb - 4, hb - 4 };
+}
+
+// --- La scelta del gioco arcade (quando il gioco aperto e' a mappe) ---------------------------------
+
+void Officina::SceltaArcade(Rectangle r) {
+    float s = Ui::S();
+    float x = r.x + 40 * s, y = r.y + 26 * s, w = std::min(r.width - 80 * s, 1300 * s);
+    Ui::TestoForte("Giochi arcade", x, y, Ui::Accento(), (int)(30 * s));
+    if (progetto.EArcade() && Ui::Pulsante({ x + w - 300 * s, y, 300 * s, 40 * s }, "Torna a " + arcade::TitoloDi(progetto.arcade), true)) sceltaArcade = false;
+    y += 52 * s;
+    Ui::Aiuto("Crea un gioco arcade tuo: scegli il tipo (sparatutto, corri e spara, avventura) e il titolo.");
+    if (Ui::Pulsante({ x, y, 420 * s, 56 * s }, "+  Crea un gioco arcade nuovo", true)) {
+        genereNuovo = (int)Genere::Totale; arcadeEsempio = 0; titoloNuovo = "Il mio gioco arcade"; finestra = 1;
+    }
+    y += 70 * s;
+    y += Ui::TestoACapo("Oppure parti da uno dei quattro esempi completi e cambialo come vuoi: livelli, ondate, nemici, boss, colori, "
+                        "velocita', musica ed effetti sonori.",
+                        x, y, w, Ui::TestoChiaro(), Ui::T()) + 18 * s;
+    const auto& nomi = arcade::Nomi();
+    const char* desc[] = { "Sparatutto a ondate: 30 ondate in 6 cieli, alieni di cristallo, barriere, disco bonus e potenziamenti.",
+                           "Sparatutto a formazioni: 15 livelli in 5 settori, insetti in picchiata, un boss ogni 3 livelli.",
+                           "Corri e spara nel West: 10 missioni con boss, ostaggi da liberare, dinamite e il carro Bisonte.",
+                           "Avventura isometrica dipinta: 12 capitoli, missioni, mercato, ricette, combattimenti e mappa." };
+    float cw = (w - 12 * s) / 2, ch = 128 * s;
+    for (int i = 0; i < (int)nomi.size() && i < 4; i++) {
+        Rectangle c = { x + (i % 2) * (cw + 12 * s), y + (i / 2) * (ch + 12 * s), cw, ch };
+        bool sopra = Ui::MouseSu(c);
+        DrawRectangleRounded(c, 0.1f, 8, sopra ? Hex(0x1f2556) : Ui::Pannello());
+        DrawRectangleRoundedLinesEx(c, 0.1f, 8, sopra ? 2.0f : 1.0f, sopra ? Ui::Accento() : Ui::Bordo());
+        Ui::TestoForte(arcade::TitoloDi(nomi[i]), c.x + 16 * s, c.y + 14 * s, WHITE, Ui::T());
+        Ui::TestoACapo(desc[i], c.x + 16 * s, c.y + 44 * s, c.width - 220 * s, Ui::TestoSpento(), Ui::TP());
+        if (Ui::Pulsante({ c.x + c.width - 190 * s, c.y + c.height - 56 * s, 174 * s, 40 * s }, "Apri e modifica", true)) {
+            sceltaArcade = false;
+            ApriArcade(nomi[i]);
+            guidaArcade = true;
+            return;
+        }
+    }
+    y += 2 * (ch + 12 * s) + 16 * s;
+    Ui::Testo("Come si fa, in 4 passi", x, y, Ui::Accento(), Ui::T());
+    y += 30 * s;
+    const char* passi[] = {
+        "1.  Premi \"Crea un gioco arcade nuovo\", scrivi il titolo, scegli il tipo e premi \"Crea il gioco\" (o \"Apri e modifica\" su un esempio).",
+        "2.  A sinistra scegli cosa cambiare (Livelli/Ondate, Nemici, Boss...); al centro + Nuovo aggiunge un livello; a destra cambi numeri e colori.",
+        "3.  Premi F5 per giocare e provare subito. Ctrl+S salva il gioco (un file .gioco) per riaprirlo dopo.",
+        "4.  Premi \"Crea .exe\" in alto a destra: nasce il gioco da dare agli amici. Musica ed effetti si cambiano nella scheda Audio." };
+    for (auto p : passi) y += Ui::TestoACapo(p, x + 10 * s, y, w - 10 * s, Ui::TestoChiaro(), Ui::TP()) + 8 * s;
+}
+
+// La guida che compare la prima volta che si apre un gioco arcade (e con "Come si usa?").
+void Officina::GuidaArcade() {
+    if (!GuidaArcadeAperta()) return;
+    float s = Ui::S();
+    float W = (float)GetScreenWidth(), H = (float)GetScreenHeight();
+    DrawRectangle(0, 0, (int)W, (int)H, Hex(0x000000, 140));
+    Ui::ApriModale();
+    float fw = std::min(W - 40 * s, 780 * s), fh = std::min(H - 40 * s, 400 * s);
+    Rectangle f = { (W - fw) / 2, (H - fh) / 2, fw, fh };
+    DrawRectangleRounded(f, 0.03f, 8, Ui::Pannello());
+    DrawRectangleRoundedLinesEx(f, 0.03f, 8, 2, Ui::Accento());
+    float x = f.x + 26 * s, y = f.y + 22 * s, w = fw - 52 * s;
+    Ui::TestoForte("Come si modifica " + progetto.mondo.titolo, x, y, Ui::Accento(), (int)(24 * s));
+    y += 48 * s;
+    const char* passi[] = {
+        "A sinistra ci sono le parti del gioco (livelli, nemici, boss, armi, colori...): cliccane una.",
+        "Al centro scegli l'elemento da cambiare; con + Nuovo, Duplica ed Elimina aggiungi o togli livelli e nemici.",
+        "A destra cambi i suoi valori: numeri con - e +, colori, scelte. L'anteprima mostra subito il risultato.",
+        "F5 = gioca e prova. Ctrl+S = salva il gioco. \"Crea .exe\" in alto a destra = il gioco finito.",
+        "Musica ed effetti sonori: scheda Audio. Tasti e joypad: scheda Comandi. Puoi anche chiedere a Claude nella chat." };
+    for (int i = 0; i < 5; i++) {
+        DrawCircleV({ x + 14 * s, y + 11 * s }, 13 * s, Ui::Accento());
+        Ui::TestoCentrato(std::to_string(i + 1), { x + 1 * s, y - 2 * s, 26 * s, 26 * s }, Hex(0x101428), Ui::TP());
+        y += std::max(30 * s, Ui::TestoACapo(passi[i], x + 40 * s, y, w - 40 * s, Ui::TestoChiaro(), Ui::TP())) + 12 * s;
+    }
+    if (Ui::Pulsante({ f.x + f.width - 200 * s, f.y + f.height - 62 * s, 174 * s, 42 * s }, "Ho capito", true) ||
+        (IsKeyPressed(KEY_ESCAPE) && !Ui::StaScrivendo()))
+        guidaArcade = false;
+    Ui::ChiudiModale();
 }

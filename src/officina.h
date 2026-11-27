@@ -90,7 +90,7 @@ private:
 
     // --- Home ---
     Sfondo sfondoHome;
-    int genereNuovo = 0, stileNuovo = 0, arcadeNuovo = 0;   // genereNuovo == Genere::Totale: gioco arcade
+    int genereNuovo = 0, stileNuovo = 0, arcadeNuovo = 0, arcadeEsempio = 0;   // genereNuovo == Genere::Totale: gioco arcade
     std::string titoloNuovo = "Il mio gioco";
     std::vector<std::string> elencoGiochi;
     float scorriElenco = 0;
@@ -161,6 +161,7 @@ private:
     bool simAbitante = false;
 
     // --- Gioco arcade (nuovi tipi di gioco: officina_arcade.cpp) ---
+    bool guidaArcade = true, sceltaArcade = false;   // la guida "come si usa" alla prima apertura di un gioco arcade
     int catArcade = 0, selArcade = 0, tappaAnteprima = -1, tappaProvaArcade = 0;
     float scorriCampiArcade = 0, tAnteprimaArcade = 0;
     nlohmann::json datiArcade, schemaArcade, predefinitiArcade;
@@ -176,7 +177,10 @@ private:
     void AzioneArcade(const std::string& codice);
     void AvviaProvaArcade(int tappa);
     void FrameProvaArcade(float dt);
-    void ApriArcade(const std::string& nome);
+    void ApriArcade(const std::string& nome, const std::string& titoloNuovo = "", bool vuoto = false);
+    void SceltaArcade(Rectangle r);
+    void GuidaArcade();
+    bool GuidaArcadeAperta() const { return guidaArcade && !sceltaArcade && sezione == Sezione::Arcade && progetto.EArcade() && finestra == 0; }
 
     // --- Claude ---
     ChatClaude chat;

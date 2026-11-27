@@ -48,6 +48,36 @@ ProgettoGioco ProgettoArcade(const std::string& nome) {
     return p;
 }
 
+// Un gioco arcade NUOVO, da riempire: tutto il materiale del tipo di gioco (nemici, armi, colori, musiche),
+// ma un solo livello (la prima lista dello schema: ondate, livelli, missioni, capitoli). Altri livelli
+// si aggiungono con "+ Nuovo" nella scheda Gioco arcade.
+nlohmann::json DatiNuovoArcade(const std::string& nome) {
+    auto g = Crea(nome);
+    if (!g) return nlohmann::json::object();
+    nlohmann::json d = g->Predefiniti(), schema = g->Schema();
+    for (auto& c : schema) {
+        if (!c.value("lista", false)) continue;
+        std::string k = c["chiave"];
+        int mn = c.value("min", 0), mx = c.value("max", 0);
+        if (mn == mx && mx > 0) break;   // un elenco di lunghezza fissa: si lascia com'e'
+        if (d.contains(k) && d[k].is_array() && d[k].size() > 1) {
+            size_t tieni = (size_t)std::max(1, mn);
+            nlohmann::json corto = nlohmann::json::array();
+            for (size_t i = 0; i < tieni && i < d[k].size(); i++) corto.push_back(d[k][i]);
+            d[k] = corto;
+        }
+        break;
+    }
+    return d;
+}
+
+ProgettoGioco ProgettoArcadeNuovo(const std::string& nome, const std::string& titolo) {
+    ProgettoGioco p = ProgettoArcade(nome);
+    if (!titolo.empty()) p.mondo.titolo = titolo;
+    p.arcadeDati = DatiNuovoArcade(nome).dump();
+    return p;
+}
+
 }  // namespace arcade
 
 using namespace arcade;
@@ -130,7 +160,7 @@ int ProvaArcadeDaRigaDiComando(int argc, char** argv) {
     if (argc < 3) return 1;
     auto g = Crea(argv[2]);
     if (!g) return 1;
-    nlohmann::json dati = DatiProva(argc, argv, 5);
+    nlohmann::json dati = argc > 5 && std::string(argv[5]) == "nuovo" ? DatiNuovoArcade(argv[2]) : DatiProva(argc, argv, 5);
     int tappa = argc > 4 ? std::atoi(argv[4]) : 0;
     g->Configura(dati, nullptr);
     float secondi = argc > 3 ? (float)std::atof(argv[3]) : 300;

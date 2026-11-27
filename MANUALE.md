@@ -330,11 +330,30 @@ Novità del motore usate da questi giochi, disponibili anche nei tuoi:
 Gli stessi giochi si possono creare anche da riga di comando:
 `StudioVideogiochi --crea-platform A|B|C file.gioco [Gioco.exe]` (A Lumina, B Nora e Bullone, C Nilo).
 
-## 15. I quattro giochi arcade
+## 15. I giochi arcade
 
-Sono quattro giochi completi, scritti per lo Studio e modificabili in ogni parte. Si aprono da
-**Gioco → Nuovo gioco** (genere **Arcade**, poi "Apri il gioco arcade") o da **Gioco → Apri** (elenco
-**Giochi arcade**). Hanno lo stesso flusso dei giochi creati: intro Elvantis, menu con 1 o 2 giocatori (a turni),
+### Creare un tuo gioco arcade (in 4 passi)
+
+1. Premi **Giochi arcade** nella Home (o la scheda **Gioco arcade** in alto), poi **+ Crea un gioco arcade nuovo**.
+   (È la stessa finestra di **Gioco → Nuovo gioco** con il genere **Arcade**.)
+2. Scrivi il **titolo**, scegli il **tipo**: *Sparatutto a ondate*, *Sparatutto a formazioni*,
+   *Corri e spara (run-and-gun)* o *Avventura isometrica*; lascia "Gioco nuovo (1 livello da riempire)"
+   e premi **Crea il gioco**. Nasce un gioco tuo con un livello già giocabile e tutto il materiale del tipo
+   (nemici, boss, armi, sfondi, musiche, suoni).
+3. Nella scheda **Gioco arcade**: a sinistra scegli la parte (Ondate/Livelli/Missioni, Nemici, Boss, Armi, Colori,
+   Effetti sonori…), al centro l'elemento (**+ Nuovo** aggiunge un livello copiando l'ultimo, **Duplica**, **Elimina**),
+   a destra i suoi valori (numeri con − e +, colori, scelte); l'anteprima cambia subito. Il pulsante
+   **Come si usa?** riapre la guida.
+4. **F5** per giocare, **Ctrl+S** per salvare il tuo gioco (file `.gioco`), **Crea .exe** per il gioco finito.
+   Musica ed effetti: scheda **Audio** (anche MP3 e MIDI tuoi). Puoi anche chiedere a Claude nella chat:
+   *"aggiungi tre ondate sempre più difficili"*.
+
+Con "Esempio completo da cambiare" (o "Apri e modifica" su un esempio) parti invece da uno dei quattro giochi pronti.
+
+### I quattro esempi
+
+Sono quattro giochi completi, scritti per lo Studio e modificabili in ogni parte. Si aprono dalla scheda
+**Gioco arcade** ("Apri e modifica") o da **Gioco → Apri** (elenco **Giochi arcade**). Hanno lo stesso flusso dei giochi creati: intro Elvantis, menu con 1 o 2 giocatori (a turni),
 opzioni, crediti, salvataggi; si giocano con tastiera, mouse o joypad.
 
 | Gioco | Genere | Contenuto |

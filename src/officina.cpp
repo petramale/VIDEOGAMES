@@ -130,9 +130,10 @@ void Officina::NuovoGioco(Genere g, StileGrafico stile, const std::string& titol
     Avvisa(std::string("Nuovo gioco: ") + NomeGenere(g) + ", " + NomeStile(stile) + ". Salvalo con Ctrl+S.");
 }
 
-void Officina::ApriArcade(const std::string& nome) {
+void Officina::ApriArcade(const std::string& nome, const std::string& titoloNuovo, bool vuoto) {
     if (!arcade::Crea(nome)) { Avvisa("Questo gioco arcade non e' ancora pronto"); return; }
-    progetto = arcade::ProgettoArcade(nome);
+    progetto = vuoto ? arcade::ProgettoArcadeNuovo(nome, titoloNuovo) : arcade::ProgettoArcade(nome);
+    if (!vuoto && !titoloNuovo.empty()) progetto.mondo.titolo = titoloNuovo;
     percorso.clear();
     annulla.clear(); ripeti.clear();
     selPersonaggio = selOggetto = selScenario = selCasella = selBrano = selEffetto = selRegola = 0;
@@ -142,7 +143,9 @@ void Officina::ApriArcade(const std::string& nome) {
     LibreriaCambiata();
     modificato = true;
     Vai(Sezione::Arcade);
-    Avvisa(arcade::TitoloDi(nome) + " aperto: cambia livelli, nemici e boss, F5 per giocare, Ctrl+S per salvarlo");
+    guidaArcade = true; sceltaArcade = false;
+    Avvisa(vuoto ? progetto.mondo.titolo + " creato con un livello: aggiungine altri con + Nuovo, F5 per giocare, Ctrl+S per salvarlo"
+                 : progetto.mondo.titolo + " aperto: cambia livelli, nemici e boss, F5 per giocare, Ctrl+S per salvarlo");
 }
 
 bool Officina::ApriFile(const std::string& f) {
@@ -366,8 +369,8 @@ void Officina::Frame(float dt) {
     if (editorMondo.Provando()) { editorMondo.Frame(dt); postoAudio = editorMondo.PostoAudio(); return; }
 
     Layout();
-    if (menuAperto >= 0 || finestra != 0 || editorDisegno.ImportAperto()) Ui::ImpostaModale({ 0, 0, (float)GetScreenWidth(), (float)GetScreenHeight() });
-    if (finestra == 0 && menuAperto < 0 && !editorDisegno.ImportAperto() && !Ui::StaScrivendo()) Scorciatoie();
+    if (menuAperto >= 0 || finestra != 0 || editorDisegno.ImportAperto() || GuidaArcadeAperta()) Ui::ImpostaModale({ 0, 0, (float)GetScreenWidth(), (float)GetScreenHeight() });
+    if (finestra == 0 && menuAperto < 0 && !editorDisegno.ImportAperto() && !GuidaArcadeAperta() && !Ui::StaScrivendo()) Scorciatoie();
     if (provando) { FrameProva(0); return; }
     FileTrascinati();
 
@@ -394,6 +397,7 @@ void Officina::Frame(float dt) {
     MenuTendina();
     Ui::ChiudiModale();
     Finestre();
+    GuidaArcade();
     if (editorDisegno.ImportAperto() && editorDisegno.FinestraImport()) {
         std::string msg;
         Ricorda();
@@ -504,6 +508,7 @@ std::vector<Officina::MenuO> Officina::Menu() const {
             m.push_back({ "Comandi", { { "Ripristina i comandi predefiniti", "", "k:predefiniti" }, { "Salva i comandi", "", "k:salva" } } });
             break;
         case Sezione::Arcade:
+            if (!progetto.EArcade()) break;
             m.push_back({ "Gioco arcade", { { "Prova da qui", "F5", "a:prova" }, { "Valori predefiniti dell'elemento", "", "a:predefinito" },
                                             { "Tutti i dati come all'inizio", "", "a:tutto" } } });
             break;
@@ -590,6 +595,8 @@ void Officina::Schede() {
     float totale = 0;
     for (int i = 0; i < (int)Sezione::Totale; i++) if (SezioneVisibile(i)) totale += Ui::Larghezza(NOMI_SEZIONI[i], Ui::T()) + 58 * s;
     bool compatte = totale > r.width - 2 * 120 * s - 50 * s;
+    // Le schede restano dentro la loro barra: non coprono mai l'inizio delle sezioni (sotto-schede, titoli).
+    Ui::Ritaglia((int)r.x, (int)r.y, (int)r.width, (int)(r.height + 1));
     for (int i = 0; i < (int)Sezione::Totale; i++) {
         if (!SezioneVisibile(i)) continue;
         bool soloIcona = compatte && (int)sezione != i;
@@ -606,6 +613,7 @@ void Officina::Schede() {
         if (sopra && !soloIcona && TASTI_SEZIONI[i][0]) Ui::Testo(TASTI_SEZIONI[i], v.x + v.width - Ui::Larghezza(TASTI_SEZIONI[i], (int)(10 * s)) - 6 * s, v.y + 2 * s, Ui::TestoSpento(), (int)(10 * s));
         x += w + 4 * s;
     }
+    Ui::FineRitaglio();
     // Pulsanti rapidi a destra: prova e .exe.
     float bw = 120 * s, bh = r.height - 14 * s;
     if (x < r.x + r.width - 2 * bw - 30 * s) {
@@ -699,21 +707,29 @@ void Officina::Finestre() {
             y += 64 * s;
             const auto& nomi = arcade::Nomi();
             if (genereNuovo == ARC) {
-                Ui::Testo("Scegli il gioco arcade (ogni livello, nemico, boss, musica e suono si cambia nello Studio)", x, y, Ui::TestoSpento(), Ui::TP());
+                Ui::Testo("Che tipo di gioco arcade vuoi creare?", x, y, Ui::TestoSpento(), Ui::TP());
                 y += 24 * s;
-                const char* desc[] = { "Sparatutto a ondate: 30 ondate in 6 cieli, alieni di cristallo, disco bonus e potenziamenti. Disegnato HD.",
-                                       "Sparatutto a formazioni: 15 livelli in 5 settori, insetti in picchiata, un boss ogni 3 livelli. Disegnato HD.",
-                                       "Run-and-gun nel West: 10 missioni con boss, ostaggi, dinamite e il carro Bisonte. Pixel art fine.",
-                                       "Avventura isometrica dipinta: 12 capitoli, missioni, mercato, ricette, combattimenti e mappa." };
-                float cw = w / 2 - 4 * s, ch = 104 * s;
+                const char* tipi[] = { "Sparatutto a ondate", "Sparatutto a formazioni", "Corri e spara (run-and-gun)", "Avventura isometrica" };
+                const char* desc[] = { "Il cannone in basso, gli alieni a ondate, barriere e bonus. Stile di Stellaria, disegnato HD.",
+                                       "Insetti che scendono in picchiata, boss, armi bonus. Stile di Sciame di Orione, disegnato HD.",
+                                       "Un eroe che corre e salta, banditi, boss e ostaggi. Stile di Polvere da Sparo, pixel art.",
+                                       "Scene dipinte, missioni, raccolta, mercato, combattimenti. Stile di Querciaverde." };
+                float cw = w / 2 - 4 * s, ch = 84 * s;
                 for (int i = 0; i < (int)nomi.size() && i < 4; i++) {
                     Rectangle b = { x + (i % 2) * (cw + 8 * s), y + (i / 2) * (ch + 8 * s), cw, ch };
                     if (Ui::Pulsante(b, "", arcadeNuovo == i)) arcadeNuovo = i;
-                    Ui::Testo(arcade::TitoloDi(nomi[i]), b.x + 14 * s, b.y + 12 * s, arcadeNuovo == i ? Ui::Accento() : WHITE, Ui::T());
-                    Ui::TestoACapo(desc[i], b.x + 14 * s, b.y + 42 * s, b.width - 28 * s, Ui::TestoSpento(), Ui::TP());
+                    Ui::Testo(tipi[i], b.x + 14 * s, b.y + 10 * s, arcadeNuovo == i ? Ui::Accento() : WHITE, Ui::T());
+                    Ui::TestoACapo(desc[i], b.x + 14 * s, b.y + 38 * s, b.width - 28 * s, Ui::TestoSpento(), Ui::TP());
                 }
-                y += 2 * (ch + 8 * s) + 10 * s;
-                Ui::TestoACapo("Il gioco si apre nella sezione Gioco arcade: F5 per giocare, Ctrl+S per salvarlo, Crea .exe per l'eseguibile.",
+                y += 2 * (ch + 8 * s) + 8 * s;
+                Ui::Testo("Si parte da", x, y, Ui::TestoSpento(), Ui::TP());
+                y += 24 * s;
+                const char* parti[] = { "Gioco nuovo (1 livello da riempire)", "Esempio completo da cambiare" };
+                for (int i = 0; i < 2; i++)
+                    if (Ui::Pulsante({ x + i * (w / 2 + 4 * s), y, w / 2 - 4 * s, 40 * s }, parti[i], arcadeEsempio == i)) arcadeEsempio = i;
+                y += 52 * s;
+                Ui::TestoACapo("Dopo \"Crea il gioco\" si apre la scheda Gioco arcade: a sinistra scegli Livelli/Ondate, con + Nuovo ne aggiungi, "
+                               "a destra cambi nemici, velocita' e colori. F5 per giocare, Ctrl+S per salvare, Crea .exe per il gioco finito.",
                                x, y, w, Ui::TestoSpento(), Ui::TP());
             } else {
                 Ui::Testo("Stile grafico", x, y, Ui::TestoSpento(), Ui::TP());
@@ -733,8 +749,14 @@ void Officina::Finestre() {
                                "Per i quattro giochi arcade completi scegli il genere Arcade.",
                                x, y, w, Ui::TestoSpento(), Ui::TP());
             }
-            if (Ui::Pulsante({ f.x + f.width - pad - 200 * s, f.y + f.height - pad - 44 * s, 200 * s, 44 * s }, genereNuovo == ARC ? "Apri il gioco arcade" : "Crea il gioco", true)) {
-                if (genereNuovo == ARC) { if (arcadeNuovo >= 0 && arcadeNuovo < (int)nomi.size()) ApriArcade(nomi[arcadeNuovo]); }
+            if (Ui::Pulsante({ f.x + f.width - pad - 200 * s, f.y + f.height - pad - 44 * s, 200 * s, 44 * s }, genereNuovo == ARC && arcadeEsempio == 1 ? "Apri l'esempio" : "Crea il gioco", true)) {
+                if (genereNuovo == ARC) {
+                    if (arcadeNuovo >= 0 && arcadeNuovo < (int)nomi.size()) {
+                        std::string t = titoloNuovo;
+                        if (t.empty() || t == "Il mio gioco") t = arcadeEsempio == 1 ? arcade::TitoloDi(nomi[arcadeNuovo]) : "Il mio gioco arcade";
+                        ApriArcade(nomi[arcadeNuovo], t, arcadeEsempio == 0);
+                    }
+                }
                 else {
                     NuovoGioco((Genere)genereNuovo, stileNuovo ? StileGrafico::Disegnato : StileGrafico::PixelFine, titoloNuovo);
                     Vai(Sezione::Mondi);
@@ -931,11 +953,13 @@ void Officina::Home(Rectangle r) {
               r.x + 44 * s, r.y + 158 * s, Ui::TestoChiaro(), Ui::TP());
     float y = alto.y + alto.height + 10 * s;
     // Azioni principali.
-    float bw = 220 * s, bh = 52 * s, x = r.x + 40 * s;
+    float bw = std::min(220 * s, (r.width - 80 * s - 4 * 12 * s) / 5), bh = 52 * s, x = r.x + 40 * s;
     if (Ui::Pulsante({ x, y, bw, bh }, "Nuovo gioco", true)) finestra = 1;
     if (Ui::Pulsante({ x + bw + 12 * s, y, bw, bh }, "Apri un gioco")) ApriElenco();
     if (Ui::Pulsante({ x + 2 * (bw + 12 * s), y, bw, bh }, "Salva gioco")) Salva(false);
     if (Ui::Pulsante({ x + 3 * (bw + 12 * s), y, bw, bh }, "Prova il gioco  F5")) AvviaProva();
+    Ui::Aiuto("Stellaria, Sciame di Orione, Polvere da Sparo e Querciaverde: aprili, cambiali e crea il loro .exe.");
+    if (Ui::Pulsante({ x + 4 * (bw + 12 * s), y, bw, bh }, "Giochi arcade", true)) Vai(Sezione::Arcade);
     y += bh + 24 * s;
     // Le sezioni come carte.
     const char* desc[] = { "", "Le mappe a blocchi: caselle, oggetti, porte, scroll, telecamera",
@@ -989,7 +1013,7 @@ std::string Officina::NomeSezione() const {
         case Sezione::Logica: return "logica";
         case Sezione::Librerie: return "librerie";
         case Sezione::Comandi: return "comandi";
-        case Sezione::Arcade: return "gioco arcade (" + progetto.arcade + ")";
+        case Sezione::Arcade: return progetto.EArcade() ? "gioco arcade (" + progetto.arcade + ")" : std::string("giochi arcade (scelta)");
         case Sezione::Comportamenti: {
             const char* sch[] = { "carattere", "azioni", "reazioni", "chi lo usa", "indole degli oggetti", "partita unica" };
             return std::string("comportamenti (") + sch[std::max(0, std::min(schedaComp, 5))] + ")";
