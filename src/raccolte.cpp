@@ -1091,6 +1091,32 @@ std::vector<EffettoSuono> EffettiArcade() {
     };
 }
 
+// Effetti speciali: magie, esplosioni grandi, tuoni, vento, teletrasporti... (raccolta "Suoni speciali").
+std::vector<EffettoSuono> EffettiSpeciali() {
+    return {
+        Eff("Grande esplosione", 4, 900, 25, 1.4f, 0.8f, 0.5f, 0.04f, 6, 1),
+        Eff("Tuono", 4, 260, 30, 2.0f, 0.75f, 0.5f, 0.2f, 3, 1),
+        Eff("Vento", 4, 500, 700, 1.8f, 0.3f, 0.5f, 0.3f, 1.5f, 1),
+        Eff("Fulmine", 4, 4000, 200, 0.35f, 0.6f, 0.5f, 0.3f, 40, 0.8f),
+        Eff("Teletrasporto", 3, 200, 2400, 0.8f, 0.4f, 0.5f, 0.15f, 22),
+        Eff("Incantesimo", 1, 1200, 3200, 0.9f, 0.35f, 0.5f, 0.1f, 16),
+        Eff("Campanella", 3, 1760, 1760, 0.9f, 0.4f, 0.5f, 0.004f, 5),
+        Eff("Gong", 3, 110, 100, 2.2f, 0.6f, 0.5f, 0.02f, 3, 0.1f),
+        Eff("Fiamma accesa", 4, 300, 900, 0.6f, 0.4f, 0.5f, 0.05f, 9, 0.8f),
+        Eff("Lanterna", 1, 660, 990, 0.35f, 0.35f, 0.5f, 0.02f, 8, 0.1f),
+        Eff("Luce che si spegne", 3, 990, 200, 0.6f, 0.35f, 0.5f, 0.03f, 6),
+        Eff("Raggio laser", 2, 2400, 1800, 0.5f, 0.3f, 0.5f, 0.02f, 30),
+        Eff("Scudo", 3, 300, 600, 0.7f, 0.4f, 0.5f, 0.2f, 12),
+        Eff("Power-up", 0, 400, 2000, 0.9f, 0.4f, 0.3f, 0.08f, 18),
+        Eff("Livello superato", 1, 523, 2093, 1.2f, 0.45f, 0.5f, 0.02f, 8),
+        Eff("Allarme", 0, 880, 660, 0.9f, 0.35f, 0.5f, 0.3f, 4),
+        Eff("Cigolio", 2, 700, 500, 0.5f, 0.3f, 0.5f, 0.15f, 25, 0.15f),
+        Eff("Splash", 4, 1200, 300, 0.5f, 0.5f, 0.5f, 0.1f, 20, 0.9f),
+        Eff("Bolle", 3, 400, 1200, 0.25f, 0.3f, 0.5f, 0.3f, 30),
+        Eff("Cuore battito", 3, 70, 45, 0.25f, 0.7f),
+    };
+}
+
 EffettoSuono EffettoCasuale(int seme) {
     unsigned int r = (unsigned int)seme * 2654435761u + 7u;
     auto C = [&](float lo, float hi) { r = r * 1664525u + 1013904223u; return lo + (hi - lo) * ((r >> 8) % 10000) / 10000.0f; };
@@ -1128,6 +1154,7 @@ const InfoRaccolta RACCOLTE[] = {
     { "Carri armati", "Carri amici e nemici, mine, proiettili, deserto di battaglia" },
     { "Musiche chiptune", "Dieci brani pronti: allegri, epici, calmi, misteriosi, spaziali e di battaglia" },
     { "Suoni arcade", "Venti effetti sonori: salti, monete, esplosioni, laser, porte, ruggiti, magie" },
+    { "Suoni speciali", "Venti effetti speciali: grande esplosione, tuono, vento, fulmine, teletrasporto, gong, lanterna, scudo" },
 };
 constexpr int N_RACCOLTE = (int)(sizeof(RACCOLTE) / sizeof(RACCOLTE[0]));
 
@@ -1425,8 +1452,10 @@ Raccolta Genera(int i, StileGrafico s) {
         for (int k = 0; k < 10; k++) r.brani.push_back(ComponiBrano(nomi[k], 300 + k * 17, k % 6, k == 1 || k == 9 ? 16 : 8));
     } else if (nome == "Suoni arcade") {
         r.effetti = EffettiArcade();
+    } else if (nome == "Suoni speciali") {
+        r.effetti = EffettiSpeciali();
     }
-    if (r.brani.empty() && nome != "Suoni arcade") r.brani.push_back(ComponiBrano(nome + " - tema", i * 31, i % 6));
+    if (r.brani.empty() && nome != "Suoni arcade" && nome != "Suoni speciali") r.brani.push_back(ComponiBrano(nome + " - tema", i * 31, i % 6));
     Autore(r);
     return r;
 }

@@ -92,7 +92,8 @@ const std::vector<std::string>& NomiEvento() {
 const std::vector<std::string>& TipiAzione() {
     static const std::vector<std::string> v = { "suona", "musica", "ferma_musica", "messaggio", "aumenta", "imposta", "punti", "cuori",
                                                 "energia", "vai_mappa", "crea", "togli", "anima", "velocita", "salta", "spara",
-                                                "colore", "apri", "scuoti", "spingi", "vittoria", "game_over", "fiducia", "minaccia" };
+                                                "colore", "apri", "scuoti", "spingi", "vittoria", "game_over", "fiducia", "minaccia",
+                                                "effetto", "lampo", "luce", "buio", "rallenta" };
     return v;
 }
 const std::vector<std::string>& NomiAzione() {
@@ -101,7 +102,18 @@ const std::vector<std::string>& NomiAzione() {
                                                 "energia (+/-)", "vai alla mappa", "crea", "togli di mezzo", "cambia animazione",
                                                 "velocita' x", "fai saltare", "spara", "colora", "apri le porte", "scuoti lo schermo",
                                                 "spingi indietro l'eroe", "vittoria", "game over",
-                                                "fiducia verso l'eroe (+/-)", "spavento (+/-)" };
+                                                "fiducia verso l'eroe (+/-)", "spavento (+/-)",
+                                                "effetto speciale", "lampo sullo schermo", "accendi/spegni la luce", "buio della mappa (0-1)",
+                                                "rallentatore (secondi)" };
+    return v;
+}
+const std::vector<std::string>& NomiScia() {
+    static const std::vector<std::string> v = { "nessuna", "scia di luce", "scintille", "fumo", "stelline", "bolle", "fiammelle", "foglie", "neve", "cuori" };
+    return v;
+}
+const std::vector<std::string>& NomiEffettoSpeciale() {
+    static const std::vector<std::string> v = { "scintille", "esplosione", "grande esplosione", "fumo", "stelle", "cuori", "magia",
+                                                "fuochi d'artificio", "bolle", "polvere", "fulmine", "teletrasporto", "anello di luce", "pioggia d'oro" };
     return v;
 }
 
@@ -414,6 +426,27 @@ bool DisegnoDaJson(const json& j, Disegno& d, std::string& errore) {
     return true;
 }
 
+json LuceJson(const LuceDef& l) {
+    json j = json::object();
+    if (l.modo != 0) {
+        j["modo"] = l.modo; j["colore"] = ColoreInTesto(l.colore); j["raggio"] = R(l.raggio); j["intensita"] = R(l.intensita);
+        j["tremolio"] = R(l.tremolio); j["pulsazione"] = R(l.pulsazione); j["alone"] = R(l.alone); j["alto"] = R(l.alto);
+    }
+    if (l.scia != 0) { j["scia"] = l.scia; j["coloreScia"] = ColoreInTesto(l.coloreScia); }
+    return j;
+}
+void LuceDaJson(const json& j, LuceDef& l) {
+    if (!j.is_object()) return;
+    Leggi(j, "modo", l.modo); Leggi(j, "raggio", l.raggio); Leggi(j, "intensita", l.intensita); Leggi(j, "tremolio", l.tremolio);
+    Leggi(j, "pulsazione", l.pulsazione); Leggi(j, "alone", l.alone); Leggi(j, "alto", l.alto); Leggi(j, "scia", l.scia);
+    std::string c;
+    if (j.contains("colore") && j["colore"].is_string()) { c = j["colore"].get<std::string>(); TestoInColore(c, l.colore); }
+    if (j.contains("coloreScia") && j["coloreScia"].is_string()) { c = j["coloreScia"].get<std::string>(); TestoInColore(c, l.coloreScia); }
+    l.modo = (int)Limita((float)l.modo, 0, 2); l.raggio = Limita(l.raggio, 4, 600); l.intensita = Limita(l.intensita, 0, 1);
+    l.tremolio = Limita(l.tremolio, 0, 1); l.pulsazione = Limita(l.pulsazione, 0, 10); l.alone = Limita(l.alone, 0, 1);
+    l.alto = Limita(l.alto, -200, 400); l.scia = (int)Limita((float)l.scia, 0, (float)NomiScia().size() - 1);
+}
+
 json PersonaggioJson(const PersonaggioDef& p) {
     const Comportamento& c = p.comportamento;
     json jc = { { "tipo", ChiaveComportamento(c.tipo) }, { "velocita", R(c.velocita) }, { "salto", R(c.salto) }, { "energia", c.energia },
@@ -425,6 +458,8 @@ json PersonaggioJson(const PersonaggioDef& p) {
     if (!p.autore.empty()) j["autore"] = p.autore;
     if (!p.suoni.empty()) j["suoni"] = p.suoni;
     if (!p.profilo.empty()) j["profilo"] = p.profilo;
+    json jl = LuceJson(p.luce);
+    if (!jl.empty()) j["luce"] = jl;
     return j;
 }
 
@@ -446,6 +481,7 @@ bool PersonaggioDaJson(const json& j, PersonaggioDef& p, std::string& errore) {
     if (j.contains("suoni") && j["suoni"].is_object())
         for (auto it = j["suoni"].begin(); it != j["suoni"].end(); ++it) if (it.value().is_string()) p.suoni[it.key()] = it.value().get<std::string>();
     Leggi(j, "profilo", p.profilo);
+    if (j.contains("luce")) LuceDaJson(j["luce"], p.luce);
     if (j.contains("disegno")) return DisegnoDaJson(j["disegno"], p.disegno, errore);
     errore = "il personaggio \"" + p.nome + "\" non ha il disegno";
     return false;
@@ -459,6 +495,8 @@ json OggettoJson(const OggettoDef& o) {
     if (!o.suono.empty()) j["suono"] = o.suono;
     if (!o.variabile.empty()) j["variabile"] = o.variabile;
     if (o.indole.attiva) j["indole"] = IndoleJson(o.indole);
+    json jl = LuceJson(o.luce);
+    if (!jl.empty()) j["luce"] = jl;
     return j;
 }
 
@@ -472,6 +510,7 @@ bool OggettoDaJson(const json& j, OggettoDef& o, std::string& errore) {
     Leggi(j, "valore", o.valore); Leggi(j, "richiede", o.richiede); Leggi(j, "solido", o.solido); Leggi(j, "gravita", o.gravita);
     Leggi(j, "velocita", o.velocita); Leggi(j, "distanza", o.distanza); Leggi(j, "suono", o.suono); Leggi(j, "variabile", o.variabile);
     if (j.contains("indole")) IndoleDaJson(j["indole"], o.indole);
+    if (j.contains("luce")) LuceDaJson(j["luce"], o.luce);
     if (j.contains("disegno")) return DisegnoDaJson(j["disegno"], o.disegno, errore);
     errore = "l'oggetto \"" + o.nome + "\" non ha il disegno";
     return false;

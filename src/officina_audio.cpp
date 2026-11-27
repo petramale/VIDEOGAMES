@@ -141,6 +141,26 @@ void Officina::Audio(Rectangle r, float dt) {
         if (Ui::Pulsante({ x, r.y + 5 * s, w, 30 * s }, nomiSchede[i], schedaAudio == i)) { schedaAudio = i; scorriLista = 0; }
         x += w + 8 * s;
     }
+    // Carica da file: musica (MP3, OGG, WAV, FLAC, XM, MOD, MIDI) o effetti (WAV, OGG, MP3).
+    if (schedaAudio < 2) {
+        const char* et = schedaAudio == 0 ? "Carica musica (MP3, OGG, WAV, MIDI)..." : "Carica effetto (WAV, OGG, MP3)...";
+        float w = Ui::Larghezza(et, Ui::TP()) + 40 * s;
+        if (r.x + r.width - w - 10 * s <= x) { et = "Carica da file..."; w = Ui::Larghezza(et, Ui::TP()) + 30 * s; }
+        Rectangle b = { r.x + r.width - w - 10 * s, r.y + 5 * s, w, 30 * s };
+        if (b.x > x) {
+            Ui::Aiuto(schedaAudio == 0 ? "Sceglie un file musicale: MP3, OGG, WAV, FLAC, XM e MOD si includono nel gioco cosi' come sono; "
+                                         "un MIDI diventa un brano a note che puoi modificare nel rullo." : "Sceglie un file sonoro da usare come effetto.");
+            if (Ui::Pulsante(b, et, true)) {
+                std::vector<std::string> est = schedaAudio == 0 ? std::vector<std::string>{ ".mp3", ".ogg", ".wav", ".flac", ".xm", ".mod", ".mid", ".midi", ".qoa" }
+                                                                : std::vector<std::string>{ ".wav", ".ogg", ".mp3", ".flac", ".qoa" };
+                int scheda = schedaAudio;
+                for (auto& f : ScegliFile(scheda == 0 ? "Scegli la musica" : "Scegli gli effetti sonori", scheda == 0 ? "Musica" : "Suoni", est, true)) {
+                    schedaAudio = scheda;
+                    ImportaFile(f);
+                }
+            }
+        }
+    }
     r.y += schede.height; r.height -= schede.height;
     if (schedaAudio == 2) { SuoniEventi(r); return; }
     Rectangle sx = { r.x, r.y, 250 * s, r.height };
@@ -164,7 +184,7 @@ void Officina::Audio(Rectangle r, float dt) {
         if (az == 2) AzioneAudio("b:duplica");
         if (az == 3) AzioneAudio("b:elimina");
         if (progetto.brani.empty()) {
-            Ui::TestoACapo("Nessun brano. \"+ Nuovo\" per scriverlo nota per nota, il menu Musica > Componi per uno automatico, trascina un OGG/MP3/WAV, "
+            Ui::TestoACapo("Nessun brano. \"+ Nuovo\" per scriverlo nota per nota, il menu Musica > Componi per uno automatico, trascina un OGG/MP3/WAV/MIDI, "
                            "oppure chiedi a Claude: \"componi un tema epico per il boss\".", centro.x + 40 * s, centro.y + 60 * s, centro.width - 80 * s, Ui::TestoSpento(), Ui::T());
             return;
         }
@@ -192,7 +212,7 @@ void Officina::Audio(Rectangle r, float dt) {
         if (b.file.empty()) {
             if (Ui::Numero("b_bpm", { bx, y, 190 * s * k, h }, "Tempo", b.bpm, 40, 260, 5)) cambiato = true;
             bx += 190 * s * k + 8 * s;
-            if (Ui::NumeroIntero("b_bat", { bx, y, 190 * s * k, h }, "Battute", b.battute, 1, 64)) cambiato = true;
+            if (Ui::NumeroIntero("b_bat", { bx, y, 190 * s * k, h }, "Battute", b.battute, 1, 256)) cambiato = true;
             bx += 190 * s * k + 8 * s;
         }
         if (stretta) Ui::Aiuto("Usa questo brano come musica della mappa aperta nell'editor dei mondi.");
@@ -462,7 +482,7 @@ void Officina::EditorEffetto(Rectangle r, EffettoSuono& e) {
     y = std::max(yl, yr) + 10 * s;
     Ui::Testo("Parti da un effetto pronto:", x, y, Ui::TestoSpento(), Ui::TP());
     y += 24 * s;
-    static const std::vector<EffettoSuono> pronti = EffettiArcade();
+    static const std::vector<EffettoSuono> pronti = [] { auto v = EffettiArcade(); auto w = EffettiSpeciali(); v.insert(v.end(), w.begin(), w.end()); return v; }();
     float bw = (w - 9 * 6 * s) / 10;
     for (int i = 0; i < (int)pronti.size(); i++) {
         Rectangle b = { x + (i % 10) * (bw + 6 * s), y + (i / 10) * (h + 6 * s), bw, h };

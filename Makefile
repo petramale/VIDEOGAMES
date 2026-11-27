@@ -23,7 +23,7 @@ CXXFLAGS := -O2 -std=c++17 -Wall -I$(RAYLIB) -Ilibrerie/nlohmann
 
 ifeq ($(PIATTAFORMA),windows)
   ESEGUIBILE := $(BIN_DIR)/StudioVideogiochi.exe
-  LDFLAGS    := -static -mwindows -lopengl32 -lgdi32 -lwinmm -lwinhttp
+  LDFLAGS    := -static -mwindows -lopengl32 -lgdi32 -lwinmm -lwinhttp -lcomdlg32
   WINDRES    ?= $(patsubst %g++,%windres,$(CXX))
   RISORSE    := $(OBJ_DIR)/studio_rc.o
 else

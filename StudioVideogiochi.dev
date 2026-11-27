@@ -11,7 +11,7 @@ ResourceIncludes=
 MakeIncludes=
 Compiler=-O2_@@_-DPLATFORM_DESKTOP_@@_-DGRAPHICS_API_OPENGL_33_@@_-w_@@_
 CppCompiler=-O2_@@_-std=c++17_@@_
-Linker=-static_@@_-mwindows_@@_-lopengl32_@@_-lgdi32_@@_-lwinmm_@@_-lwinhttp_@@_
+Linker=-static_@@_-mwindows_@@_-lopengl32_@@_-lgdi32_@@_-lwinmm_@@_-lwinhttp_@@_-lcomdlg32_@@_
 IsCpp=1
 Icon=risorse\elvantis.ico
 ExeOutput=bin
@@ -28,7 +28,7 @@ Folders=raylib,studio
 IncludeVersionInfo=0
 SupportXPThemes=0
 CompilerSet=0
-UnitCount=98
+UnitCount=100
 
 [Unit1]
 FileName=src\audio.cpp
@@ -1007,6 +1007,26 @@ CompileCpp=1
 Folder=studio
 Compile=1
 Link=1
+Priority=1000
+OverrideBuildCmd=0
+BuildCmd=
+
+[Unit99]
+FileName=src\midi.cpp
+CompileCpp=1
+Folder=studio
+Compile=1
+Link=1
+Priority=1000
+OverrideBuildCmd=0
+BuildCmd=
+
+[Unit100]
+FileName=src\midi.h
+CompileCpp=1
+Folder=studio
+Compile=0
+Link=0
 Priority=1000
 OverrideBuildCmd=0
 BuildCmd=

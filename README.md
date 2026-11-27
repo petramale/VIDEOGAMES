@@ -36,7 +36,7 @@ disegnata in alta definizione.
 | Scenari | Sfondi a strati con parallasse, cielo, ora del giorno, pioggia e neve; le caselle del terreno disegnate a mano. |
 | Audio | Musica a note su più tracce (piano roll), effetti sonori con sintetizzatore, import di WAV/OGG/MP3, suoni collegati agli eventi del gioco. |
 | Logica | Regole "QUANDO … SE … ALLORA …": tocchi, raccolte, colpi, tasti, timer, variabili; azioni come suonare, mostrare un messaggio, cambiare mappa, dare punti. |
-| Librerie | La libreria del gioco e 22 raccolte pronte (personaggi, oggetti, scenari, caselle, musiche, effetti) in pixel art fine o disegnate in HD. |
+| Librerie | La libreria del gioco e 23 raccolte pronte (personaggi, oggetti, scenari, caselle, musiche, effetti) in pixel art fine o disegnate in HD. |
 | Comandi | Tastiera, mouse e joypad: tasti da cambiare con un clic, zona morta, comandi extra legati alle regole, prova dal vivo. |
 | Comportamenti | La mente delle creature: profili di carattere (coraggio, aggressività, prudenza, rancore…), quanto preferiscono ogni azione, reazioni e frasi secondo l'umore, a chi si applicano; l'indole degli oggetti; come cambia ogni partita (evento speciale, alleanze, veterani, meteo). Con il simulatore delle decisioni. |
 
@@ -93,7 +93,7 @@ src/
   editor_disegno.*      editor di disegno e animazione (personaggi, oggetti, caselle)
   editor_mondo.*        editor delle mappe (dentro la sezione Mondi)
   progetto_gioco.*      il file .gioco: libreria, regole, stile grafico
-  raccolte.*            le 22 raccolte pronte
+  raccolte.*            le 23 raccolte pronte
   claude_progetto.*     Claude sull'intero gioco (personaggi, oggetti, brani, regole…)
   claude_mondo.*        Claude sulle mappe
   gioco*.cpp, gioco.h   motore: fisica, collisioni, telecamera, libreria, regole, disegno HD

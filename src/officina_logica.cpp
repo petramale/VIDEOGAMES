@@ -293,7 +293,17 @@ void Officina::Logica(Rectangle r, float dt) {
             TestoInColore(a.testo, c);
             if (a.testo.empty()) a.testo = "#ff6060";
             if (Ui::Colore("rg_c" + std::to_string(i), t1, "", c)) { a.testo = ColoreInTesto(c); cambiato = true; }
-        } else Ui::Testo("-", t1.x, t1.y + 8 * s, Ui::TestoSpento(), Ui::TP());
+        } else if (t == "effetto") { SceltaTesto(tTesto, NomiEffettoSpeciale(), ""); Num(tNum, "", 0, 10, 0.5f); }
+        else if (t == "lampo") {
+            Color c = WHITE;
+            if (a.testo.empty()) { a.testo = "#ffffff"; cambiato = true; }
+            TestoInColore(a.testo, c);
+            if (Ui::Colore("rg_c" + std::to_string(i), tTesto, "", c)) { a.testo = ColoreInTesto(c); cambiato = true; }
+            Num(tNum, "", 0, 5, 0.1f);
+        } else if (t == "luce") { SceltaTesto(tTesto, { "accendi", "spegni", "rossa", "verde", "blu", "gialla", "bianca", "viola", "azzurra" }, ""); Num(tNum, "", 0, 600, 10); }
+        else if (t == "buio") Num(t1, "", 0, 1, 0.1f);
+        else if (t == "rallenta") Num(t1, "", 0, 10, 0.5f);
+        else Ui::Testo("-", t1.x, t1.y + 8 * s, Ui::TestoSpento(), Ui::TP());
         if (Ui::Pulsante({ cx + cw - 34 * s, cy, 34 * s, h }, "x")) togliAz = i;
         cy += h + 8 * s;
     }

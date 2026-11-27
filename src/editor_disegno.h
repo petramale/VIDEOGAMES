@@ -19,6 +19,15 @@ public:
     // Importa un'immagine come fotogrammi dell'animazione aperta (un foglio di sprite si divide da solo).
     bool Importa(const std::string& file, std::string& messaggio);
     bool EsportaPng(const std::string& file) const;
+    // Gestore delle immagini: una finestra per caricare PNG, BMP, JPG, GIF animate, TGA come fotogrammi,
+    // dividere i fogli di sprite in righe x colonne e scegliere l'animazione (fermo, corsa, salto...).
+    void PreparaImport(const std::vector<std::string>& file);
+    bool ImportAperto() const { return !impFile.empty(); }
+    // Disegna la finestra; true quando si preme "Importa" (allora l'officina chiama EseguiImport).
+    bool FinestraImport();
+    bool EseguiImport(std::string& messaggio);
+    void ChiudiImport();
+    static const std::vector<std::string>& EstensioniImmagini();
     int Animazione() const { return anim; }
     const std::string& Id() const { return id; }
 
@@ -49,6 +58,15 @@ private:
     int nuovaW = 32, nuovaH = 32;
     bool adattaVista = true;
     Rectangle rTela{ 0, 0, 1, 1 };
+    // Gestore delle immagini
+    struct FileImport { std::string percorso; Image img{}; Texture2D tex{}; int gif = 0; };
+    std::vector<FileImport> impFile;
+    int impRighe = 1, impColonne = 1, impDest = 0, impModo = 0, impAdatta = 0, impAllinea = 0;
+    bool impTrasparente = false, impSaltaVuoti = true;
+    float impFps = 8, tImport = 0;
+    std::string impNome = "animazione";
+    void CelleImport(const FileImport& f, std::vector<Rectangle>& celle) const;
+    std::vector<std::string> DestinazioniImport() const;
 
     Fotogramma& F();
     void Ricorda();

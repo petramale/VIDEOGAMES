@@ -120,3 +120,60 @@ void RendiEseguibile(const std::string&) {}
 #include <sys/stat.h>
 void RendiEseguibile(const std::string& percorso) { chmod(percorso.c_str(), 0755); }
 #endif
+
+// --- Finestra "Apri file" del sistema --------------------------------------------------------
+#ifdef _WIN32
+#include <commdlg.h>
+std::vector<std::string> ScegliFile(const std::string& titolo, const std::string& descrizione,
+                                    const std::vector<std::string>& estensioni, bool multipli) {
+    std::vector<std::string> scelti;
+    // Filtro: "Immagini\0*.png;*.bmp\0Tutti i file\0*.*\0\0"
+    std::string filtro = descrizione;
+    filtro.push_back('\0');
+    for (size_t i = 0; i < estensioni.size(); i++) { if (i) filtro += ";"; filtro += "*" + estensioni[i]; }
+    filtro.push_back('\0');
+    filtro += "Tutti i file";
+    filtro.push_back('\0');
+    filtro += "*.*";
+    filtro.push_back('\0');
+    filtro.push_back('\0');
+    std::vector<char> buf(65536, 0);
+    OPENFILENAMEA ofn;
+    ZeroMemory(&ofn, sizeof(ofn));
+    ofn.lStructSize = sizeof(ofn);
+    ofn.hwndOwner = GetActiveWindow();
+    ofn.lpstrFilter = filtro.c_str();
+    ofn.lpstrFile = buf.data();
+    ofn.nMaxFile = (DWORD)buf.size();
+    ofn.lpstrTitle = titolo.c_str();
+    ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_EXPLORER | OFN_NOCHANGEDIR | (multipli ? OFN_ALLOWMULTISELECT : 0);
+    if (!GetOpenFileNameA(&ofn)) return scelti;
+    // Con piu' file: prima la cartella, poi i nomi, separati da \0 e chiusi da \0\0.
+    std::string primo = buf.data();
+    const char* p = buf.data() + primo.size() + 1;
+    if (!multipli || *p == 0) { scelti.push_back(primo); return scelti; }
+    while (*p) { std::string n = p; scelti.push_back(primo + "\\" + n); p += n.size() + 1; }
+    return scelti;
+}
+#else
+#include <cstdio>
+std::vector<std::string> ScegliFile(const std::string& titolo, const std::string& descrizione,
+                                    const std::vector<std::string>& estensioni, bool multipli) {
+    // Su Linux si prova zenity (se c'e'); altrimenti si trascinano i file nella finestra.
+    std::vector<std::string> scelti;
+    std::string filtro;
+    for (auto& e : estensioni) filtro += " *" + e;
+    std::string cmd = "zenity --file-selection --title=\"" + titolo + "\" --separator='\n'" + (multipli ? " --multiple" : "") +
+                      " --file-filter=\"" + descrizione + " |" + filtro + "\" 2>/dev/null";
+    FILE* f = popen(cmd.c_str(), "r");
+    if (!f) return scelti;
+    char riga[4096];
+    while (std::fgets(riga, sizeof(riga), f)) {
+        std::string s = riga;
+        while (!s.empty() && (s.back() == '\n' || s.back() == '\r')) s.pop_back();
+        if (!s.empty()) scelti.push_back(s);
+    }
+    pclose(f);
+    return scelti;
+}
+#endif

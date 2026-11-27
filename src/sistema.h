@@ -3,6 +3,7 @@
 // (Rectangle, DrawText, CloseWindow...) e non possono essere inclusi insieme.
 #pragma once
 #include <string>
+#include <vector>
 
 std::string PercorsoEseguibile();
 std::string CartellaEseguibile();
@@ -17,3 +18,8 @@ std::string HttpRisposta();   // corpo della risposta, oppure descrizione dell'e
 
 // Su Linux un file deve essere marcato come eseguibile; su Windows non serve.
 void RendiEseguibile(const std::string& percorso);
+
+// La finestra "Apri" del sistema: restituisce i file scelti (vuoto se si annulla).
+// 'estensioni' come { ".png", ".bmp" }. Su Linux usa zenity, se c'e'.
+std::vector<std::string> ScegliFile(const std::string& titolo, const std::string& descrizione,
+                                    const std::vector<std::string>& estensioni, bool multipli);

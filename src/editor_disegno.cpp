@@ -1,6 +1,7 @@
 #include "editor_disegno.h"
 #include "audio.h"
 #include "ui.h"
+#include "sistema.h"
 #include <algorithm>
 #include <cstring>
 
@@ -515,7 +516,8 @@ void EditorDisegno::Animazioni(Rectangle r) {
     float bx = r.x + lato + 8 * s, bw = r.width - lato - 8 * s;
     if (Ui::Pulsante({ bx, y, bw, 28 * s }, riproduci ? "Pausa" : "Riproduci", riproduci)) riproduci = !riproduci;
     float fps = anims[anim].fps;
-    if (Ui::Numero("ed_fps", { bx, y + 34 * s, bw, 26 * s }, "fps", fps, 1, 30, 1)) { anims[anim].fps = fps; cambiato = true; }
+    Ui::Aiuto("Velocita' dell'animazione: fotogrammi al secondo.");
+    if (Ui::Numero("ed_fps", { bx, y + 34 * s, bw, 26 * s }, "", fps, 1, 30, 1, "%.0f fps")) { anims[anim].fps = fps; cambiato = true; }
     bool rip = anims[anim].ripeti;
     if (Ui::Interruttore({ bx, y + 66 * s, bw, 26 * s }, "Ciclo", rip)) { anims[anim].ripeti = rip; cambiato = true; }
     y += lato + 10 * s;
@@ -526,7 +528,7 @@ void EditorDisegno::Animazioni(Rectangle r) {
     if (Ui::Campo("ed_nomeanim", { r.x, y, r.width, 26 * s }, nome, 30) && !nome.empty()) { Ricorda(); anims[anim].nome = nome; cambiato = true; }
     y += 32 * s;
     float h = 26 * s;
-    float altezzaElenco = r.y + r.height - y - h - 10 * s;
+    float altezzaElenco = r.y + r.height - y - 2 * h - 14 * s;
     Rectangle elenco = { r.x, y, r.width, std::max(h, altezzaElenco) };
     Ui::Ritaglia((int)elenco.x, (int)elenco.y, (int)elenco.width, (int)elenco.height);
     if (Ui::MouseSu(elenco)) scorriAnimazioni = std::max(0.0f, scorriAnimazioni - GetMouseWheelMove() * 40 * s);
@@ -537,6 +539,12 @@ void EditorDisegno::Animazioni(Rectangle r) {
         if (Ui::Pulsante(b, t, i == anim) && CheckCollisionPointRec(GetMousePosition(), elenco)) { anim = i; fot = 0; tAnteprima = 0; }
     }
     Ui::FineRitaglio();
+    y = r.y + r.height - 2 * h - 4 * s;
+    Ui::Aiuto("Apre il gestore delle immagini: PNG, BMP, JPG, GIF animate, TGA, anche piu' file insieme o fogli di sprite.");
+    if (Ui::Pulsante({ r.x, y, r.width, h }, "Carica immagini...", true)) {
+        std::vector<std::string> f = ScegliFile("Scegli le immagini per le animazioni", "Immagini", EstensioniImmagini(), true);
+        if (!f.empty()) PreparaImport(f);
+    }
     y = r.y + r.height - h;
     float w3 = (r.width - 8 * s) / 3;
     // Nomi utili per il motore: fermo, corsa, salto, caduta, colpito, vittoria, attacco, aperto, acceso, interno...
@@ -577,6 +585,8 @@ void EditorDisegno::Fotogrammi(Rectangle r) {
     int premuto = -1;
     for (int i = 0; i < 5; i++) {
         bool abil = i == 2 ? fot > 0 : i == 3 ? fot + 1 < (int)a.fotogrammi.size() : i == 4 ? a.fotogrammi.size() > 1 : true;
+        if (i == 2) Ui::Aiuto("Sposta il fotogramma scelto a sinistra (prima nell'animazione).");
+        if (i == 3) Ui::Aiuto("Sposta il fotogramma scelto a destra (dopo nell'animazione).");
         if (Ui::Pulsante({ bx, by, larg[i], hRiga }, nomi[i], false, abil)) premuto = i;
         bx += larg[i] + 4 * s;
     }
@@ -628,4 +638,262 @@ void EditorDisegno::Fotogrammi(Rectangle r) {
         if (trascina) scorriFotogrammi = Limita((GetMousePosition().x - barra.x - wm / 2) / std::max(1.0f, barra.width - wm) * massimo, 0, massimo);
         DrawRectangleRounded(maniglia, 1, 6, trascina || Ui::MouseSu(barra) ? Ui::Accento() : Hex(0x5a64b0));
     }
+}
+
+// --- Gestore delle immagini ------------------------------------------------------------------
+
+namespace {
+const char* AZIONI_MOTORE[] = { "fermo", "corsa", "salto", "caduta", "colpito", "attacco", "sparo", "vittoria", "aperta", "chiusa", "accesa", "spenta" };
+}
+
+const std::vector<std::string>& EditorDisegno::EstensioniImmagini() {
+    static const std::vector<std::string> e = { ".png", ".bmp", ".jpg", ".jpeg", ".gif", ".tga", ".qoi" };
+    return e;
+}
+
+std::vector<std::string> EditorDisegno::DestinazioniImport() const {
+    std::vector<std::string> v;
+    v.push_back("Quella aperta: " + (d && anim < (int)d->animazioni.size() ? d->animazioni[anim].nome : std::string("?")));
+    for (auto n : AZIONI_MOTORE) v.push_back(n);
+    v.push_back("Nuova animazione (nome sotto)");
+    return v;
+}
+
+void EditorDisegno::ChiudiImport() {
+    for (auto& f : impFile) { if (f.tex.id) UnloadTexture(f.tex); if (f.img.data) UnloadImage(f.img); }
+    impFile.clear();
+}
+
+void EditorDisegno::PreparaImport(const std::vector<std::string>& file) {
+    if (!d) return;
+    ChiudiImport();
+    std::vector<std::string> ordinati = file;
+    std::sort(ordinati.begin(), ordinati.end());   // corsa_01.png, corsa_02.png... nell'ordine giusto
+    for (auto& p : ordinati) {
+        if (impFile.size() >= 64) break;
+        FileImport f;
+        f.percorso = p;
+        std::string e = p.size() > 4 ? p.substr(p.size() - 4) : p;
+        for (auto& c : e) c = (char)std::tolower((unsigned char)c);
+        if (e == ".gif") {
+            int n = 0;
+            f.img = LoadImageAnim(p.c_str(), &n);
+            // I fotogrammi della GIF stanno uno dopo l'altro: e' come un foglio alto n volte.
+            if (f.img.data && n > 1) { f.img.height *= n; f.gif = n; }
+        } else f.img = LoadImage(p.c_str());
+        if (!f.img.data) continue;
+        ImageFormat(&f.img, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
+        f.tex = LoadTextureFromImage(f.img);
+        impFile.push_back(f);
+    }
+    if (impFile.empty()) return;
+    // Divisione automatica del primo file.
+    const Image& im = impFile[0].img;
+    impRighe = impColonne = 1;
+    // Spazi vuoti fra i disegni (trasparenti o del colore dello sfondo): contano colonne e righe del foglio.
+    auto Gruppi = [&](bool perColonne) {
+        Color c0 = GetImageColor(im, 0, 0);
+        auto Vuoto = [&](Color c) { return c.a < 10 || (std::abs(c.r - c0.r) + std::abs(c.g - c0.g) + std::abs(c.b - c0.b) <= 24 && c.a == c0.a); };
+        int n = perColonne ? im.width : im.height, m = perColonne ? im.height : im.width, gruppi = 0;
+        bool dentro = false;
+        const Color* px = (const Color*)im.data;
+        for (int i = 0; i < n; i++) {
+            bool pieno = false;
+            for (int j = 0; j < m && !pieno; j++) pieno = !Vuoto(perColonne ? px[(size_t)j * im.width + i] : px[(size_t)i * im.width + j]);
+            if (pieno && !dentro) gruppi++;
+            dentro = pieno;
+        }
+        return gruppi;
+    };
+    int gc = Gruppi(true), gr = Gruppi(false);
+    if (impFile[0].gif > 1) impRighe = impFile[0].gif;
+    else if ((gc > 1 || gr > 1) && im.width % std::max(1, gc) == 0 && im.height % std::max(1, gr) == 0) { impColonne = std::max(1, gc); impRighe = std::max(1, gr); }
+    else if (im.width >= im.height * 2 && im.width % im.height == 0) impColonne = im.width / im.height;
+    else if (im.height >= im.width * 2 && im.height % im.width == 0) impRighe = im.height / im.width;
+    else if (im.width % d->w == 0 && im.height % d->h == 0 && (im.width > d->w || im.height > d->h)) { impColonne = im.width / d->w; impRighe = im.height / d->h; }
+    impColonne = std::min(impColonne, 64); impRighe = std::min(impRighe, 64);
+    // BMP e JPG non hanno trasparenza: si propone di togliere il colore dello sfondo.
+    Color c0 = GetImageColor(im, 0, 0);
+    impTrasparente = c0.a == 255;
+    impDest = 0;
+    impFps = d->animazioni.empty() ? 8 : d->animazioni[std::min(anim, (int)d->animazioni.size() - 1)].fps;
+    tImport = 0;
+}
+
+void EditorDisegno::CelleImport(const FileImport& f, std::vector<Rectangle>& celle) const {
+    int r = f.gif > 1 ? f.gif : impRighe, c = f.gif > 1 ? 1 : impColonne;
+    float cw = (float)f.img.width / c, ch = (float)f.img.height / r;
+    for (int y = 0; y < r; y++)
+        for (int x = 0; x < c; x++) celle.push_back({ (float)(int)(x * cw), (float)(int)(y * ch), (float)(int)cw, (float)(int)ch });
+}
+
+bool EditorDisegno::FinestraImport() {
+    if (impFile.empty() || !d) return false;
+    float s = Ui::S();
+    tImport += GetFrameTime();
+    float W = (float)GetScreenWidth(), H = (float)GetScreenHeight();
+    DrawRectangle(0, 0, (int)W, (int)H, Hex(0x000000, 150));
+    Ui::ApriModale();
+    float fw = std::min(W - 40 * s, 1100 * s), fh = std::min(H - 40 * s, 700 * s);
+    Rectangle f = { (W - fw) / 2, (H - fh) / 2, fw, fh };
+    DrawRectangleRounded(f, 0.02f, 8, Ui::Pannello());
+    DrawRectangleRoundedLinesEx(f, 0.02f, 8, 2, Ui::Accento());
+    float pad = 20 * s, x = f.x + pad, y = f.y + pad, h = 30 * s;
+    Ui::Testo("Gestore delle immagini", x, y, Ui::Accento(), (int)(24 * s));
+    bool chiudi = (IsKeyPressed(KEY_ESCAPE) && !Ui::StaScrivendo()) || Ui::Pulsante({ f.x + f.width - 44 * s, f.y + 10 * s, 34 * s, 30 * s }, "X");
+    y += 40 * s;
+    // Colonna sinistra: il primo file con la griglia, e l'anteprima animata del risultato.
+    float wSx = fw * 0.55f;
+    Rectangle vista = { x, y, wSx - pad, fh - (y - f.y) - 150 * s };
+    Scacchiera(vista, 10 * s);
+    const FileImport& p0 = impFile[0];
+    float k = std::min(vista.width / p0.img.width, vista.height / p0.img.height);
+    Rectangle dst = { vista.x + (vista.width - p0.img.width * k) / 2, vista.y + (vista.height - p0.img.height * k) / 2, p0.img.width * k, p0.img.height * k };
+    // una GIF lunga si mostra solo nel primo fotogramma, con la griglia sopra
+    if (p0.gif > 1) {
+        float hh = (float)p0.img.height / p0.gif;
+        float k2 = std::min(vista.width / p0.img.width, vista.height / hh);
+        dst = { vista.x + (vista.width - p0.img.width * k2) / 2, vista.y + (vista.height - hh * k2) / 2, p0.img.width * k2, hh * k2 };
+        DrawTexturePro(p0.tex, { 0, 0, (float)p0.img.width, hh }, dst, { 0, 0 }, 0, WHITE);
+    } else {
+        DrawTexturePro(p0.tex, { 0, 0, (float)p0.img.width, (float)p0.img.height }, dst, { 0, 0 }, 0, WHITE);
+        for (int i = 1; i < impColonne; i++) { float xx = dst.x + dst.width * i / impColonne; DrawLineEx({ xx, dst.y }, { xx, dst.y + dst.height }, 1, Hex(0xffd23f, 200)); }
+        for (int i = 1; i < impRighe; i++) { float yy = dst.y + dst.height * i / impRighe; DrawLineEx({ dst.x, yy }, { dst.x + dst.width, yy }, 1, Hex(0xffd23f, 200)); }
+        DrawRectangleLinesEx(dst, 1, Hex(0xffd23f, 200));
+    }
+    DrawRectangleLinesEx(vista, 1, Ui::Bordo());
+    // tutte le celle di tutti i file, in ordine
+    struct Cella { int file; Rectangle r; };
+    std::vector<Cella> celle;
+    for (int i = 0; i < (int)impFile.size(); i++) { std::vector<Rectangle> c; CelleImport(impFile[i], c); for (auto& r : c) celle.push_back({ i, r }); }
+    float ya = vista.y + vista.height + 10 * s;
+    Rectangle anteprima = { x, ya, 120 * s, 120 * s };
+    Scacchiera(anteprima, 8 * s);
+    if (!celle.empty()) {
+        int n = (int)(tImport * std::max(1.0f, impFps)) % (int)celle.size();
+        const Cella& c = celle[n];
+        float kk = std::min(anteprima.width / c.r.width, anteprima.height / c.r.height);
+        Rectangle q = { anteprima.x + (anteprima.width - c.r.width * kk) / 2, anteprima.y + (anteprima.height - c.r.height * kk) / 2, c.r.width * kk, c.r.height * kk };
+        DrawTexturePro(impFile[c.file].tex, c.r, q, { 0, 0 }, 0, WHITE);
+    }
+    DrawRectangleLinesEx(anteprima, 1, Ui::Bordo());
+    std::string info = TextFormat("%d file, %d fotogrammi da %d x %d pixel.", (int)impFile.size(), (int)celle.size(),
+                                  celle.empty() ? 0 : (int)celle[0].r.width, celle.empty() ? 0 : (int)celle[0].r.height);
+    Ui::TestoACapo(info + "\nIl disegno e' di " + std::to_string(d->w) + " x " + std::to_string(d->h) + " pixel.\n" +
+                   GetFileName(p0.percorso.c_str()) + (impFile.size() > 1 ? " e altri" : ""),
+                   anteprima.x + anteprima.width + 12 * s, ya, wSx - pad - anteprima.width - 12 * s, Ui::TestoSpento(), Ui::TP());
+    // Colonna destra: le scelte.
+    float cx = f.x + wSx + 10 * s, cw = fw - wSx - 10 * s - pad;
+    float cy = f.y + pad + 40 * s;
+    if (p0.gif > 1) { Ui::TestoACapo(TextFormat("GIF animata: %d fotogrammi.", p0.gif), cx, cy + 6 * s, cw, Ui::TestoChiaro(), Ui::TP()); cy += h + 6 * s; }
+    else {
+        Ui::NumeroIntero("imp_col", { cx, cy, cw, h }, "Colonne (foglio di sprite)", impColonne, 1, 64); cy += h + 6 * s;
+        Ui::NumeroIntero("imp_rig", { cx, cy, cw, h }, "Righe", impRighe, 1, 64); cy += h + 6 * s;
+    }
+    std::vector<std::string> dest = DestinazioniImport();
+    Ui::Scelta({ cx, cy, cw, h }, "Animazione", impDest, dest); cy += h + 6 * s;
+    if (impDest == (int)dest.size() - 1) { Ui::Campo("imp_nome", { cx, cy, cw, h }, impNome, 30); cy += h + 6 * s; }
+    Ui::Scelta({ cx, cy, cw, h }, "Fotogrammi", impModo, { "Aggiungi in coda", "Sostituisci quelli che ci sono" }); cy += h + 6 * s;
+    Ui::Scelta({ cx, cy, cw, h }, "Misura", impAdatta, { "Allarga il disegno (fino a 256)", "Rimpicciolisci nel disegno", "Disegno della misura delle immagini" }); cy += h + 6 * s;
+    Ui::Scelta({ cx, cy, cw, h }, "Allinea", impAllinea, { "Piedi in basso, al centro", "Al centro", "In alto a sinistra" }); cy += h + 6 * s;
+    Ui::Numero("imp_fps", { cx, cy, cw, h }, "Velocita' (fps)", impFps, 1, 30, 1); cy += h + 6 * s;
+    Ui::Interruttore({ cx, cy, cw, h }, "Sfondo trasparente (colore dell'angolo)", impTrasparente); cy += h + 6 * s;
+    Ui::Interruttore({ cx, cy, cw, h }, "Salta le celle vuote", impSaltaVuoti); cy += h + 10 * s;
+    Ui::TestoACapo("Nomi che il motore usa da solo: fermo, corsa, salto, caduta, colpito, attacco, sparo, vittoria "
+                   "(porte: aperta/chiusa; interruttori: accesa/spenta). Le altre si avviano dalla Logica con \"anima\".",
+                   cx, cy, cw, Ui::TestoSpento(), (int)(13 * s));
+    float by = f.y + fh - pad - 36 * s;
+    bool importa = false;
+    if (Ui::Pulsante({ cx, by, cw * 0.48f, 36 * s }, "Aggiungi altri file...")) {
+        std::vector<std::string> altri = ScegliFile("Scegli le immagini", "Immagini", EstensioniImmagini(), true);
+        if (!altri.empty()) {
+            std::vector<std::string> tutti;
+            for (auto& fi : impFile) tutti.push_back(fi.percorso);
+            tutti.insert(tutti.end(), altri.begin(), altri.end());
+            int r = impRighe, c = impColonne, dd = impDest; float fp = impFps;
+            PreparaImport(tutti);
+            impRighe = r; impColonne = c; impDest = dd; impFps = fp;
+            Ui::ChiudiModale();
+            return false;
+        }
+    }
+    if (Ui::Pulsante({ cx + cw * 0.52f, by, cw * 0.48f, 36 * s }, "Importa", true)) importa = true;
+    Ui::ChiudiModale();
+    if (chiudi) { ChiudiImport(); Ui::TogliFuoco(); }
+    return importa;
+}
+
+bool EditorDisegno::EseguiImport(std::string& messaggio) {
+    if (impFile.empty() || !d) return false;
+    Ricorda();
+    // Le celle diventano fotogrammi (prima di toccare il disegno).
+    std::vector<Fotogramma> nuovi;
+    int maxW = 0, maxH = 0;
+    for (auto& fi : impFile) {
+        std::vector<Rectangle> celle;
+        CelleImport(fi, celle);
+        Color sfondo = GetImageColor(fi.img, 0, 0);
+        for (auto& r : celle) {
+            Fotogramma fo = FotogrammaDaImmagine(fi.img, r);
+            if (impTrasparente)
+                for (auto& c : fo.px)
+                    if (std::abs(c.r - sfondo.r) + std::abs(c.g - sfondo.g) + std::abs(c.b - sfondo.b) <= 24) c = BLANK;
+            if (impSaltaVuoti && fo.Vuoto()) continue;
+            maxW = std::max(maxW, fo.w); maxH = std::max(maxH, fo.h);
+            nuovi.push_back(fo);
+        }
+    }
+    if (nuovi.empty()) { messaggio = "Nessun fotogramma da importare (celle vuote?)"; annulla.pop_back(); return false; }
+    // Misura del disegno
+    if (impAdatta == 0) {
+        int nw = std::min(256, std::max(d->w, maxW)), nh = std::min(256, std::max(d->h, maxH));
+        if (nw != d->w || nh != d->h) d->Ridimensiona(nw, nh);
+    } else if (impAdatta == 2) {
+        int nw = std::min(256, maxW), nh = std::min(256, maxH);
+        if (nw != d->w || nh != d->h) d->Ridimensiona(nw, nh);
+    }
+    // Ogni fotogramma entra nel disegno (se e' troppo grande si rimpicciolisce mantenendo le proporzioni).
+    for (auto& fo : nuovi) {
+        if (fo.w > d->w || fo.h > d->h) {
+            float k = std::min((float)d->w / fo.w, (float)d->h / fo.h);
+            int w2 = std::max(1, (int)(fo.w * k)), h2 = std::max(1, (int)(fo.h * k));
+            Image im = GenImageColor(fo.w, fo.h, BLANK);
+            std::memcpy(im.data, fo.px.data(), fo.px.size() * sizeof(Color));
+            if (d->liscio) ImageResize(&im, w2, h2); else ImageResizeNN(&im, w2, h2);
+            fo = FotogrammaDaImmagine(im, { 0, 0, (float)w2, (float)h2 });
+            UnloadImage(im);
+        }
+        Fotogramma g;
+        g.Nuovo(d->w, d->h);
+        int ox = impAllinea == 2 ? 0 : (d->w - fo.w) / 2;
+        int oy = impAllinea == 0 ? d->h - fo.h : impAllinea == 1 ? (d->h - fo.h) / 2 : 0;
+        for (int yy = 0; yy < fo.h; yy++) for (int xx = 0; xx < fo.w; xx++) g.Metti(xx + ox, yy + oy, fo.Prendi(xx, yy));
+        fo = g;
+    }
+    // L'animazione di destinazione
+    std::vector<std::string> dest = DestinazioniImport();
+    int a = anim;
+    if (impDest > 0) {
+        std::string nome = impDest == (int)dest.size() - 1 ? (impNome.empty() ? std::string("animazione") : impNome) : dest[impDest];
+        a = d->TrovaAnimazione(nome);
+        if (a < 0) {
+            ::Animazione na; na.nome = nome;
+            d->animazioni.push_back(na);
+            a = (int)d->animazioni.size() - 1;
+        }
+    }
+    auto& an = d->animazioni[a];
+    bool vuota = an.fotogrammi.empty() || (an.fotogrammi.size() == 1 && an.fotogrammi[0].Vuoto());
+    if (impModo == 1 || vuota) an.fotogrammi.clear();
+    an.fotogrammi.insert(an.fotogrammi.end(), nuovi.begin(), nuovi.end());
+    an.fps = impFps;
+    anim = a;
+    fot = (int)an.fotogrammi.size() - (int)nuovi.size();
+    d->Invalida();
+    RaccogliTavolozza();
+    adattaVista = true;
+    cambiato = true;
+    messaggio = TextFormat("%d fotogrammi nell'animazione \"%s\"", (int)nuovi.size(), an.nome.c_str());
+    ChiudiImport();
+    return true;
 }

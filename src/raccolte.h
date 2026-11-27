@@ -28,4 +28,5 @@ Brano ComponiBrano(const std::string& nome, int seme, int stile, int battute = 8
 const std::vector<std::string>& StiliBrano();
 // Effetti sonori pronti.
 std::vector<EffettoSuono> EffettiArcade();
+std::vector<EffettoSuono> EffettiSpeciali();
 EffettoSuono EffettoCasuale(int seme);

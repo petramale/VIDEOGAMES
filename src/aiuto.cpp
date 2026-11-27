@@ -78,8 +78,8 @@ static const std::map<std::string, const char*>& Dizionario() {
         { "+ Copia", "Aggiunge una copia del fotogramma scelto, da modificare." },
         { "+", "Aggiunge o aumenta." },
         { "-", "Diminuisce." },
-        { "<", "Sposta il fotogramma scelto a sinistra / indietro." },
-        { ">", "Sposta il fotogramma scelto a destra / avanti." },
+        { "<", "Indietro (la scelta precedente)." },
+        { ">", "Avanti (la scelta successiva)." },
         { "Copia", "Aggiunge una copia del fotogramma scelto." },
         { "Opacita' %", "Quanto e' coprente il colore: 100 pieno, 0 trasparente." },
         // --- Scenari ---

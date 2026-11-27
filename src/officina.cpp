@@ -1,6 +1,7 @@
 // L'officina: struttura, menu di sistema, home, file, prova, eseguibile e chat con Claude.
 // Le sezioni sono in officina_sezioni.cpp, officina_audio.cpp e officina_logica.cpp.
 #include "officina.h"
+#include "midi.h"
 #include "arcade.h"
 #include "audio.h"
 #include "claude_progetto.h"
@@ -28,7 +29,7 @@ const char* AIUTO_SEZIONI[] = { "Pagina iniziale: nuovo gioco, apri, salva e tut
     "Scenari (Alt+4): gli sfondi delle mappe (cielo, montagne, strati, meteo) e le caselle del terreno.",
     "Audio (Alt+5): scrivi la musica, crea gli effetti sonori e scegli quale suono va con ogni evento.",
     "Logica (Alt+6): le regole del gioco: QUANDO succede qualcosa, SE..., ALLORA fai qualcosa.",
-    "Librerie (Alt+7): tutto quello che il gioco contiene e le 22 raccolte pronte da aggiungere.",
+    "Librerie (Alt+7): tutto quello che il gioco contiene e le 23 raccolte pronte da aggiungere.",
     "Comandi (Alt+8): tasti, mouse e joypad, con la prova dal vivo.",
     "Comportamenti (Alt+9): il carattere e la mente di nemici e personaggi, l'indole degli oggetti, come cambia ogni partita.",
     "Gioco arcade (Alt+0): livelli, nemici, boss, colori, regole e suoni del gioco arcade, con l'anteprima dal vivo." };
@@ -365,8 +366,8 @@ void Officina::Frame(float dt) {
     if (editorMondo.Provando()) { editorMondo.Frame(dt); postoAudio = editorMondo.PostoAudio(); return; }
 
     Layout();
-    if (menuAperto >= 0 || finestra != 0) Ui::ImpostaModale({ 0, 0, (float)GetScreenWidth(), (float)GetScreenHeight() });
-    if (finestra == 0 && menuAperto < 0 && !Ui::StaScrivendo()) Scorciatoie();
+    if (menuAperto >= 0 || finestra != 0 || editorDisegno.ImportAperto()) Ui::ImpostaModale({ 0, 0, (float)GetScreenWidth(), (float)GetScreenHeight() });
+    if (finestra == 0 && menuAperto < 0 && !editorDisegno.ImportAperto() && !Ui::StaScrivendo()) Scorciatoie();
     if (provando) { FrameProva(0); return; }
     FileTrascinati();
 
@@ -393,6 +394,13 @@ void Officina::Frame(float dt) {
     MenuTendina();
     Ui::ChiudiModale();
     Finestre();
+    if (editorDisegno.ImportAperto() && editorDisegno.FinestraImport()) {
+        std::string msg;
+        Ricorda();
+        if (editorDisegno.EseguiImport(msg)) { modificato = true; LibreriaCambiata(); }
+        else annulla.pop_back();
+        Avvisa(msg);
+    }
     // Avviso in basso al centro.
     if (tAvviso > 0 && !avviso.empty()) {
         float s = Ui::S(), k = Limita(tAvviso * 2, 0, 1);
@@ -426,7 +434,17 @@ void Officina::FileTrascinati() {
     if (!IsFileDropped()) return;
     if (sezione == Sezione::Mondi) return;   // le immagini nel mondo le prende l'editor dei mondi
     FilePathList l = LoadDroppedFiles();
-    for (unsigned int i = 0; i < l.count; i++) ImportaFile(l.paths[i]);
+    // Piu' immagini trascinate insieme in un editor di disegno vanno tutte nel gestore delle immagini.
+    bool disegno = (sezione == Sezione::Personaggi || sezione == Sezione::Oggetti || (sezione == Sezione::Scenari && schedaScenari == 1)) && !editorDisegno.Id().empty();
+    std::vector<std::string> immagini;
+    for (unsigned int i = 0; i < l.count; i++) {
+        std::string e = Estensione(l.paths[i]);
+        bool img = false;
+        for (auto& x : EditorDisegno::EstensioniImmagini()) if (e == x) img = true;
+        if (disegno && img) immagini.push_back(l.paths[i]);
+        else ImportaFile(l.paths[i]);
+    }
+    if (!immagini.empty()) editorDisegno.PreparaImport(immagini);
     UnloadDroppedFiles(l);
 }
 
@@ -809,7 +827,7 @@ void Officina::Finestre() {
                 "MENU GIOCO (in alto a sinistra): nuovo, apri, salva gioco (Ctrl+S), prova (F5), crea il .exe (Ctrl+E), stile grafico, chiave di Claude.\n"
                 "SEZIONI (Alt+1...8): Mondi (le mappe a blocchi), Personaggi (disegno, animazioni e comportamento), Oggetti (disegno e funzione), "
                 "Scenari (sfondi a strati e caselle), Audio (musica a note, effetti, suoni degli eventi), Logica (regole quando... allora...), "
-                "Librerie (tutto il gioco e le 22 raccolte pronte), Comandi (tastiera, mouse e joypad).\n"
+                "Librerie (tutto il gioco e le 23 raccolte pronte), Comandi (tastiera, mouse e joypad).\n"
                 "CLAUDE e' nella colonna a destra in ogni sezione (F3 per scrivere, F2 per nasconderla): sa in che sezione sei e cosa hai aperto. "
                 "Chiedigli di disegnare un personaggio, comporre una musica, scrivere regole o costruire una mappa.\n"
                 "DISEGNO: P matita, E gomma, F secchiello, L linea, R rettangolo, O ellisse, I contagocce, M sposta; [ e ] punta; X scambia i colori; "
@@ -923,7 +941,7 @@ void Officina::Home(Rectangle r) {
     const char* desc[] = { "", "Le mappe a blocchi: caselle, oggetti, porte, scroll, telecamera",
                            "Disegna, anima e dai un comportamento ai personaggi", "Oggetti disegnati con la loro funzione nel gioco",
                            "Sfondi a strati, cielo, pioggia e neve, caselle disegnate", "Musica a note, effetti sonori, suoni degli eventi",
-                           "Regole: quando succede qualcosa, allora...", "La libreria del gioco e le 22 raccolte pronte",
+                           "Regole: quando succede qualcosa, allora...", "La libreria del gioco e le 23 raccolte pronte",
                            "Tastiera, mouse e joypad", "Carattere e mente delle creature, ogni partita diversa",
                            "Livelli, nemici, boss, colori, regole e suoni del gioco arcade" };
     int col = r.width > 1300 * s ? 4 : 3;
@@ -1315,9 +1333,8 @@ void Officina::ImportaFile(const std::string& file) {
     if (e == ".png" || e == ".jpg" || e == ".jpeg" || e == ".bmp" || e == ".gif" || e == ".tga" || e == ".qoi") {
         // Nelle sezioni di disegno diventa fotogrammi; altrove uno strato dello scenario o un nuovo personaggio.
         if ((sezione == Sezione::Personaggi || sezione == Sezione::Oggetti || (sezione == Sezione::Scenari && schedaScenari == 1)) && !editorDisegno.Id().empty()) {
-            Ricorda();
-            if (editorDisegno.Importa(file, msg)) { Avvisa(msg); LibreriaCambiata(); }
-            else { annulla.pop_back(); Avvisa(msg); }
+            editorDisegno.PreparaImport({ file });
+            if (!editorDisegno.ImportAperto()) Avvisa("Non riesco ad aprire " + std::string(GetFileName(file.c_str())));
             return;
         }
         std::string dati = LeggiTesto(file);
@@ -1356,11 +1373,25 @@ void Officina::ImportaFile(const std::string& file) {
         Avvisa("Nuovo personaggio " + p.nome + ": " + msg);
         return;
     }
-    if (e == ".wav" || e == ".ogg" || e == ".mp3" || e == ".qoa" || e == ".flac") {
+    if (e == ".mid" || e == ".midi") {
+        // MIDI: le note diventano un brano del rullo di pianoforte, modificabile e suonato dal sintetizzatore.
+        std::string dati = LeggiTesto(file), errore;
+        Brano b;
+        if (!BranoDaMidi(dati, b, errore)) { Avvisa("MIDI non importato: " + errore); return; }
+        Ricorda();
+        b.nome = progetto.NomeLibero(GetFileNameWithoutExt(file.c_str()));
+        b.autore = "MIDI";
+        progetto.brani.push_back(b);
+        selBrano = (int)progetto.brani.size() - 1; schedaAudio = 0;
+        Vai(Sezione::Audio);
+        Avvisa(TextFormat("MIDI importato: %d tracce, %d battute, %.0f bpm", (int)b.tracce.size(), b.battute, b.bpm));
+        return;
+    }
+    if (e == ".wav" || e == ".ogg" || e == ".mp3" || e == ".qoa" || e == ".flac" || e == ".xm" || e == ".mod") {
         std::string dati = LeggiTesto(file);
         Ricorda();
         // Brevi = effetti, lunghi (oltre 1 MB o OGG/MP3 lunghi) = musica. Nella scheda effetti diventa sempre un effetto.
-        bool musica = (schedaAudio == 0 && sezione == Sezione::Audio) || dati.size() > 600000;
+        bool musica = (schedaAudio == 0 && sezione == Sezione::Audio) || dati.size() > 600000 || e == ".xm" || e == ".mod";
         if (musica) {
             Brano b;
             b.nome = progetto.NomeLibero(GetFileNameWithoutExt(file.c_str()));

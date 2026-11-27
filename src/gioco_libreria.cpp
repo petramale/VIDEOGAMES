@@ -824,6 +824,37 @@ void Gioco::EseguiRegola(const Regola& r, int ent) {
                 if (!p.personaggio && lib.oggetti[p.def].funzione == FunzioneOggetto::Porta &&
                     (a.testo.empty() || Uguale(p.nome, a.testo) || Uguale(lib.oggetti[p.def].richiede, a.testo))) { p.aperta = true; p.anim = "aperta"; p.tAnim = 0; }
         } else if (t == "scuoti") scossa = a.numero > 0 ? a.numero : 0.4f;
+        else if (t == "effetto") {
+            const auto& nomi = NomiEffettoSpeciale();
+            int tipo = 0;
+            for (size_t k = 0; k < nomi.size(); k++) if (Uguale(nomi[k], a.testo)) tipo = (int)k;
+            static const unsigned int colori[] = { 0xffd23f, 0xff8a3c, 0xff6a2c, 0xa8a4a0, 0xfff07a, 0xff5c8a, 0xb28cff,
+                                                   0xffd23f, 0x9ad8ff, 0xc8b090, 0xcfe8ff, 0x7af0ff, 0xfff3b0, 0xffd23f };
+            Color col = Hex(colori[tipo % 14]);
+            float k = a.numero > 0 ? a.numero : 1;
+            std::vector<Vector2> dove;
+            for (int b : bersagli) { Rectangle bx = BoxEntita(entita[b]); dove.push_back({ bx.x + bx.width / 2, bx.y + bx.height / 2 }); }
+            if (dove.empty()) dove.push_back({ eroe.pos.x, eroe.pos.y - 14 });
+            for (Vector2 p : dove) {
+                particelle.Effetto(tipo, p, col, k);
+                if (tipo == 1 || tipo == 2 || tipo == 7 || tipo == 10 || tipo == 11 || tipo == 12)   // queste fanno anche luce
+                    lampiLuce.push_back({ p, (tipo == 2 ? 220.0f : 120.0f) * std::sqrt(k), 0.5f, 0.5f, col });
+            }
+            if (tipo == 2) { scossa = std::max(scossa, 0.5f); tLampo = durataLampo = 0.18f; coloreLampo = Hex(0xfff0c0); }
+            if (tipo == 10) { tLampo = durataLampo = 0.12f; coloreLampo = Hex(0xe8f4ff); }
+        } else if (t == "lampo") {
+            Color c = WHITE; TestoInColore(a.testo, c);
+            coloreLampo = c; durataLampo = tLampo = a.numero > 0 ? a.numero : 0.3f;
+        } else if (t == "luce") {
+            static const char* nomi[] = { "rossa", "verde", "blu", "gialla", "bianca", "viola", "azzurra" };
+            static const unsigned int colori[] = { 0xff4a3a, 0x5cff7a, 0x4a7aff, 0xffd84a, 0xffffff, 0xc07aff, 0x6ae8ff };
+            int stato = Uguale(a.testo, "spegni") ? 0 : 1;
+            Color col{ 0, 0, 0, 0 };
+            for (int k = 0; k < 7; k++) if (Uguale(a.testo, nomi[k])) col = Hex(colori[k]);
+            if (bersagli.empty()) { luceEroe = stato; if (col.a) luceEroeColore = col; if (a.numero > 0) luceEroeRaggio = a.numero; }
+            for (int b : bersagli) { entita[b].luceStato = stato; if (col.a) entita[b].luceColore = col; if (a.numero > 0) entita[b].luceRaggio = a.numero; }
+        } else if (t == "buio") buioObiettivo = Limita(a.numero, 0, 1);
+        else if (t == "rallenta") rallenta = a.numero > 0 ? a.numero : 2;
         else if (t == "spingi") {
             float verso = (!bersagli.empty() && entita[bersagli[0]].pos.x > eroe.pos.x) ? -1.0f : 1.0f;
             eroe.vel.x = verso * (a.numero > 0 ? a.numero : 200);
@@ -899,6 +930,11 @@ void Gioco::DisegnaEroeLibreria(Vector2 p) const {
     }
     if (vistaAlto && (std::fabs(eroe.vel.x) > 5 || std::fabs(eroe.vel.y) > 5)) nome = "corsa";
     int a = d.TrovaAnimazione(nome);
+    if (tSparo > 0.08f && eroe.stato != StatoEroe::Colpito) {   // appena sparato: "sparo" (o "attacco")
+        int sp = d.TrovaAnimazione("sparo");
+        if (sp < 0) sp = d.TrovaAnimazione("attacco");
+        if (sp >= 0) a = sp;
+    }
     if (a < 0 && eroe.stato == StatoEroe::Caduta) a = d.TrovaAnimazione("salto");
     if (a < 0) a = d.TrovaAnimazione("fermo");
     if (a < 0) a = 0;
@@ -1081,62 +1117,142 @@ void Gioco::DisegnaHD(RenderTexture2D& rt, int scala) {
     gScalaHD = prima;
 }
 
-// Scenari bui: un velo scuro su tutto, con "buchi" di luce intorno all'eroe (la sua lanterna),
-// agli oggetti preziosi, ai punti di controllo accesi, all'arrivo e ai proiettili.
+// Scie: dietro a chi si muove (e un poco anche da fermo) escono particelle di luce, fumo, foglie...
+void Gioco::AggiornaScie(float dt) {
+    auto Emetti = [&](const LuceDef& L, float& t, Vector2 pos, Vector2 vel, float verso) {
+        if (L.scia <= 0) return;
+        float v = std::sqrt(vel.x * vel.x + vel.y * vel.y);
+        t -= dt * (0.35f + std::min(1.0f, v / 120.0f));
+        if (t > 0) return;
+        t += 0.045f;
+        particelle.Scia(L.scia, pos, L.coloreScia, verso);
+    };
+    if (eroeDef >= 0 && eroeDef < (int)lib.personaggi.size())
+        Emetti(lib.personaggi[eroeDef].luce, tSciaEroe, { eroe.pos.x, eroe.pos.y - 10 }, eroe.vel, (float)eroe.dir);
+    for (Entita& e : entita) {
+        if (!e.attivo) continue;
+        const LuceDef& L = e.personaggio ? lib.personaggi[e.def].luce : lib.oggetti[e.def].luce;
+        if (L.scia <= 0) continue;
+        Rectangle b = BoxEntita(e);
+        Emetti(L, e.tScia, { b.x + b.width / 2, b.y + b.height / 2 }, e.vel, (float)e.dir);
+    }
+}
+
+// Luci del gioco. Negli scenari bui un velo scuro copre tutto, con "buchi" di luce intorno all'eroe
+// (la sua lanterna), ai personaggi e agli oggetti che portano una luce, ai proiettili e ai bagliori
+// delle esplosioni. Le luci "proprie" (Personaggi/Oggetti > Luce ed effetti) hanno colore, raggio,
+// intensita', tremolio di fiamma, pulsazione e un alone colorato che si vede anche di giorno.
 // Il velo e' una griglia di quadratini con i colori sfumati agli angoli: morbido e veloce.
-void Gioco::DisegnaBuio(float cx, float cy) const {
-    struct Luce { float x, y, r; };
+void Gioco::DisegnaLuci(float cx, float cy) const {
+    struct Luce { float x, y, r, forza, alone; Color c; };
     std::vector<Luce> luci;
     auto Schermo = [&](float wx, float wy) { return Vector2{ ((wx - cx) - VW / 2.0f) * zoom + VW / 2.0f, ((wy - cy) - VH / 2.0f) * zoom + VH / 2.0f }; };
-    float tremolio = 1 + 0.03f * std::sin(tempoVisivo * 9) + 0.02f * std::sin(tempoVisivo * 23);
-    Vector2 e = Schermo(eroe.pos.x, eroe.pos.y - 12);
-    luci.push_back({ e.x, e.y, 92 * zoom * tremolio });
-    for (const Entita& en : entita) {
-        if (!en.attivo) continue;
-        float r = 0;
-        if (en.personaggio) r = 16;   // gli occhi dei nemici brillano nel buio
-        else {
-            const OggettoDef& d = lib.oggetti[en.def];
-            switch (d.funzione) {
-                case FunzioneOggetto::Raccogli: case FunzioneOggetto::Cura: case FunzioneOggetto::Chiave: r = 26; break;
-                case FunzioneOggetto::Arrivo: r = 70; break;
-                case FunzioneOggetto::Controllo: r = en.acceso ? 80 : 22; break;
-                case FunzioneOggetto::Interruttore: r = en.acceso ? 50 : 0; break;
-                default: break;
-            }
+    auto Fuori = [&](Vector2 s, float r) { return s.x < -r || s.x > VW + r || s.y < -r || s.y > VH + r; };
+    // Raggio che vive: tremolio di fiamma e pulsazione lenta, sfasati per ciascuna luce.
+    auto Vivo = [&](const LuceDef& L, float fase) {
+        float k = 1 + L.tremolio * (0.10f * std::sin(tempoVisivo * 9 + fase) + 0.06f * std::sin(tempoVisivo * 23 + fase * 1.7f) + 0.04f * std::sin(tempoVisivo * 41 + fase * 3.1f));
+        k *= 1 + L.pulsazione * 0.3f * std::sin(tempoVisivo * 3 + fase);
+        return k;
+    };
+    auto Aggiungi = [&](const LuceDef& L, Vector2 s, float fase, float raggio, Color col) {
+        float r = raggio * zoom * Vivo(L, fase);
+        if (r <= 1 || Fuori(s, r)) return;
+        luci.push_back({ s.x, s.y, r, Limita(L.intensita, 0, 2), L.alone, col });
+    };
+    // L'eroe
+    {
+        LuceDef L;   // automatica: la lanterna
+        L.colore = Hex(0xffc860); L.raggio = 92; L.tremolio = 0.3f; L.alone = 0.35f; L.alto = 12;
+        bool accesa = true, automatica = true;
+        if (conLibreria && eroeDef >= 0 && eroeDef < (int)lib.personaggi.size()) {
+            const LuceDef& d = lib.personaggi[eroeDef].luce;
+            if (d.modo == 1) { L = d; automatica = false; }
+            else if (d.modo == 2) accesa = false;
         }
-        if (r <= 0) continue;
-        Rectangle b = BoxEntita(en);
-        Vector2 s = Schermo(b.x + b.width / 2, b.y + b.height / 2);
-        if (s.x < -r * zoom || s.x > VW + r * zoom || s.y < -r * zoom || s.y > VH + r * zoom) continue;
-        luci.push_back({ s.x, s.y, r * zoom });
+        if (luceEroe == 0) accesa = false;
+        if (luceEroe == 1) {
+            accesa = true;
+            if (luceEroeColore.a) { L.colore = luceEroeColore; automatica = false; }
+            if (luceEroeRaggio > 0) L.raggio = luceEroeRaggio;
+        }
+        if (accesa && (buio > 0 || !automatica)) Aggiungi(L, Schermo(eroe.pos.x, eroe.pos.y - L.alto), 0, L.raggio, L.colore);
     }
-    for (const Proiettile& q : proiettili) { Vector2 s = Schermo(q.pos.x, q.pos.y); luci.push_back({ s.x, s.y, 22 * zoom }); }
-    const int passo = 6;
-    const int nx = VW / passo + 2, ny = VH / passo + 2;
-    std::vector<unsigned char> a((size_t)nx * ny);
-    for (int j = 0; j < ny; j++)
-        for (int i = 0; i < nx; i++) {
-            float x = (float)i * passo, y = (float)j * passo, l = 0;
-            for (const Luce& L : luci) {
-                float dx = x - L.x, dy = y - L.y, d2 = dx * dx + dy * dy;
-                if (d2 >= L.r * L.r) continue;
-                float v = 1 - std::sqrt(d2) / L.r;
-                v = v * v * (3 - 2 * v);
-                l = std::max(l, v);
+    int n = 0;
+    for (const Entita& en : entita) {
+        n++;
+        if (!en.attivo) continue;
+        const LuceDef& d = en.personaggio ? lib.personaggi[en.def].luce : lib.oggetti[en.def].luce;
+        LuceDef L = d;
+        float r = 0;
+        bool propria = d.modo == 1;
+        if (d.modo == 0) {
+            L.colore = Hex(0xffe0a0); L.alone = 0; L.tremolio = 0; L.pulsazione = 0; L.intensita = 1;
+            if (en.personaggio) r = 16;   // gli occhi dei nemici brillano nel buio
+            else {
+                switch (lib.oggetti[en.def].funzione) {
+                    case FunzioneOggetto::Raccogli: case FunzioneOggetto::Cura: case FunzioneOggetto::Chiave: r = 26; break;
+                    case FunzioneOggetto::Arrivo: r = 70; break;
+                    case FunzioneOggetto::Controllo: r = en.acceso ? 80 : 22; break;
+                    case FunzioneOggetto::Interruttore: r = en.acceso ? 50 : 0; break;
+                    default: break;
+                }
             }
-            a[(size_t)j * nx + i] = (unsigned char)(255 * buio * (1 - l));
+        } else if (d.modo == 1) r = d.raggio;
+        if (en.luceStato == 0) r = 0;
+        if (en.luceStato == 1) {
+            if (r <= 0) r = d.modo == 1 ? d.raggio : 90;
+            if (en.luceRaggio > 0) r = en.luceRaggio;
+            if (en.luceColore.a) { L.colore = en.luceColore; propria = true; if (L.alone <= 0) L.alone = 0.35f; if (L.tremolio <= 0) L.tremolio = 0.2f; }
         }
-    const Color base = Hex(0x05040f);
-    auto C = [&](int i, int j) { Color c = base; c.a = a[(size_t)j * nx + i]; return c; };
-    for (int j = 0; j + 1 < ny; j++)
-        for (int i = 0; i + 1 < nx; i++) {
-            Color c00 = C(i, j), c10 = C(i + 1, j), c01 = C(i, j + 1), c11 = C(i + 1, j + 1);
-            if (c00.a == 0 && c10.a == 0 && c01.a == 0 && c11.a == 0) continue;
-            DrawRectangleGradientEx({ (float)i * passo, (float)j * passo, (float)passo, (float)passo }, c00, c01, c11, c10);
-        }
-    // un alone caldo intorno alla lanterna dell'eroe
+        if (r <= 0 || (buio <= 0 && !propria)) continue;
+        Rectangle b = BoxEntita(en);
+        float alto = propria ? L.alto - 12 : 0;
+        Aggiungi(L, Schermo(b.x + b.width / 2, b.y + b.height / 2 - alto), n * 1.37f, r, L.colore);
+        if (!propria) luci.back().alone = 0;
+    }
+    if (buio > 0)
+        for (const Proiettile& q : proiettili) { Vector2 s = Schermo(q.pos.x, q.pos.y); if (!Fuori(s, 22 * zoom)) luci.push_back({ s.x, s.y, 22 * zoom, 1, 0, q.colore }); }
+    for (const LampoLuce& l : lampiLuce) {
+        float k = Limita(l.t / std::max(0.01f, l.durata), 0, 1);
+        Vector2 s = Schermo(l.pos.x, l.pos.y);
+        float r = l.r * zoom * (0.6f + 0.4f * k);
+        if (!Fuori(s, r)) luci.push_back({ s.x, s.y, r, 1.3f * k, 0.6f * k, l.colore });
+    }
+    if (buio > 0) {
+        const int passo = 6;
+        const int nx = VW / passo + 2, ny = VH / passo + 2;
+        std::vector<unsigned char> a((size_t)nx * ny);
+        for (int j = 0; j < ny; j++)
+            for (int i = 0; i < nx; i++) {
+                float x = (float)i * passo, y = (float)j * passo, l = 0;
+                for (const Luce& L : luci) {
+                    float dx = x - L.x, dy = y - L.y, d2 = dx * dx + dy * dy;
+                    if (d2 >= L.r * L.r) continue;
+                    float v = 1 - std::sqrt(d2) / L.r;
+                    v = v * v * (3 - 2 * v) * L.forza;
+                    l = std::max(l, std::min(1.0f, v));
+                }
+                a[(size_t)j * nx + i] = (unsigned char)(255 * buio * (1 - l));
+            }
+        const Color base = Hex(0x05040f);
+        auto C = [&](int i, int j) { Color c = base; c.a = a[(size_t)j * nx + i]; return c; };
+        for (int j = 0; j + 1 < ny; j++)
+            for (int i = 0; i + 1 < nx; i++) {
+                Color c00 = C(i, j), c10 = C(i + 1, j), c01 = C(i, j + 1), c11 = C(i + 1, j + 1);
+                if (c00.a == 0 && c10.a == 0 && c01.a == 0 && c11.a == 0) continue;
+                DrawRectangleGradientEx({ (float)i * passo, (float)j * passo, (float)passo, (float)passo }, c00, c01, c11, c10);
+            }
+    }
+    // Aloni colorati: la luce tinge l'aria intorno (piu' forte al buio, tenue di giorno).
     BeginBlendMode(BLEND_ADDITIVE);
-    DrawCircleGradient((int)e.x, (int)e.y, 40 * zoom * tremolio, Hex(0xffc860, (unsigned char)(38 * buio)), Hex(0xffc860, 0));
+    for (const Luce& L : luci) {
+        if (L.alone <= 0) continue;
+        float forza = L.alone * std::min(1.0f, L.forza) * (0.45f + 0.55f * buio);
+        unsigned char al = (unsigned char)Limita(110 * forza, 0, 255);
+        DrawCircleGradient((int)L.x, (int)L.y, L.r * 0.75f, ConAlfa(L.c, al / 255.0f), ConAlfa(L.c, 0));
+        DrawCircleGradient((int)L.x, (int)L.y, L.r * 0.22f, ConAlfa(Mescola(L.c, WHITE, 0.5f), std::min(1.0f, al / 180.0f)), ConAlfa(L.c, 0));
+    }
     EndBlendMode();
+    // Lampo su tutto lo schermo
+    if (tLampo > 0 && durataLampo > 0) DrawRectangle(0, 0, VW, VH, ConAlfa(coloreLampo, 0.85f * Limita(tLampo / durataLampo, 0, 1)));
 }

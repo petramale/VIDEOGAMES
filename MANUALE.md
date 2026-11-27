@@ -81,7 +81,22 @@ Tasto sinistro = colore 1, destro = colore 2. Opzioni: forme piene, simmetria, c
 **Colori**: quadrato colore/luminosità, barra della tinta, codice esadecimale, opacità e tavolozza (colori base + colori già usati).
 
 **Animazioni**: anteprima che si muove, velocità (fps), ciclo. Il motore usa questi nomi:
-`fermo`, `corsa`, `salto`, `caduta`, `colpito`, `attacco`, `vittoria`. Se un'animazione manca usa `fermo`.
+`fermo`, `corsa`, `salto`, `caduta`, `colpito`, `attacco`, `sparo` (l'eroe appena spara), `vittoria`. Se un'animazione manca usa `fermo`.
+Le altre animazioni (con il nome che vuoi) si avviano dalla Logica con l'azione "cambia animazione".
+
+**Gestore delle immagini** (pulsante **Carica immagini…** sotto l'elenco delle animazioni, oppure trascina i file
+sull'editor): carica **PNG, BMP, JPG, GIF (anche animate), TGA, QOI**, uno o più file insieme.
+- Più file (es. `corsa_01.png`, `corsa_02.png`…) diventano fotogrammi in ordine di nome.
+- Un **foglio di sprite** si divide in **colonne × righe**: lo studio le indovina da solo guardando gli spazi vuoti
+  fra i disegni, e puoi correggerle; la griglia gialla mostra il taglio. Le celle vuote si saltano.
+- Una **GIF animata** dà tutti i suoi fotogrammi.
+- **Animazione**: quella aperta, una di quelle del motore (fermo, corsa, salto, caduta, colpito, attacco, sparo,
+  vittoria, aperta/chiusa, accesa/spenta) o una nuova con il nome che scrivi. "Aggiungi in coda" o "Sostituisci".
+- **Misura**: allarga il disegno fino a 256 pixel, rimpicciolisci le immagini nel disegno, oppure porta il disegno
+  alla misura delle immagini. **Allinea**: piedi in basso (per i personaggi), al centro, in alto a sinistra.
+- **Sfondo trasparente**: BMP e JPG non hanno trasparenza; questa scelta toglie il colore dell'angolo in alto a sinistra.
+- **Velocità (fps)** e anteprima animata prima di importare. Dopo l'importazione ogni fotogramma si ritocca
+  con gli strumenti di disegno e si riordina con < e > nella striscia dei fotogrammi.
 
 **Fotogrammi** (striscia in basso, su tutta la larghezza): in alto i pulsanti + Vuoto, + Copia, < > (sposta), Elimina
 (su schermi piccoli diventano +, Copia, <, >, X); sotto la sequenza dei fotogrammi, che scorre con la rotella
@@ -89,7 +104,8 @@ o con la barra se è lunga. Il fotogramma scelto resta sempre in vista.
 
 **Proprietà**: nome, **È l'eroe** (diventa il personaggio che guidi), **Metti in mappa**, comportamento
 (Eroe, Fermo, Pattuglia, Insegue l'eroe, Vola, Torretta che spara, Boss, Parla), velocità, salto, energia, danno,
-vista, cadenza d'attacco, punti, gravità, se si sconfigge saltandoci sopra, proiettile e suoni (salto, colpito, attacco, sconfitto).
+vista, cadenza d'attacco, punti, gravità, se si sconfigge saltandoci sopra, proiettile e suoni (salto, colpito, attacco, sconfitto),
+**Luce ed effetti** (vedi il capitolo 7b).
 
 Esempio con Claude: *"Disegna un drago verde che sputa fuoco, con animazioni di volo e attacco, come boss"*.
 Il drago viene salvato nel gioco: lo usi nelle mappe, come eroe o come boss, e resta nel file `.gioco`.
@@ -99,6 +115,8 @@ Il drago viene salvato nel gioco: lo usi nelle mappe, come eroe o come boss, e r
 Come i personaggi, ma con una **funzione**: Decorazione, Da raccogliere (punti), Cura, Chiave, Porta (si apre con…),
 Molla, Cassa da spingere, Interruttore/leva, Piattaforma mobile, Pericolo, Arrivo (vittoria), Proiettile.
 Nomi di animazione usati dal motore: porte `chiusa`/`aperta`, interruttori `spenta`/`accesa`, molle `scatta`, forzieri `chiuso`/`aperto`.
+Anche gli oggetti hanno **Luce ed effetti** (una lanterna appesa, un cristallo che pulsa, una torcia: capitolo 7b)
+e il **Gestore delle immagini** per caricare i loro disegni.
 
 ## 6. Scenari
 
@@ -112,9 +130,49 @@ Nomi di animazione usati dal motore: porte `chiusa`/`aperta`, interruttori `spen
 ## 7. Audio
 
 - **Musica**: piano roll a più tracce (melodia, basso, arpeggio, batteria…), strumenti, tempo, ascolto dal vivo,
-  "Componi" crea un brano in uno stile (Allegro, Epico, Calmo, Misterioso, Spaziale, Battaglia). Si importano anche OGG/MP3/WAV.
-- **Effetti**: sintetizzatore (onda, frequenze, durata, vibrato, rumore) con forma d'onda, effetti pronti, esporta in WAV.
+  "Componi" crea un brano in uno stile (Allegro, Epico, Calmo, Misterioso, Spaziale, Battaglia).
+- **Carica musica (MP3, OGG, WAV, MIDI)…** (in alto a destra, oppure trascina il file nella finestra):
+  - **MP3, OGG, WAV, FLAC, XM, MOD**: il file entra nel gioco così com'è e suona anche nell'eseguibile creato.
+    Lo usi come musica di una mappa ("Usa nella mappa aperta") o dalla Logica ("metti la musica").
+  - **MIDI (.mid)**: le note diventano un **brano a note** che vedi e modifichi nel rullo, nota per nota:
+    fino a 6 tracce (la batteria del canale 10 e le 5 parti con più note), il tempo del file e
+    ogni strumento General MIDI trasformato nell'onda più simile (pianoforte → triangolo, organo e ottoni → quadra,
+    chitarre e archi → dente di sega, flauti e pad → seno). Puoi cambiare strumento, volume e note come in ogni brano.
+- **Effetti**: sintetizzatore (onda, frequenze, durata, vibrato, rumore) con forma d'onda, **40 effetti pronti**
+  (i 20 arcade e i 20 speciali: grande esplosione, tuono, vento, fulmine, teletrasporto, incantesimo, campanella, gong,
+  fiamma accesa, lanterna, luce che si spegne, raggio laser, scudo, power-up, livello superato, allarme, cigolio,
+  splash, bolle, battito del cuore), esporta in WAV. **Carica effetto…** importa WAV, OGG, MP3.
 - **Suoni degli eventi**: quale effetto suona per salto, moneta, colpo…; e la musica di ogni mappa.
+
+## 7b. Luci ed effetti speciali (l'effetto lanterna)
+
+**Come funziona la lanterna di Lia** (Lumina): lo scenario della mappa è **buio** (Scenari → *Buio*, da 0 a 1).
+Al buio il motore copre la scena con un velo scuro e apre dei "buchi" di luce morbida intorno a chi porta una luce:
+l'eroe ha di serie una **lanterna** calda che tremola come una fiamma, i nemici hanno gli occhi che brillano,
+monete, chiavi, punti di controllo accesi e proiettili fanno un po' di luce. La lanterna che si vede in mano a Lia
+è disegnata nel suo sprite; la luce intorno la fa il motore.
+
+**Luce ed effetti** (nelle proprietà di ogni personaggio e oggetto):
+- **Luce**: *Automatica* (come sopra), *Luce propria* o *Nessuna luce*.
+- Con la luce propria scegli **colore**, **raggio**, **intensità**, **tremolio** (fiamma che vibra: candele, torce,
+  lanterne), **pulsazione** (respira lentamente: cristalli, magie), **alone colorato** (tinge l'aria intorno,
+  si vede anche di giorno) e **altezza** della luce sopra i piedi. L'anteprima mostra la luce al buio.
+- **Scia**: scia di luce, scintille, fumo, stelline, bolle, fiammelle, foglie, neve o cuori, con il suo colore:
+  esce dietro a chi si muove (un razzo, una fata, un fantasma).
+
+**Nella Logica** (azioni nuove):
+- **effetto speciale**: scintille, esplosione, grande esplosione (con scossa e lampo), fumo, stelle, cuori, magia,
+  fuochi d'artificio, bolle, polvere, fulmine, teletrasporto, anello di luce, pioggia d'oro; il numero è la grandezza.
+  Esce su chi ha fatto scattare la regola (o su tutti quelli che si chiamano come "chi"), altrimenti sull'eroe.
+- **lampo sullo schermo**: un colore che copre tutto per un attimo (il numero è la durata in secondi).
+- **accendi/spegni la luce**: accende, spegne o colora (rossa, verde, blu, gialla, bianca, viola, azzurra)
+  la luce dell'eroe o di chi fa scattare la regola; il numero è il raggio.
+- **buio della mappa**: porta piano piano il buio al valore scelto (0 giorno pieno, 1 buio pesto).
+- **rallentatore**: per qualche secondo tutto va al 40% della velocità.
+
+Esempi: *quando l'eroe raccoglie la Lanterna → accendi la luce gialla 160*; *quando il Boss viene sconfitto →
+effetto grande esplosione, lampo bianco 0.3, buio della mappa 0*; *quando l'eroe tocca l'Interruttore →
+buio della mappa 0.9, suona "Tuono"*.
 
 ## 8. Logica
 
@@ -125,13 +183,14 @@ salta, tasto premuto, clic del mouse, pulsante del joypad, ogni tot secondi, var
 
 Azioni: suona l'effetto, metti/ferma la musica, mostra il messaggio, aumenta/imposta la variabile, dai punti, cuori,
 energia, vai alla mappa, crea, togli di mezzo, cambia animazione, velocità, fai saltare, spara, colora, apri le porte,
-scuoti lo schermo, spingi indietro l'eroe, vittoria, game over.
+scuoti lo schermo, spingi indietro l'eroe, vittoria, game over, effetto speciale, lampo sullo schermo,
+accendi/spegni la luce, buio della mappa, rallentatore (capitolo 7b).
 
 A destra le **variabili** del gioco con il loro valore iniziale.
 
 ## 9. Librerie
 
-In alto la **libreria del gioco** (tutto quello che il gioco contiene, per categoria). Sotto le **22 raccolte pronte**:
+In alto la **libreria del gioco** (tutto quello che il gioco contiene, per categoria). Sotto le **23 raccolte pronte** (nuova: *Suoni speciali*):
 aggiungi un singolo elemento o l'intera raccolta. Ogni raccolta esiste in pixel art fine e in alta definizione.
 
 ## 10. Comandi

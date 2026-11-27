@@ -106,6 +106,7 @@ bool Gioco::EntraMappa(int indice, Vector2 arrivo, std::string& errore) {
     testi = m.testi;
     oggetti = livello.Oggetti();
     entita.clear(); appoggio = -1; dialogo = -1; pioggia = 0; buio = 0; acqua = false; energiaNotificata.clear();
+    buioObiettivo = -1; tLampo = 0; rallenta = 0; lampiLuce.clear();
     if (conLibreria) { EntitaDellaMappa(m); DestinoMappa(indice); ApplicaStatoMappa(indice); }
     particelle.Svuota();
     proiettili.clear();
@@ -500,6 +501,14 @@ void Gioco::Aggiorna(float dt, const Comandi& c) {
         return;
     }
     if (tTransizione < 0) tTransizione = std::min(0.0f, tTransizione + dt);
+    // Effetti della Logica: lampo, bagliori, buio che cambia piano piano, rallentatore.
+    if (tLampo > 0) tLampo -= dt;
+    for (size_t i = 0; i < lampiLuce.size();) { lampiLuce[i].t -= dt; if (lampiLuce[i].t <= 0) lampiLuce.erase(lampiLuce.begin() + i); else i++; }
+    if (buioObiettivo >= 0) {
+        float d = buioObiettivo - buio, passo = dt * 0.8f;
+        if (std::fabs(d) <= passo) { buio = buioObiettivo; buioObiettivo = -1; } else buio += d > 0 ? passo : -passo;
+    }
+    if (rallenta > 0) { rallenta -= dt; dt *= 0.4f; }
     if (!vinto && !finito) tempo += dt;
     if (cicloGiorno) sfondo.ora = std::fmod(sfondo.ora + dt / 240.0f, 1.0f);
     sfondo.Aggiorna(dt);
@@ -513,6 +522,7 @@ void Gioco::Aggiorna(float dt, const Comandi& c) {
     AggiornaOggetti(dt);
     if (conLibreria) { AggiornaEntita(dt, c); AggiornaRegole(dt); }
     AggiornaProiettili(dt);
+    if (conLibreria) AggiornaScie(dt);
     particelle.Aggiorna(dt);
     if (vinto || finito) tFine += dt;
     // Bandiera collegata a un'altra mappa: dopo la festa si passa al livello successivo.
@@ -926,7 +936,7 @@ void Gioco::Disegna() {
         DrawRectangleGradientH(VW - 50, 0, 50, VH, BLANK, Hex(0x05081c, (unsigned char)(100 * notte)));
     }
     if (acqua) DrawRectangle(0, 0, VW, VH, Hex(0x1a6ac8, 34));   // sott'acqua: tutto un po' piu' blu
-    if (buio > 0) DisegnaBuio(cx, cy);
+    DisegnaLuci(cx, cy);
     if (pioggia) DisegnaPioggia();
     if (mostraHud) DisegnaHud();
     if (conLibreria) DisegnaExtraHud();

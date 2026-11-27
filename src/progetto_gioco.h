@@ -61,6 +61,24 @@ private:
     mutable int versione = 0;
 };
 
+// --- Luci ed effetti speciali di personaggi e oggetti ----------------------------------------
+// La luce si vede soprattutto negli scenari bui (Scenari > Buio), dove rischiara intorno a chi la porta
+// (la lanterna dell'eroe); il suo alone colorato si vede anche di giorno. La scia lascia particelle.
+struct LuceDef {
+    int modo = 0;                  // 0 automatica (lanterna dell'eroe, occhi dei nemici, monete...), 1 luce propria, 2 nessuna luce
+    Color colore = { 255, 200, 96, 255 };
+    float raggio = 90;             // in pixel del mondo
+    float intensita = 1;           // 0..1: quanto buio toglie
+    float tremolio = 0.3f;         // 0..1: trema come una fiamma
+    float pulsazione = 0;          // battiti al secondo (0 = fissa)
+    float alone = 0.35f;           // 0..1: bagliore colorato visibile anche alla luce del giorno
+    float alto = 12;               // quanto sopra i piedi sta la luce (pixel del mondo)
+    int scia = 0;                  // vedi NomiScia(): 0 nessuna
+    Color coloreScia = { 255, 220, 140, 255 };
+};
+const std::vector<std::string>& NomiScia();     // "nessuna", "scia di luce", "scintille", "fumo", ...
+const std::vector<std::string>& NomiEffettoSpeciale();   // per l'azione "effetto speciale" della Logica
+
 // --- Personaggi e oggetti della libreria --------------------------------------------
 
 enum class TipoComportamento { Giocatore, Fermo, Pattuglia, Insegue, Vola, Spara, Boss, Parla, Totale };
@@ -89,6 +107,7 @@ struct PersonaggioDef {
     Comportamento comportamento;
     std::map<std::string, std::string> suoni;   // evento -> effetto ("salto", "colpito", "attacco", "sconfitto")
     std::string profilo;      // profilo della sezione Comportamenti (vuoto = "Istintivo" ricavato dal tipo)
+    LuceDef luce;             // luce e scia (sezione Personaggi > Luce ed effetti)
 };
 
 enum class FunzioneOggetto { Decorazione, Raccogli, Cura, Chiave, Porta, Molla, Cassa, Interruttore, PiattaformaMobile,
@@ -110,6 +129,7 @@ struct OggettoDef {
     std::string suono;            // effetto quando si attiva
     std::string variabile;        // raccogli: variabile da aumentare (oltre ai punti)
     IndoleOggetto indole;         // usura, ricarica, adattamento... (sezione Comportamenti)
+    LuceDef luce;                 // luce e scia (sezione Oggetti > Luce ed effetti)
 };
 
 // --- Scenari e caselle ----------------------------------------------------------------

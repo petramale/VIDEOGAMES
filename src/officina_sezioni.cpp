@@ -285,6 +285,58 @@ void Officina::AzioneSezione(const std::string& c) {
     }
 }
 
+// "Luce ed effetti" di un personaggio o di un oggetto: la sua luce nel buio (come la lanterna dell'eroe),
+// l'alone colorato e la scia di particelle. Con una piccola anteprima che tremola come nel gioco.
+bool PannelloLuce(Colonna& col, LuceDef& L, const std::string& id, bool eroe, float tempo) {
+    float s = col.s;
+    bool cambiato = false;
+    col.Sezione("LUCE ED EFFETTI");
+    Rectangle q = col.Riga(30);
+    std::vector<std::string> modi{ eroe ? "Automatica (lanterna al buio)" : "Automatica", "Luce propria", "Nessuna luce" };
+    if (col.Vede(q) && Ui::Scelta(q, "Luce", L.modo, modi)) cambiato = true;
+    if (L.modo == 1) {
+        auto Num = [&](const char* suf, const char* et, float& v, float lo, float hi, float passo, const char* f) {
+            Rectangle rr = col.Riga(28);
+            if (col.Vede(rr) && Ui::Numero(id + suf, rr, et, v, lo, hi, passo, f)) cambiato = true;
+        };
+        q = col.Riga(28);
+        if (col.Vede(q) && Ui::Colore(id + "_lc", q, "Colore della luce", L.colore)) cambiato = true;
+        Num("_lr", "Raggio (pixel)", L.raggio, 10, 600, 10, "%.0f");
+        Num("_li", "Intensita'", L.intensita, 0.1f, 2, 0.1f, "%.1f");
+        Num("_lt", "Tremolio (fiamma)", L.tremolio, 0, 2, 0.1f, "%.1f");
+        Num("_lp", "Pulsazione", L.pulsazione, 0, 2, 0.1f, "%.1f");
+        Num("_la", "Alone colorato", L.alone, 0, 1, 0.05f, "%.2f");
+        Num("_lh", "Altezza della luce", L.alto, -40, 80, 2, "%.0f");
+        // anteprima: un angolo buio con la luce accesa
+        q = col.Riga(90);
+        if (col.Vede(q)) {
+            DrawRectangleRec(q, Hex(0x05040f));
+            float k = 1 + L.tremolio * (0.10f * std::sin(tempo * 9) + 0.06f * std::sin(tempo * 23) + 0.04f * std::sin(tempo * 41));
+            k *= 1 + L.pulsazione * 0.3f * std::sin(tempo * 3);
+            float r = std::min(q.height * 0.48f, L.raggio * 0.3f * s) * k;
+            Vector2 c = { q.x + q.width / 2, q.y + q.height / 2 };
+            BeginBlendMode(BLEND_ADDITIVE);
+            DrawCircleGradient((int)c.x, (int)c.y, r, ConAlfa(Mescola(L.colore, BLACK, 0.4f), std::min(1.0f, 0.55f * L.intensita)), ConAlfa(L.colore, 0));
+            DrawCircleGradient((int)c.x, (int)c.y, r * 0.75f, ConAlfa(L.colore, 0.45f * L.alone + 0.1f), ConAlfa(L.colore, 0));
+            DrawCircleGradient((int)c.x, (int)c.y, r * 0.22f, ConAlfa(Mescola(L.colore, WHITE, 0.5f), 0.8f), ConAlfa(L.colore, 0));
+            EndBlendMode();
+            DrawRectangleLinesEx(q, 1, Ui::Bordo());
+            Ui::Testo("anteprima al buio", q.x + 6 * s, q.y + 4 * s, Ui::TestoSpento(), (int)(12 * s));
+        }
+    }
+    q = col.Riga(30);
+    if (col.Vede(q) && Ui::Scelta(q, "Scia", L.scia, NomiScia())) cambiato = true;
+    if (L.scia > 0) {
+        q = col.Riga(28);
+        if (col.Vede(q) && Ui::Colore(id + "_sc", q, "Colore della scia", L.coloreScia)) cambiato = true;
+    }
+    q = col.Riga(60);
+    if (col.Vede(q))
+        Ui::TestoACapo("La luce si vede negli scenari bui (Scenari > Buio). L'alone colora l'aria anche di giorno. "
+                       "In Logica: \"accendi/spegni la luce\", \"effetto speciale\", \"lampo\".", q.x, q.y, q.width, Ui::TestoSpento(), (int)(13 * s));
+    return cambiato;
+}
+
 // --- Personaggi ------------------------------------------------------------------------------------
 
 void Officina::Personaggi(Rectangle r, float dt) {
@@ -427,11 +479,12 @@ void Officina::Personaggi(Rectangle r, float dt) {
             if (k > 0) if (auto* e = progetto.TrovaEffetto(effetti[k])) gAudio.SuonaEffetto(*e);
         }
     }
+    if (PannelloLuce(col, p.luce, "p", p.nome == progetto.eroe, tempo)) cambiato = true;
     col.Sezione("ANIMAZIONI USATE DAL MOTORE");
-    q = col.Riga(64);
+    q = col.Riga(84);
     if (col.Vede(q))
-        Ui::TestoACapo("fermo, corsa, salto, caduta, colpito, attacco, vittoria. Se ne manca una si usa \"fermo\". "
-                       "Il disegno guarda a destra: il motore lo specchia.", q.x, q.y, q.width, Ui::TestoSpento(), (int)(13 * s));
+        Ui::TestoACapo("fermo, corsa, salto, caduta, colpito, attacco, sparo, vittoria. Se ne manca una si usa \"fermo\". "
+                       "Il disegno guarda a destra: il motore lo specchia. \"Carica immagini...\" importa PNG, BMP, JPG, GIF.", q.x, q.y, q.width, Ui::TestoSpento(), (int)(13 * s));
     Ui::FineRitaglio();
     scorriProprieta = std::min(scorriProprieta, std::max(0.0f, col.Altezza() - area.height));
     if (cambiato) {
@@ -550,6 +603,7 @@ void Officina::Oggetti(Rectangle r, float dt) {
         q = col.Riga(28);
         if (col.Vede(q) && Ui::Campo("o_var", q, o.variabile, 30)) cambiato = true;
     }
+    if (PannelloLuce(col, o.luce, "o", false, tempo)) cambiato = true;
     Ui::FineRitaglio();
     scorriProprieta = std::min(scorriProprieta, std::max(0.0f, col.Altezza() - area.height));
     if (cambiato) {

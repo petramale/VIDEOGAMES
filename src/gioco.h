@@ -159,6 +159,10 @@ private:
         float carica = 1, forza = 1, tRicarica = 0, tSveglio = 0;
         int usi = 0;
         bool rotto = false;
+        // Luce cambiata dalla Logica: -1 come nella libreria, 0 spenta, 1 accesa (con colore e raggio propri)
+        int luceStato = -1;
+        Color luceColore{ 0, 0, 0, 0 };
+        float luceRaggio = 0, tScia = 0;
     };
     ProgettoGioco lib;
     bool conLibreria = false;
@@ -172,7 +176,16 @@ private:
     int pioggia = 0, appoggio = -1, dialogo = -1;
     float buio = 0;                 // scenari bui: si vede solo vicino alle luci
     bool acqua = false;             // scenari sott'acqua: si nuota
-    void DisegnaBuio(float cx, float cy) const;
+    void DisegnaLuci(float cx, float cy) const;
+    void AggiornaScie(float dt);
+    // Luci ed effetti comandati dalla Logica
+    int luceEroe = -1;              // -1 come nella libreria, 0 spenta, 1 accesa
+    Color luceEroeColore{ 0, 0, 0, 0 };
+    float luceEroeRaggio = 0, tSciaEroe = 0;
+    float tLampo = 0, durataLampo = 0, buioObiettivo = -1, rallenta = 0;
+    Color coloreLampo = WHITE;
+    struct LampoLuce { Vector2 pos; float r, t, durata; Color colore; };
+    std::vector<LampoLuce> lampiLuce;   // bagliori di breve durata (esplosioni, fulmini...)
     float asseInput = 0;
     void PreparaLibreria();
     void EntitaDellaMappa(const Mappa& m);
