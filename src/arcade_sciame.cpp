@@ -181,6 +181,8 @@ public:
         auto S = [](const char* k, const char* n, json v) { return json{ { "chiave", k }, { "nome", n }, { "tipo", "scelta" }, { "voci", v } }; };
         auto Rf = [](const char* k, const char* n, const char* da, const char* vuoto = "") { json f = { { "chiave", k }, { "nome", n }, { "tipo", "rif" }, { "da", da } }; if (*vuoto) f["vuoto"] = vuoto; return f; };
         auto B = [](const char* k, const char* n) { return json{ { "chiave", k }, { "nome", n }, { "tipo", "brano" } }; };
+        json G = { { "chiave", "grafica" }, { "nome", "Grafica" }, { "tipo", "grafica" } };
+        json Sf = { { "chiave", "sfondo" }, { "nome", "Sfondo" }, { "tipo", "sfondo" } };
         Cat("livelli", "Livelli", true, "Ogni livello: il settore dello spazio, il boss (se c'e'), quale insetto in ogni riga della formazione, le traiettorie d'ingresso, "
             "quanto spesso si tuffano, velocita' e fuoco. Il gioco finisce dopo l'ultimo livello.",
             { Rf("settore", "Settore", "settori"), Rf("boss", "Boss", "boss", "(nessuno)"),
@@ -191,19 +193,19 @@ public:
               N("fuoco", "Quanto sparano", 0.2, 3, 0.05, "%.2f") }, 1, 60, "Livello");
         Cat("specie", "Insetti", true, "Le quattro specie: nome, due coppie di colori (la seconda si vede a righe alterne e quando lo scarabeo e' ferito), punti, colpi per abbatterli e velocita' in picchiata. "
             "Scarabeo: si tuffa con due farfalle di scorta. Farfalla: fa un anello. Libellula: scende a zig-zag.",
-            { T("nome", "Nome"), C("chiaro", "Colore chiaro"), C("scuro", "Colore scuro"), C("chiaro2", "Secondo colore chiaro"), C("scuro2", "Secondo colore scuro"),
+            { T("nome", "Nome"), G, C("chiaro", "Colore chiaro"), C("scuro", "Colore scuro"), C("chiaro2", "Secondo colore chiaro"), C("scuro2", "Secondo colore scuro"),
               N("punti", "Punti in formazione", 10, 5000, 10), N("puntiVolo", "Punti in picchiata", 10, 5000, 10), N("vita", "Colpi per abbatterlo", 1, 9, 1),
               N("velocita", "Velocita' in picchiata", 0.5, 2.5, 0.05, "%.2f") }, 4, 4, "Insetto");
         Cat("boss", "Boss", true, "I boss: nome, comportamento (ognuno ha i suoi attacchi e punti deboli), resistenza, aggressivita', punti e musica.",
-            { T("nome", "Nome"), S("comportamento", "Comportamento", { "Regina Vespa (ventagli, evoca, carica)", "Idra (tre teste, poi il nucleo)",
+            { T("nome", "Nome"), G, S("comportamento", "Comportamento", { "Regina Vespa (ventagli, evoca, carica)", "Idra (tre teste, poi il nucleo)",
                                                                          "Occhio (si apre, spirali, raggio)", "Corazzata (guscio che si apre, cannoni)", "Imperatrice (ali, spirali, evoca)" }),
               N("resistenza", "Resistenza", 0.3, 4, 0.05, "%.2f"), N("aggressivita", "Aggressivita'", 0.3, 3, 0.05, "%.2f"), N("punti", "Punti", 0, 100000, 500),
               B("musica", "Musica") }, 1, 20, "Boss");
         Cat("settori", "Settori", true, "Gli sfondi: i colori del cielo, della luce e del pianeta in basso, e la musica del settore.",
-            { T("nome", "Nome"), C("alto", "Cielo in alto"), C("medio", "Cielo a meta'"), C("basso", "Cielo in basso"), C("luce", "Luce e nebulose"),
+            { T("nome", "Nome"), Sf, C("alto", "Cielo in alto"), C("medio", "Cielo a meta'"), C("basso", "Cielo in basso"), C("luce", "Luce e nebulose"),
               C("chiaro", "Pianeta e luna"), B("musica", "Musica") }, 5, 5, "Settore");
         Cat("generale", "Caccia e regole", false, "Le regole della partita e il caccia del giocatore.",
-            { N("vite", "Vite all'inizio", 1, 9, 1), N("vitaExtra", "Prima vita extra a", 0, 300000, 1000), N("vitaOgni", "Poi una vita ogni", 1000, 500000, 1000),
+            { G, N("vite", "Vite all'inizio", 1, 9, 1), N("vitaExtra", "Prima vita extra a", 0, 300000, 1000), N("vitaOgni", "Poi una vita ogni", 1000, 500000, 1000),
               N("velocitaCaccia", "Velocita' del caccia", 300, 1500, 20), N("colpi", "Colpi in volo insieme", 1, 6, 1),
               N("aura", "Insetti con l'aura dorata (armi)", 0, 0.6, 0.01, "%.2f"), B("musicaMenu", "Musica del menu"), T("fine", "Scritta della vittoria") });
         Cat("armi", "Armi bonus", false, "Quanti secondi durano Laser e Missili. Scudo e Doppio caccia durano fino al primo colpo preso.",
@@ -1312,7 +1314,7 @@ public:
             Bagliore(fx, y + 40, 46, ConAlfa(ColorFromHSV(std::fmod(tempo * 240, 360.0f), 0.6f, 1), 0.45f * alfa));
         }
         Bagliore(x, y, 110, ConAlfa(Hex(0x78b4ff), 0.22f * alfa));
-        Sprite(cacciaTex, x, y + 4, 0.55f, 0, ConAlfa(WHITE, alfa));
+        if (!DisegnaGrafica(cfg["generale"], { x, y + 4 }, 120, "fermo", tempo, false, ConAlfa(WHITE, alfa))) Sprite(cacciaTex, x, y + 4, 0.55f, 0, ConAlfa(WHITE, alfa));
     }
 
     void DisegnaBoss(float ox, float oy) {
@@ -1323,6 +1325,8 @@ public:
         for (auto& q : b.parti) if (q.lampo > 0) lampo = true;
         Color tinta = lampo ? Color{ 255, 220, 220, 255 } : WHITE;
         if (b.tMorte > 0) tinta = ConAlfa(Color{ 255, (unsigned char)(160 + 90 * std::sin(tempo * 40)), 160, 255 }, 1);
+        // grafica propria scelta nello Studio
+        if (DisegnaGrafica(BossJ(b.indice), p, 360, lampo ? "colpito|fermo" : "attacco|fermo", tempo, false, tinta)) return;
         switch (b.tipo) {
             case 0: {
                 Bagliore(p.x, p.y, 380, ConAlfa(Hex(0xff3c78), 0.25f));
@@ -1421,7 +1425,8 @@ public:
     void Disegna() override {
         float ox = tScosse > 0 ? Vis(-9, 9) * tScosse : 0, oy = tScosse > 0 ? Vis(-9, 9) * tScosse : 0;
         int sett = Settore();
-        DrawTexturePro(sfondi[sett], { 0, 0, 1280, 720 }, { ox - 20, oy - 20, 1960, 1120 }, { 0, 0 }, 0, WHITE);
+        if (!DisegnaSfondo(Elem(cfg["settori"], sett), tempo * 30))
+            DrawTexturePro(sfondi[sett], { 0, 0, 1280, 720 }, { ox - 20, oy - 20, 1960, 1120 }, { 0, 0 }, 0, WHITE);
         // scie di stelle in velocita' (tre piani)
         for (int i = 0; i < 160; i++) {
             unsigned h = (unsigned)(i + 1) * 2654435761u;
@@ -1445,7 +1450,8 @@ public:
                 Bagliore(x, y, 70, ConAlfa(Hex(0xffdc50), 0.25f + 0.2f * pul));
                 DrawRing({ x, y }, 38, 41, tempo * 120, tempo * 120 + 300, 24, ConAlfa(Hex(0xffe678), 0.7f));
             } else Bagliore(x, y, 46, ConAlfa(ColSp(a.specie, a.var), 0.18f));
-            Sprite(insTex[a.specie][a.var][f], x, y, 0.5f, rot, WHITE);
+            if (!DisegnaGrafica(SpecieJ(a.specie), { x, y }, 66, a.stato == 2 ? "fermo" : "corsa|fermo", tempo + a.col * 0.13f, false, WHITE, rot))
+                Sprite(insTex[a.specie][a.var][f], x, y, 0.5f, rot, WHITE);
             if (a.lampo > 0) Bagliore(x, y, 40, ConAlfa(WHITE, 0.7f));
         }
 

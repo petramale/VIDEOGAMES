@@ -551,12 +551,14 @@ json SchemaQuerciaverde() {
     auto Rf = [](const char* k, const char* n, const char* da, const char* vuoto = "") { json f = { { "chiave", k }, { "nome", n }, { "tipo", "rif" }, { "da", da } }; if (*vuoto) f["vuoto"] = vuoto; return f; };
     auto B = [](const char* k, const char* n) { return json{ { "chiave", k }, { "nome", n }, { "tipo", "brano" } }; };
     auto V = [](const char* k, const char* n) { return json{ { "chiave", k }, { "nome", n }, { "tipo", "vero" } }; };
+    json G = { { "chiave", "grafica" }, { "nome", "Grafica" }, { "tipo", "grafica" } };
+    json Sf = { { "chiave", "sfondo" }, { "nome", "Sfondo" }, { "tipo", "sfondo" } };
     Cat("capitoli", "Capitoli", true, "I capitoli della storia: nome, testo d'inizio, la localita' di partenza e la musica. Un capitolo finisce quando tutte le sue missioni sono compiute; "
         "dopo l'ultimo il gioco e' vinto.",
         { T("nome", "Nome"), T("intro", "Testo d'inizio"), Rf("partenza", "Localita' di partenza", "luoghi"), B("musica", "Musica") }, 1, 40, "Capitolo");
     Cat("luoghi", "Localita'", true, "Le scene dipinte: capitolo, tipo di paesaggio, ora del giorno, colori, le quattro uscite (frecce dorate ai bordi) e la musica. "
         "Le uscite verso capitoli non ancora iniziati restano nascoste.",
-        { T("nome", "Nome"), N("capitolo", "Capitolo", 1, 40, 1), S("scena", "Paesaggio", SCENE, 12), S("ora", "Ora del giorno", ORE, 5), C("erba", "Colore dell'erba"),
+        { T("nome", "Nome"), Sf, N("capitolo", "Capitolo", 1, 40, 1), S("scena", "Paesaggio", SCENE, 12), S("ora", "Ora del giorno", ORE, 5), C("erba", "Colore dell'erba"),
           C("terreno", "Colore del terreno"), Rf("nord", "Uscita a nord", "luoghi", "(nessuna)"), Rf("est", "Uscita a est", "luoghi", "(nessuna)"),
           Rf("sud", "Uscita a sud", "luoghi", "(nessuna)"), Rf("ovest", "Uscita a ovest", "luoghi", "(nessuna)"), B("musica", "Musica"), N("seme", "Variante del disegno", 0, 999, 1) },
         1, 400, "Localita'");
@@ -564,7 +566,7 @@ json SchemaQuerciaverde() {
         "forzieri, posti per riposare e decorazioni (case, alberi...). Per le risorse: oggetto e quantita' che danno, l'attrezzo che serve, l'energia (costo), quante volte "
         "si raccolgono prima di ricrescere (usi, 0 = sempre) e i secondi per ricrescere. Per gli ostacoli: l'oggetto che serve (attrezzo) e quanti (costo). Per i forzieri: "
         "oggetto e quantita' dentro, oro (costo) e la chiave (attrezzo). Per il riposo: il prezzo (costo).",
-        { T("nome", "Nome"), Rf("luogo", "Localita'", "luoghi"), S("tipo", "Tipo", TIPI_PUNTO, 8), S("forma", "Aspetto", FORME, N_FORME), N("x", "Posizione X", 60, 1860, 5),
+        { T("nome", "Nome"), Rf("luogo", "Localita'", "luoghi"), S("tipo", "Tipo", TIPI_PUNTO, 8), G, S("forma", "Aspetto", FORME, N_FORME), N("x", "Posizione X", 60, 1860, 5),
           N("y", "Posizione Y (i piedi)", 140, 960, 5), Rf("oggetto", "Oggetto", "oggetti", "(nessuno)"), N("quantita", "Quantita'", 0, 99, 1),
           Rf("attrezzo", "Attrezzo o oggetto richiesto", "oggetti", "(nessuno)"), N("costo", "Costo (energia, quantita', oro)", 0, 999, 1), N("usi", "Usi prima di ricrescere", 0, 99, 1),
           N("ricrescita", "Ricrescita (secondi, 0 = mai)", 0, 999, 5), Rf("nemico", "Nemico", "nemici", "(nessuno)"),
@@ -586,10 +588,10 @@ json SchemaQuerciaverde() {
           N("capitolo", "Dal capitolo", 1, 40, 1) }, 0, 200, "Ricetta");
     Cat("nemici", "Nemici", true, "Le creature da sconfiggere con un clic: vinci se la tua forza (forza + arma + armatura) e' almeno la loro potenza; "
         "perdi vita in base alla differenza. Lasciano oro e a volte un oggetto.",
-        { T("nome", "Nome"), S("forma", "Aspetto", FORME_NEMICO, N_FORME_NEMICO), C("colore", "Colore"), N("potenza", "Potenza", 1, 99, 1), N("oro", "Oro", 0, 9999, 5),
+        { T("nome", "Nome"), G, S("forma", "Aspetto", FORME_NEMICO, N_FORME_NEMICO), C("colore", "Colore"), N("potenza", "Potenza", 1, 99, 1), N("oro", "Oro", 0, 9999, 5),
           Rf("lascia", "Lascia", "oggetti", "(niente)"), N("quantita", "Quanti", 0, 20, 1), V("grande", "Grande (boss)") }, 1, 200, "Nemico");
     Cat("generale", "Eroe e regole", false, "L'eroe all'inizio: nome, vita, energia, oro, posti nello zaino, forza di base, colori e gli oggetti di partenza.",
-        { T("eroe", "Nome dell'eroe"), N("vita", "Vita", 3, 50, 1), N("energia", "Energia", 3, 50, 1), N("oro", "Oro all'inizio", 0, 9999, 5), N("zaino", "Posti nello zaino", 6, 60, 1),
+        { T("eroe", "Nome dell'eroe"), G, N("vita", "Vita", 3, 50, 1), N("energia", "Energia", 3, 50, 1), N("oro", "Oro all'inizio", 0, 9999, 5), N("zaino", "Posti nello zaino", 6, 60, 1),
           N("forza", "Forza di base", 0, 20, 1), C("veste", "Colore della veste"), C("mantello", "Colore del mantello"), C("capelli", "Colore dei capelli"),
           Rf("inizio1", "Oggetto iniziale 1", "oggetti", "(nessuno)"), N("n1", "Quanti", 0, 99, 1), Rf("inizio2", "Oggetto iniziale 2", "oggetti", "(nessuno)"), N("n2", "Quanti", 0, 99, 1),
           Rf("inizio3", "Oggetto iniziale 3", "oggetti", "(nessuno)"), N("n3", "Quanti", 0, 99, 1), Rf("inizio4", "Oggetto iniziale 4", "oggetti", "(nessuno)"), N("n4", "Quanti", 0, 99, 1),
@@ -1941,6 +1943,14 @@ public:
     int vitaMax = 10, energiaMax = 10, zainoBase = 20, forzaBase = 1, riposoAperto = 3;
     Look lookEroe;
 
+    // L'elemento k-esimo di un elenco dei dati (vuoto se manca).
+    const json& J(const char* k, int i) const {
+        static const json vuoto = json::object();
+        auto it = cfg.find(k);
+        if (it == cfg.end() || !it->is_array() || i < 0 || i >= (int)it->size()) return vuoto;
+        return (*it)[i];
+    }
+    const json& JG() const { static const json vuoto = json::object(); auto it = cfg.find("generale"); return it != cfg.end() && it->is_object() ? *it : vuoto; }
     static int Rif(const json& j, const char* k, int n) { int v = IntDi(j, k, -1); return v >= 0 && v < n ? v : -1; }
     void Leggi() {
         std::string f = cfg.dump();
@@ -2918,7 +2928,7 @@ public:
         if (caps.empty()) { ClearBackground(BLACK); return; }
         const Luogo& L = luoghi[luogo];
         float sx = tScossa > 0 ? Vis(-5, 5) : 0, sy = tScossa > 0 ? Vis(-4, 4) : 0;
-        DrawTexture(SfondoScena(), (int)sx, (int)sy, WHITE);
+        if (!DisegnaSfondo(J("luoghi", luogo), 0)) DrawTexture(SfondoScena(), (int)sx, (int)sy, WHITE);
         // acqua che luccica e lucciole
         if (L.scena == 7 || L.scena == 3) for (int i = 0; i < 18; i++) { float x = std::fmod(i * 137.f + tempo * 30, 1920.f), y = (L.scena == 7 ? 60 : 180) + std::fmod(i * 53.f, 110.f); Bagliore(x, y, 14 + 6 * std::sin(tempo * 3 + i), ConAlfa(WHITE, 0.25f)); }
         // --- elementi in ordine di profondita' ---
@@ -2941,8 +2951,11 @@ public:
                 float lx = 0;
                 if (az == Az::Combatte && azPunto == i) lx = (flip ? 1 : -1) * 10 * std::fabs(std::sin(azT * 7));
                 const Tex& t = SpriteNemico(n.forma, n.col);
-                Piede(t, p.x + sx + lx, p.y + sy, k * resp, flip);
-                if (evid) { BeginBlendMode(BLEND_ADDITIVE); Piede(t, p.x + sx + lx, p.y + sy, k * resp, flip, Color{ 255, 230, 200, 60 }); EndBlendMode(); }
+                float hg = SpecNemico(n.forma).hh * k * resp;
+                if (DisegnaGrafica(J("nemici", p.nemico), { p.x + sx + lx, p.y + sy - hg / 2 }, hg, az == Az::Combatte && azPunto == i ? "attacco|fermo" : "fermo", tempo + i * 0.3f, flip,
+                                   evid ? Color{ 255, 240, 220, 255 } : WHITE)) {}
+                else Piede(t, p.x + sx + lx, p.y + sy, k * resp, flip);
+                if (evid && !GraficaDi(J("nemici", p.nemico))) { BeginBlendMode(BLEND_ADDITIVE); Piede(t, p.x + sx + lx, p.y + sy, k * resp, flip, Color{ 255, 230, 200, 60 }); EndBlendMode(); }
                 if (n.forma == N_SPIRITO) Bagliore(p.x, p.y - 80 * k, 120 * k, ConAlfa(n.col, 0.3f));
                 // potenza sopra la testa
                 Spec s = SpecNemico(n.forma);
@@ -2958,8 +2971,14 @@ public:
             bool flip = p.forma <= F_BAMBINO && p.forma != F_MERCANTE && ex < p.x;
             float scala = 1;
             if (p.tipo == 1 && az == Az::Lavora && azPunto == i) scala = 1 + 0.02f * std::sin(azT * 30);
-            Piede(t, p.x + sx, p.y + sy, scala, flip);
-            if (evid) { BeginBlendMode(BLEND_ADDITIVE); Piede(t, p.x + sx, p.y + sy, scala, flip, Color{ 255, 230, 200, 55 }); EndBlendMode(); }
+            const json& pj = J("punti", i);
+            if (GraficaDi(pj)) {
+                float hg = t.s.hh * scala;
+                DisegnaGrafica(pj, { p.x + sx, p.y + sy - hg / 2 }, hg, stato ? "spenta|aperto|aperta|fermo" : "fermo", tempo + i * 0.3f, flip, evid ? Color{ 255, 240, 220, 255 } : WHITE);
+            } else {
+                Piede(t, p.x + sx, p.y + sy, scala, flip);
+                if (evid) { BeginBlendMode(BLEND_ADDITIVE); Piede(t, p.x + sx, p.y + sy, scala, flip, Color{ 255, 230, 200, 55 }); EndBlendMode(); }
+            }
             // dettagli vivi: fumo, fuoco, pale del mulino
             if ((p.forma == F_CASA_PAGLIA || p.forma == F_CASA_TEGOLE) && Vis() < 0.08f) {
                 Vector2 c = p.forma == F_CASA_PAGLIA ? Comignolo(280, 180, 140, 120) : Comignolo(300, 200, 160, 130);
@@ -3017,7 +3036,9 @@ public:
         int a = Migliore(4);
         if (o.attrezzo && a >= 0 && az == Az::Combatte) o.colAttrezzo = Esa(ogg[a].col);
         const Tex& t = SpriteEroe(o, pass, br);
-        Piede(t, ex + sx + lx, ey + sy, 1, versoSx);
+        float hg = t.s.hh;
+        const char* an = az == Az::Cammina ? "corsa|fermo" : az == Az::Combatte ? "attacco|sparo|fermo" : az == Az::Lavora ? "attacco|fermo" : "fermo";
+        if (!DisegnaGrafica(JG(), { ex + sx + lx, ey + sy - hg / 2 }, hg, an, tempo, versoSx)) Piede(t, ex + sx + lx, ey + sy, 1, versoSx);
         if (Qui().ora == 3 || Qui().scena == 11) Bagliore(ex, ey - 40, 220, ConAlfa(Hex(0xffc070), 0.28f));
     }
     const Luogo& Qui() const { return luoghi[luogo]; }

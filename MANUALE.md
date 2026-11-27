@@ -378,6 +378,31 @@ Gli stessi giochi si possono creare anche da riga di comando:
 
 Con "Esempio completo da cambiare" (o "Apri e modifica" su un esempio) parti invece da uno dei quattro giochi pronti.
 
+### Mettere i tuoi personaggi, paesaggi, suoni e musiche
+
+Tutto si fa nella scheda **Gioco arcade**, scegliendo a sinistra la parte e al centro l'elemento:
+
+| Cosa | Dove | Campo |
+|---|---|---|
+| L'eroe / la navicella | **Eroi e regole** (o Caccia/Cannone e regole, Eroe e regole) | **Grafica** |
+| I nemici | **Nemici** (Insetti, Alieni) | **Grafica** |
+| I boss | **Boss** | **Grafica** |
+| Le persone e le cose delle scene (avventura) | **Elementi delle scene** | **Grafica** |
+| Il paesaggio | **Ambienti** / **Settori** / **Cieli** / **Località** | **Sfondo** |
+| La musica | Missioni / Settori / Cieli / Capitoli / Boss | **Musica** (Ascolta, Carica…) |
+| I suoni | **Effetti sonori** | ogni suono: Ascolta o un tuo effetto della scheda Audio |
+
+- **Grafica → Carica immagini…**: scegli una o più immagini (PNG, JPG, BMP, GIF animata, foglio di sprite);
+  si apre il Gestore delle immagini, premi **Importa**. Nasce un personaggio con il nome dell'elemento e il gioco
+  lo disegna al posto del disegno originale (la miniatura compare sotto il nome del campo).
+  **Animazioni** apre lo studio di animazione: il gioco usa da solo le animazioni `fermo`, `corsa`, `salto`,
+  `sparo`/`attacco` e `colpito` quando ci sono. Puoi anche scegliere con **<** e **>** un personaggio o un
+  oggetto disegnato da te nelle schede **Personaggi** e **Oggetti** (che nei giochi arcade sono visibili).
+  "(disegno del gioco)" rimette il disegno originale.
+- **Sfondo → Carica immagine…**: l'immagine diventa uno scenario e lo sfondo di quel livello. **Modifica** apre la
+  scheda **Scenari** (strati, cielo, movimento). Puoi anche scegliere uno scenario disegnato da te.
+- I colori, i numeri e i comportamenti restano validi: la grafica cambia solo l'aspetto.
+
 ### I quattro esempi
 
 Sono quattro giochi completi, scritti per lo Studio e modificabili in ogni parte. Si aprono dalla scheda

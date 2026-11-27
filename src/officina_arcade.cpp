@@ -4,6 +4,14 @@
 // A destra un'anteprima dal vivo del livello scelto; F5 prova il gioco da quel livello.
 #include "officina.h"
 #include "sistema.h"
+#include "immagini.h"
+#include <fstream>
+#include <sstream>
+static std::string LeggiTesto(const std::string& f) {
+    std::ifstream in(f, std::ios::binary);
+    if (!in) return "";
+    std::stringstream ss; ss << in.rdbuf(); return ss.str();
+}
 #include "arcade.h"
 #include "audio.h"
 #include "ui.h"
@@ -37,7 +45,8 @@ std::string NomeElemento(const json& schema, const json& dati, const json& cat, 
 
 bool Officina::SezioneVisibile(int i) const {
     Sezione s = (Sezione)i;
-    if (progetto.EArcade()) return s == Sezione::Home || s == Sezione::Arcade || s == Sezione::Audio || s == Sezione::Comandi;
+    if (progetto.EArcade()) return s == Sezione::Home || s == Sezione::Arcade || s == Sezione::Audio || s == Sezione::Comandi ||
+                                   s == Sezione::Personaggi || s == Sezione::Oggetti || s == Sezione::Animazioni || s == Sezione::Scenari;
     return true;   // la scheda Gioco arcade c'e' sempre: da li' si aprono i quattro giochi arcade
 }
 
@@ -157,7 +166,8 @@ void Officina::Arcade(Rectangle r, float dt) {
     const json& campi = cat["campi"];
     float hc = 36 * s, gap = 8 * s;
     float totale = campi.size() * (hc + gap);
-    for (auto& c : campi) if (c.value("tipo", "") == "brano") totale += hc + gap;   // riga in piu' per Ascolta e Carica
+    auto DueRighe = [](const json& c) { std::string t = c.value("tipo", ""); return t == "brano" || t == "grafica" || t == "sfondo"; };
+    for (auto& c : campi) if (DueRighe(c)) totale += hc + gap;   // riga in piu' per Ascolta e Carica
     if (Ui::MouseSu(rf)) scorriCampiArcade -= GetMouseWheelMove() * 60 * s;
     scorriCampiArcade = Limita(scorriCampiArcade, 0, std::max(0.0f, totale - rf.height));
     Ui::Ritaglia((int)rf.x, (int)rf.y, (int)rf.width, (int)rf.height);
@@ -167,7 +177,7 @@ void Officina::Arcade(Rectangle r, float dt) {
     for (auto& c : campi) {
         Rectangle f = { rf.x, yy, rf.width, hc };
         yy += hc + gap;
-        if (c.value("tipo", "") == "brano") yy += hc + gap;
+        if (DueRighe(c)) yy += hc + gap;
         if (f.y + f.height < rf.y || f.y > rf.y + rf.height) continue;
         std::string k = c["chiave"], nome = c.value("nome", k), tipo = c.value("tipo", "numero");
         json& v = (*elem)[k];
@@ -241,6 +251,117 @@ void Officina::Arcade(Rectangle r, float dt) {
             if (tipo == "effetto" && Ui::Pulsante({ f.x + f.width - 84 * s, f.y, 84 * s, hc }, "Ascolta")) {
                 if (i > 0) { if (const EffettoSuono* e = progetto.TrovaEffetto(voci[i])) gAudio.SuonaEffetto(*e); }
                 else arcade::Suona(k);
+            }
+        }
+        else if (tipo == "grafica") {
+            // Il disegno di questo elemento: quello del gioco, oppure un personaggio/oggetto tuo (con le sue animazioni).
+            std::vector<std::string> voci = { "(disegno del gioco)" };
+            for (auto& p : progetto.personaggi) voci.push_back(p.nome);
+            for (auto& o : progetto.oggetti) voci.push_back(o.nome);
+            std::string attuale = v.is_string() ? v.get<std::string>() : "";
+            int i = 0;
+            for (int q = 1; q < (int)voci.size(); q++) if (voci[q] == attuale) i = q;
+            float le2 = f.width * 0.45f, bw2 = (f.width - le2 - 8 * s) / 2;
+            Ui::Aiuto("Scegli come si vede: il disegno del gioco oppure un tuo personaggio o oggetto (con le sue animazioni).");
+            if (Ui::Scelta(f, nome, i, voci)) { v = i == 0 ? std::string("") : voci[i]; cambiato = true; }
+            // miniatura animata
+            const Disegno* dm = nullptr;
+            if (i > 0) { if (auto* p = progetto.Personaggio(voci[i])) dm = &p->disegno; else if (auto* o = progetto.Oggetto(voci[i])) dm = &o->disegno; }
+            Rectangle mini = { f.x, f.y + hc + gap, std::min(le2 - 12 * s, 3 * hc), hc };
+            if (dm) {
+                Rectangle q = { mini.x, mini.y, mini.height, mini.height };
+                DrawRectangleRec(q, Hex(0x2a2e50));
+                int an = dm->TrovaAnimazione("fermo");
+                dm->DisegnaIn(q, an < 0 ? 0 : an, (float)GetTime());
+            }
+            Rectangle b1 = { f.x + le2, f.y + hc + gap, bw2, hc }, b2 = { f.x + le2 + bw2 + 8 * s, f.y + hc + gap, bw2, hc };
+            Ui::Aiuto("Carica una o piu' immagini tue (PNG, JPG, BMP, GIF, fogli di sprite): diventano il disegno animato di questo elemento.");
+            if (Ui::Pulsante(b1, bw2 > 170 * s ? "Carica immagini..." : "Immagini...", true)) {
+                auto files = ScegliFile("Scegli le immagini (PNG, JPG, BMP, GIF)", "Immagini", { ".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tga", ".qoi" }, true);
+                if (!files.empty()) {
+                    Ricorda();
+                    std::string n = i > 0 ? voci[i] : std::string("");
+                    if (n.empty()) {
+                        // Un personaggio nuovo con il nome dell'elemento ("Scarabeo", "Boss 1"...).
+                        std::string base = lista ? NomeElemento(schemaArcade, datiArcade, cat, selArcade) : std::string(GetFileNameWithoutExt(files[0].c_str()));
+                        PersonaggioDef p;
+                        p.nome = progetto.NomeLibero(base);
+                        p.autore = "immagini";
+                        bool pixel = progetto.arcade == "polvere";
+                        if (pixel) p.disegno.Nuovo(32, 32, 1); else { p.disegno.Nuovo(64, 64, 1); p.disegno.liscio = true; }
+                        progetto.personaggi.push_back(p);
+                        n = p.nome;
+                        v = n; cambiato = true;
+                    }
+                    Disegno* d = nullptr; std::string id;
+                    if (auto* p = progetto.Personaggio(n)) { d = &p->disegno; id = "p:" + n; }
+                    else if (auto* o = progetto.Oggetto(n)) { d = &o->disegno; id = "o:" + n; }
+                    if (d) {
+                        editorDisegno.Apri(d, id);
+                        int an = d->TrovaAnimazione("fermo");
+                        editorDisegno.ScegliAnimazione(an < 0 ? 0 : an);
+                        editorDisegno.PreparaImport(files);
+                        if (!editorDisegno.ImportAperto()) Avvisa("Non riesco ad aprire " + std::string(GetFileName(files[0].c_str())));
+                    }
+                    modificato = true;
+                }
+            }
+            Ui::Aiuto("Apre lo studio Animazioni con questo disegno: fotogrammi, velocita', corsa, sparo, colpito...");
+            if (Ui::Pulsante(b2, "Animazioni", false, i > 0)) {
+                int np = (int)progetto.personaggi.size();
+                for (int q = 0; q < np; q++) if (progetto.personaggi[q].nome == voci[i]) animElem = q;
+                for (int q = 0; q < (int)progetto.oggetti.size(); q++) if (progetto.oggetti[q].nome == voci[i]) animElem = np + q;
+                animAnim = 0; animFot = 0;
+                Vai(Sezione::Animazioni);
+            }
+        } else if (tipo == "sfondo") {
+            // Lo sfondo: quello disegnato dal gioco oppure uno scenario tuo (anche da un'immagine).
+            std::vector<std::string> voci = { "(sfondo del gioco)" };
+            for (auto& sc : progetto.scenari) voci.push_back(sc.nome);
+            std::string attuale = v.is_string() ? v.get<std::string>() : "";
+            int i = 0;
+            for (int q = 1; q < (int)voci.size(); q++) if (voci[q] == attuale) i = q;
+            float le2 = f.width * 0.45f, bw2 = (f.width - le2 - 8 * s) / 2;
+            Ui::Aiuto("Scegli lo sfondo: quello del gioco oppure un tuo scenario (sezione Scenari) o un'immagine caricata.");
+            if (Ui::Scelta(f, nome, i, voci)) { v = i == 0 ? std::string("") : voci[i]; cambiato = true; }
+            Rectangle b1 = { f.x + le2, f.y + hc + gap, bw2, hc }, b2 = { f.x + le2 + bw2 + 8 * s, f.y + hc + gap, bw2, hc };
+            Ui::Aiuto("Carica un'immagine tua (PNG, JPG, BMP): diventa lo sfondo di questo livello.");
+            if (Ui::Pulsante(b1, bw2 > 170 * s ? "Carica immagine..." : "Immagine...", true)) {
+                auto files = ScegliFile("Scegli l'immagine dello sfondo (PNG, JPG, BMP)", "Immagini", { ".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tga", ".qoi" }, false);
+                if (!files.empty()) {
+                    std::string dati = LeggiTesto(files[0]), file = GetFileName(files[0].c_str());
+                    if (dati.empty()) Avvisa("Non riesco a leggere " + file);
+                    else {
+                        Ricorda();
+                        AggiungiFileImmagine(file, dati);
+                        bool c = false;
+                        for (auto& im : progetto.immagini) if (im.first == file) { im.second = dati; c = true; }
+                        if (!c) progetto.immagini.push_back({ file, dati });
+                        Texture2D t = Immagine(file);
+                        Scenario sc;
+                        sc.nome = progetto.NomeLibero(GetFileNameWithoutExt(files[0].c_str()));
+                        sc.autore = "immagine";
+                        sc.sfondoGenerato = false;
+                        sc.cicloGiorno = false;
+                        sc.ora = 0.5f;
+                        sc.cieloPersonale = true; sc.cieloAlto = Hex(0x000000); sc.cieloBasso = Hex(0x000000);
+                        StratoSfondo st;
+                        st.nome = sc.nome; st.tipo = "immagine"; st.immagine = file;
+                        st.altezza = 1; st.parallasseX = 0; st.parallasseY = 0;   // immagine ferma (si cambia in Scenari)
+                        st.scala = t.id ? (float)VH / t.height : 1;
+                        if (t.id && t.width * st.scala < VW) st.scala = (float)VW / t.width;   // copre tutto lo schermo
+                        sc.strati.push_back(st);
+                        progetto.scenari.push_back(sc);
+                        v = sc.nome; cambiato = true; modificato = true;
+                        Avvisa("Nuovo sfondo dall'immagine " + file);
+                    }
+                }
+            }
+            Ui::Aiuto("Apre lo scenario nella sezione Scenari per cambiarlo (strati, cielo, colori).");
+            if (Ui::Pulsante(b2, "Modifica", false, i > 0)) {
+                for (int q = 0; q < (int)progetto.scenari.size(); q++) if (progetto.scenari[q].nome == voci[i]) selScenario = q;
+                schedaScenari = 0;
+                Vai(Sezione::Scenari);
             }
         }
     }
@@ -422,7 +543,7 @@ void Officina::SceltaArcade(Rectangle r) {
     y += 30 * s;
     const char* passi[] = {
         "1.  Premi \"Crea un gioco arcade nuovo\", scrivi il titolo, scegli il tipo e premi \"Crea il gioco\" (o \"Apri e modifica\" su un esempio).",
-        "2.  A sinistra scegli cosa cambiare (Livelli/Ondate, Nemici, Boss...); al centro + Nuovo aggiunge un livello; a destra cambi numeri e colori.",
+        "2.  A sinistra scegli cosa cambiare (Livelli/Ondate, Nemici, Boss...); al centro + Nuovo aggiunge un livello; a destra cambi numeri, colori, la Grafica (immagini tue) e lo Sfondo.",
         "3.  Premi F5 per giocare e provare subito. Ctrl+S salva il gioco (un file .gioco) per riaprirlo dopo.",
         "4.  Premi \"Crea .exe\" in alto a destra: nasce il gioco da dare agli amici. Musica ed effetti si cambiano nella scheda Audio." };
     for (auto p : passi) y += Ui::TestoACapo(p, x + 10 * s, y, w - 10 * s, Ui::TestoChiaro(), Ui::TP()) + 8 * s;
@@ -435,7 +556,7 @@ void Officina::GuidaArcade() {
     float W = (float)GetScreenWidth(), H = (float)GetScreenHeight();
     DrawRectangle(0, 0, (int)W, (int)H, Hex(0x000000, 140));
     Ui::ApriModale();
-    float fw = std::min(W - 40 * s, 780 * s), fh = std::min(H - 40 * s, 400 * s);
+    float fw = std::min(W - 40 * s, 780 * s), fh = std::min(H - 40 * s, 460 * s);
     Rectangle f = { (W - fw) / 2, (H - fh) / 2, fw, fh };
     DrawRectangleRounded(f, 0.03f, 8, Ui::Pannello());
     DrawRectangleRoundedLinesEx(f, 0.03f, 8, 2, Ui::Accento());
@@ -445,7 +566,8 @@ void Officina::GuidaArcade() {
     const char* passi[] = {
         "A sinistra ci sono le parti del gioco (livelli, nemici, boss, armi, colori...): cliccane una.",
         "Al centro scegli l'elemento da cambiare; con + Nuovo, Duplica ed Elimina aggiungi o togli livelli e nemici.",
-        "A destra cambi i suoi valori: numeri con - e +, colori, scelte. L'anteprima mostra subito il risultato.",
+        "A destra cambi i suoi valori: numeri, colori, scelte. I tuoi disegni: campo \"Grafica\" di eroe, nemici e boss (\"Carica immagini...\" PNG, JPG, BMP, GIF); "
+        "il tuo paesaggio: campo \"Sfondo\" dei livelli/settori (\"Carica immagine...\"). L'anteprima mostra subito il risultato.",
         "F5 = gioca e prova. Ctrl+S = salva il gioco. \"Crea .exe\" in alto a destra = il gioco finito.",
         "La musica di ogni livello si sceglie nel campo \"Musica\" (con Ascolta e Carica MP3/MIDI); le musiche si caricano anche nella scheda Audio. Tasti e joypad: scheda Comandi. Puoi anche chiedere a Claude nella chat." };
     for (int i = 0; i < 5; i++) {

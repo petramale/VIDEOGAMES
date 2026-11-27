@@ -3,6 +3,7 @@
 //   StudioVideogiochi --foto-arcade nome cartella [secondi [foto [seme [tappa [dati.json]]]]]   foto di controllo (pilota automatico)
 //   StudioVideogiochi --prova-arcade nome [secondi [tappa [dati.json]]]   prova veloce: partita automatica + salvataggio
 #include "arcade.h"
+#include "immagini.h"
 #include "pacchetto.h"
 #include "audio.h"
 #include <cstdio>
@@ -121,7 +122,10 @@ int FotoArcadeDaRigaDiComando(int argc, char** argv) {
     if (argc < 4) return 1;
     auto g = Crea(argv[2]);
     if (!g) return 1;
-    g->Configura(DatiProva(argc, argv, 8), nullptr);
+    // argv[8]: dati JSON oppure un progetto .gioco (con grafica, sfondi e musica propri)
+    static ProgettoGioco pg;
+    std::string tg, errg;
+    bool conProgetto = argc > 8 && LeggiFile(argv[8], tg) && pg.DaJson(tg, errg) && pg.EArcade();
     int tappa = argc > 7 ? std::atoi(argv[7]) : 0;
     float secondi = argc > 4 ? (float)std::atof(argv[4]) : 60;
     int foto = argc > 5 ? std::atoi(argv[5]) : 6;
@@ -129,6 +133,10 @@ int FotoArcadeDaRigaDiComando(int argc, char** argv) {
     SetTraceLogLevel(LOG_WARNING);
     SetConfigFlags(FLAG_WINDOW_HIDDEN);
     InitWindow(640, 360, "foto");
+    if (conProgetto) {
+        for (auto& im : pg.immagini) AggiungiFileImmagine(im.first, im.second);
+        g->Configura(nlohmann::json::parse(pg.arcadeDati.empty() ? std::string("{}") : pg.arcadeDati, nullptr, false), &pg);
+    } else g->Configura(DatiProva(argc, argv, 8), nullptr);
     g->Prepara();
     g->Nuova(seme, 0);
     if (tappa > 0) g->IniziaDa(tappa);

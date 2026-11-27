@@ -63,7 +63,9 @@ void Officina::Animazioni(Rectangle r, float dt) {
         d.DisegnaIn(q, std::max(0, d.TrovaAnimazione("fermo")), tempo);
     }, false);
     if (np + no == 0) {
-        Ui::TestoACapo("Non ci sono ancora personaggi o oggetti: creane uno nella sezione Personaggi o Oggetti (o trascina qui un'immagine).",
+        Ui::TestoACapo(progetto.EArcade() ? "Non ci sono ancora disegni tuoi. Nella scheda Gioco arcade scegli un nemico, un boss o l'eroe e premi "
+                                            "\"Carica immagini...\" nel campo Grafica: il disegno compare qui, pronto da animare."
+                                          : "Non ci sono ancora personaggi o oggetti: creane uno nella sezione Personaggi o Oggetti (o trascina qui un'immagine).",
                        centro.x + 40 * s, centro.y + 60 * s, centro.width - 80 * s, Ui::TestoSpento(), Ui::T());
         return;
     }

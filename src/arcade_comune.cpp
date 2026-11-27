@@ -2,6 +2,7 @@
 #include "arcade.h"
 #include "audio.h"
 #include "ui.h"
+#include "sfondo.h"
 #include "rlgl.h"
 #include <cmath>
 #include <cstdio>
@@ -90,6 +91,74 @@ Brano GiocoArcade::BranoDi(const std::string& nome) const {
     if (progetto) if (const Brano* b = progetto->TrovaBrano(nome)) return *b;
     for (auto& b : BraniPredefiniti()) if (b.nome == nome) return b;
     Brano vuoto; vuoto.nome = nome; return vuoto;
+}
+
+// --- grafica e sfondi propri ------------------------------------------------------------------
+const Disegno* GiocoArcade::GraficaDi(const nlohmann::json& elem) const {
+    if (!progetto || !elem.is_object()) return nullptr;
+    std::string n = TestoDi(elem, "grafica", "");
+    if (n.empty()) return nullptr;
+    if (const PersonaggioDef* p = progetto->Personaggio(n)) return p->disegno.animazioni.empty() ? nullptr : &p->disegno;
+    if (const OggettoDef* o = progetto->Oggetto(n)) return o->disegno.animazioni.empty() ? nullptr : &o->disegno;
+    return nullptr;
+}
+
+bool GiocoArcade::DisegnaGrafica(const nlohmann::json& elem, Vector2 centro, float altezza, const std::string& anim, float t,
+                                 bool specchia, Color tinta, float rot) const {
+    const Disegno* d = GraficaDi(elem);
+    if (!d) return false;
+    int a = -1;
+    size_t i = 0;
+    while (a < 0 && i <= anim.size()) {
+        size_t j = anim.find('|', i);
+        if (j == std::string::npos) j = anim.size();
+        a = d->TrovaAnimazione(anim.substr(i, j - i));
+        i = j + 1;
+    }
+    if (a < 0) a = d->TrovaAnimazione("fermo");
+    if (a < 0) a = 0;
+    const Animazione& an = d->animazioni[a];
+    if (an.fotogrammi.empty()) return false;
+    int f = d->FotogrammaAl(a, t);
+    Texture2D tex = d->Texture(a, f);
+    if (tex.id == 0) return false;
+    const Fotogramma& fo = an.fotogrammi[f];
+    if (fo.h <= 0 || fo.w <= 0) return false;
+    float k = altezza / fo.h, w = fo.w * k, h = altezza;
+    float dx = an.ox * k * (specchia ? -1 : 1), dy = an.oy * k;
+    Rectangle src = { 0, 0, (float)fo.w * (specchia ? -1 : 1), (float)fo.h };
+    DrawTexturePro(tex, src, { centro.x + dx, centro.y + dy, w, h }, { w / 2, h / 2 }, rot, tinta);
+    return true;
+}
+
+bool GiocoArcade::HaSfondo(const nlohmann::json& elem) const {
+    if (!progetto || !elem.is_object()) return false;
+    std::string n = TestoDi(elem, "sfondo", "");
+    return !n.empty() && progetto->TrovaScenario(n) != nullptr;
+}
+
+bool GiocoArcade::DisegnaSfondo(const nlohmann::json& elem, float camX) {
+    if (!HaSfondo(elem)) return false;
+    std::string n = TestoDi(elem, "sfondo", "");
+    const Scenario* s = progetto->TrovaScenario(n);
+    if (!sfondoProprio) sfondoProprio = std::make_shared<Sfondo>();
+    Sfondo& sf = *sfondoProprio;
+    if (sfondoProprioNome != n) {
+        sfondoProprioNome = n;
+        sf.tema = s->tema; sf.ora = s->ora; sf.generato = s->sfondoGenerato;
+        sf.cieloPersonale = s->cieloPersonale; sf.cieloAlto = s->cieloAlto; sf.cieloBasso = s->cieloBasso;
+        sf.strati = s->strati;
+    }
+    sf.Aggiorna(GetFrameTime());
+    // Lo scenario e' disegnato per uno schermo di VW x VH: qui si ingrandisce a tutto il gioco.
+    rlDrawRenderBatchActive();
+    rlPushMatrix();
+    rlScalef((float)L() / VW, (float)A() / VH, 1);
+    sf.Disegna(camX * VW / (float)L(), 0);
+    sf.DisegnaPrimoPiano(camX * VW / (float)L(), 0);
+    rlDrawRenderBatchActive();
+    rlPopMatrix();
+    return true;
 }
 
 // --- disegno ----------------------------------------------------------------------------------

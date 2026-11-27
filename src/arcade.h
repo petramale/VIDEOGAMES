@@ -21,6 +21,8 @@
 #include <string>
 #include <vector>
 
+class Sfondo;
+
 namespace arcade {
 
 using arte::K;
@@ -114,6 +116,20 @@ public:
     const ProgettoGioco* progetto = nullptr;
     // Il brano con quel nome: dal progetto (scritto nella sezione Audio) o, se manca, quello predefinito.
     Brano BranoDi(const std::string& nome) const;
+    // --- Grafica e sfondi propri (campi "grafica" e "sfondo" scelti nello Studio) -------------
+    // La grafica e' un personaggio o un oggetto del progetto con le sue animazioni (anche immagini caricate);
+    // lo sfondo e' uno scenario del progetto. Se il campo e' vuoto il gioco disegna la sua grafica.
+    const Disegno* GraficaDi(const nlohmann::json& elem) const;
+    // Disegna la grafica dell'elemento centrata in 'centro', alta 'altezza' (larghezza in proporzione).
+    // anim: nomi di animazione in ordine di preferenza separati da '|' ("corsa|fermo"). true = disegnata.
+    bool DisegnaGrafica(const nlohmann::json& elem, Vector2 centro, float altezza, const std::string& anim, float t,
+                        bool specchia = false, Color tinta = WHITE, float rot = 0) const;
+    // Disegna lo scenario scelto su tutto lo schermo del gioco (camX = scorrimento). true = disegnato.
+    bool DisegnaSfondo(const nlohmann::json& elem, float camX = 0);
+    bool HaSfondo(const nlohmann::json& elem) const;
+    std::shared_ptr<Sfondo> sfondoProprio;
+    std::string sfondoProprioNome;
+
     bool finito = false, vinto = false;
     int punteggio = 0;
     float tempo = 0;

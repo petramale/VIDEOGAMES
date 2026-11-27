@@ -4,6 +4,7 @@
 // con pausa (riprendi, salva, carica, ricomincia, musica, effetti, menu), salvataggio automatico
 // a ogni tappa e tre spazi di salvataggio accanto all'eseguibile.
 #include "arcade.h"
+#include "immagini.h"
 #include "audio.h"
 #include "flusso.h"
 #include "interfaccia.h"
@@ -84,6 +85,7 @@ int GiocaArcade(const DatiGioco& dati) {
     if (pj.is_object() && pj.contains("arcade") && progetto.DaJson(dati.livello, errProgetto)) {
         nome = progetto.arcade;
         datiArcade = json::parse(progetto.arcadeDati.empty() ? std::string("{}") : progetto.arcadeDati, nullptr, false);
+        for (auto& im : progetto.immagini) AggiungiFileImmagine(im.first, im.second);   // immagini degli sfondi propri
     } else nome = pj.is_object() ? pj.value("gioco", "") : "";
     std::unique_ptr<GiocoArcade> gioco = Crea(nome), vetrina = Crea(nome);
     if (gioco) { gioco->Configura(datiArcade, &progetto); vetrina->Configura(datiArcade, &progetto); }

@@ -109,6 +109,8 @@ public:
         auto Rf = [](const char* k, const char* n, const char* da, const char* vuoto = "") { json f = { { "chiave", k }, { "nome", n }, { "tipo", "rif" }, { "da", da } }; if (*vuoto) f["vuoto"] = vuoto; return f; };
         auto B = [](const char* k, const char* n) { return json{ { "chiave", k }, { "nome", n }, { "tipo", "brano" } }; };
         auto V = [](const char* k, const char* n) { return json{ { "chiave", k }, { "nome", n }, { "tipo", "vero" } }; };
+        json G = { { "chiave", "grafica" }, { "nome", "Grafica" }, { "tipo", "grafica" } };
+        json Sf = { { "chiave", "sfondo" }, { "nome", "Sfondo" }, { "tipo", "sfondo" } };
         Cat("ondate", "Ondate", true, "Ogni ondata: in quale cielo, la forma della formazione, quale specie in ogni riga, l'evento speciale, velocita' e fuoco. "
             "Aggiungi o togli ondate: il gioco finisce dopo l'ultima.",
             { Rf("cielo", "Cielo", "cieli"), S("formazione", "Formazione", { "A sorpresa", "Rettangolo", "Rombo", "Scacchiera", "Due blocchi", "Freccia" }),
@@ -118,14 +120,14 @@ public:
               N("velocita", "Velocita' della formazione", 0.4, 2.5, 0.05, "%.2f"), N("fuoco", "Quanto sparano", 0.2, 3, 0.05, "%.2f"),
               N("discesa", "Parte piu' in basso (righe)", 0, 6, 1), V("barriereNuove", "Barriere nuove all'inizio") }, 1, 99, "Ondata");
         Cat("specie", "Alieni", true, "Le cinque specie di alieni: nome, colori del cristallo, forma e punti. I colori ridipingono gli alieni.",
-            { T("nome", "Nome"), C("chiaro", "Colore chiaro"), C("scuro", "Colore scuro"), S("forma", "Forma", { "Prisma", "Cuneo", "Granchio", "Torre", "Stella" }),
+            { T("nome", "Nome"), G, C("chiaro", "Colore chiaro"), C("scuro", "Colore scuro"), S("forma", "Forma", { "Prisma", "Cuneo", "Granchio", "Torre", "Stella" }),
               N("punti", "Punti", 10, 5000, 10) }, 5, 5, "Alieno");
         Cat("cieli", "Cieli", true, "Gli sfondi delle ondate: colori del cielo e della nebulosa, il pianeta, il colore delle barriere e la musica.",
-            { T("nome", "Nome"), C("alto", "Cielo in alto"), C("medio", "Cielo a meta'"), C("basso", "Cielo in basso"), C("nebulosa", "Nebulosa"),
+            { T("nome", "Nome"), Sf, C("alto", "Cielo in alto"), C("medio", "Cielo a meta'"), C("basso", "Cielo in basso"), C("nebulosa", "Nebulosa"),
               S("pianeta", "Pianeta", { "Pianeta", "Pianeta con anelli", "Buco nero", "Nessuno" }), C("colorePianeta", "Colore del pianeta"),
               C("barriere", "Colore delle barriere"), B("musica", "Musica") }, 6, 6, "Cielo");
         Cat("generale", "Cannone e regole", false, "Le regole della partita e il cannone del giocatore.",
-            { N("vite", "Vite all'inizio", 1, 9, 1), N("vitaExtra", "Prima vita extra a", 0, 200000, 1000), N("vitaOgni", "Poi una vita ogni", 1000, 500000, 1000),
+            { G, N("vite", "Vite all'inizio", 1, 9, 1), N("vitaExtra", "Prima vita extra a", 0, 200000, 1000), N("vitaOgni", "Poi una vita ogni", 1000, 500000, 1000),
               N("velocitaCannone", "Velocita' del cannone", 300, 1500, 20), N("colpi", "Colpi in volo insieme", 1, 6, 1), C("coloreCannone", "Colore del cannone"),
               B("musicaMenu", "Musica del menu"), T("fine", "Scritta della vittoria") });
         Cat("disco", "Disco bonus", false, "Il disco che passa in alto: ogni quanti secondi, quanto e' veloce, quante volte lascia una capsula.",
@@ -784,7 +786,8 @@ public:
     // ======================= DISEGNO =======================
     void Disegna() override {
         float sx = tScosse > 0 ? Vis(-8, 8) * tScosse : 0, sy = tScosse > 0 ? Vis(-8, 8) * tScosse : 0;
-        DrawTexturePro(cieli[Cielo()], { 0, 0, 1280, 720 }, { sx - 20, sy - 20, 1960, 1120 }, { 0, 0 }, 0, WHITE);
+        if (!DisegnaSfondo(CieloJ(Cielo()), tempo * 20))
+            DrawTexturePro(cieli[Cielo()], { 0, 0, 1280, 720 }, { sx - 20, sy - 20, 1960, 1120 }, { 0, 0 }, 0, WHITE);
         // stelle che scorrono e brillano
         for (int i = 0; i < 140; i++) {
             unsigned h = (unsigned)i * 2654435761u;
@@ -831,7 +834,8 @@ public:
             float x = formX + a.ox + sx, y = formY - discesaIngresso + a.oy + sy;
             Color glowC = ConAlfa(ColSpecie(a.specie, 0), 0.22f);
             Bagliore(x, y, 70, glowC);
-            Sprite(alieniTex[a.specie][fotogramma], x, y, 0.5f, 0, a.lampo > 0 ? Color{ 255, 255, 255, 255 } : WHITE);
+            if (!DisegnaGrafica(SpecieJ(a.specie), { x, y }, 68, "corsa|fermo", tempo + a.specie * 0.2f, false, WHITE))
+                Sprite(alieniTex[a.specie][fotogramma], x, y, 0.5f, 0, a.lampo > 0 ? Color{ 255, 255, 255, 255 } : WHITE);
             if (a.lampo > 0) Bagliore(x, y, 50, ConAlfa(WHITE, 0.6f));
             if (a.vita > 1) { DrawRingLines({ x, y }, 40, 44, 0, 360, 24, ConAlfa(Hex(0xc0e0ff), 0.6f)); }
         }
@@ -888,7 +892,7 @@ public:
             bool vis = tInvulnerabile <= 0 || std::fmod(tempo, 0.2f) < 0.12f;
             if (vis) {
                 Bagliore(px, Y_GIOCATORE + 10, 130, ConAlfa(Hex(0x40ff90), 0.25f));
-                Sprite(cannone, px + sx, Y_GIOCATORE + sy, 0.55f);
+                if (!DisegnaGrafica(cfg["generale"], { px + sx, Y_GIOCATORE + sy }, 110, "fermo", tempo)) Sprite(cannone, px + sx, Y_GIOCATORE + sy, 0.55f);
                 // fiamme dei motori
                 for (int s2 = -1; s2 <= 1; s2 += 2) {
                     float h = 26 + 10 * std::sin(tempo * 40 + s2);

@@ -769,6 +769,8 @@ public:
         auto Rf = [](const char* k, const char* n, const char* da, const char* vuoto = "") { json f = { { "chiave", k }, { "nome", n }, { "tipo", "rif" }, { "da", da } }; if (*vuoto) f["vuoto"] = vuoto; return f; };
         auto B = [](const char* k, const char* n) { return json{ { "chiave", k }, { "nome", n }, { "tipo", "brano" } }; };
         auto V = [](const char* k, const char* n) { return json{ { "chiave", k }, { "nome", n }, { "tipo", "vero" } }; };
+        json G = { { "chiave", "grafica" }, { "nome", "Grafica" }, { "tipo", "grafica" } };
+        json Sf = { { "chiave", "sfondo" }, { "nome", "Sfondo" }, { "tipo", "sfondo" } };
         json scene = json::array(); for (auto s : NOMI_SCENE) scene.push_back(s);
         json aspetti = json::array(); for (auto s : NOMI_ASPETTI) aspetti.push_back(s);
         Cat("missioni", "Missioni", true, "Ogni missione: l'ambiente, quanto e' lunga (in schermate), quanti banditi, quali tre tipi di nemici, quanti ostaggi da liberare, "
@@ -778,22 +780,22 @@ public:
               N("ostaggi", "Ostaggi", 0, 20, 1), V("carro", "Carro Bisonte"), Rf("boss", "Boss finale", "boss", "(nessuno)"), N("tempo", "Tempo (secondi)", 20, 99, 1),
               B("musica", "Musica") }, 1, 40, "Missione");
         Cat("ambienti", "Ambienti", true, "I luoghi delle missioni: la scena disegnata (canyon, citta', miniera...), i colori del cielo, delle rocce e del terreno e il tempo che fa.",
-            { T("nome", "Nome"), S("scena", "Scena", scene), Co("cielo", "Cielo in alto"), Co("orizzonte", "Cielo all'orizzonte"), Co("rocce", "Rocce e montagne"),
+            { T("nome", "Nome"), Sf, S("scena", "Scena", scene), Co("cielo", "Cielo in alto"), Co("orizzonte", "Cielo all'orizzonte"), Co("rocce", "Rocce e montagne"),
               Co("terreno", "Terreno"), S("meteo", "Meteo", { "Sereno", "Polvere nel vento", "Neve", "Pioggia", "Braci" }) }, 1, 20, "Ambiente");
         Cat("nemici", "Nemici", true, "I tipi di nemici: nome, comportamento (pistolero, dinamitardo, cecchino sulle torri, robot a vapore, cavaliere meccanico, girocottero), "
             "colori, resistenza, velocita', quanto sparano e punti.",
-            { T("nome", "Nome"), S("comportamento", "Comportamento", { "Pistolero", "Dinamitardo", "Cecchino sulla torre", "Robot a vapore", "Cavaliere meccanico", "Girocottero" }),
+            { T("nome", "Nome"), G, S("comportamento", "Comportamento", { "Pistolero", "Dinamitardo", "Cecchino sulla torre", "Robot a vapore", "Cavaliere meccanico", "Girocottero" }),
               Co("giacca", "Giacca (o corpo)"), Co("cappello", "Cappello"), N("vita", "Colpi per abbatterlo", 1, 40, 1), N("velocita", "Velocita'", 0.3, 2.5, 0.05, "%.2f"),
               N("fuoco", "Quanto spara", 0.2, 3, 0.05, "%.2f"), N("punti", "Punti", 10, 5000, 10) }, 1, 12, "Nemico");
         Cat("boss", "Boss", true, "I boss di fine missione: nome, disegno, comportamento (veicolo sui binari, volante, gigante che cammina, sotterraneo, fortezza fissa), colore, "
             "resistenza, aggressivita', punti e musica.",
-            { T("nome", "Nome"), S("aspetto", "Disegno", aspetti),
+            { T("nome", "Nome"), G, S("aspetto", "Disegno", aspetti),
               S("comportamento", "Comportamento", { "Veicolo sui binari (granate, raffiche, rinforzi)", "Volante (bombe e colpi mirati)", "Gigante (pestoni, ventagli, cariche)",
                                                       "Sotterraneo (sbuca sotto di te, pioggia di sassi)", "Fortezza fissa (cannonate, palle che rotolano)" }),
               Co("colore", "Colore"), N("vita", "Resistenza", 20, 1000, 5), N("aggressivita", "Aggressivita'", 0.3, 3, 0.05, "%.2f"), N("punti", "Punti", 0, 100000, 500),
               B("musica", "Musica") }, 1, 20, "Boss");
         Cat("generale", "Eroi e regole", false, "Le regole della partita e i colori dei due eroi (il giocatore 2 gioca a turni).",
-            { N("vite", "Vite all'inizio", 1, 9, 1), N("bombe", "Dinamite all'inizio", 0, 99, 1), N("vitaExtra", "Prima vita extra a", 0, 300000, 1000),
+            { G, N("vite", "Vite all'inizio", 1, 9, 1), N("bombe", "Dinamite all'inizio", 0, 99, 1), N("vitaExtra", "Prima vita extra a", 0, 300000, 1000),
               N("vitaOgni", "Poi una vita ogni", 1000, 500000, 1000), N("velocita", "Velocita' dell'eroe", 40, 140, 2), N("salto", "Altezza del salto", 0.6, 1.8, 0.05, "%.2f"),
               Co("giacca1", "Giocatore 1: giacca"), Co("cappello1", "Giocatore 1: cappello"), Co("calzoni1", "Giocatore 1: calzoni"),
               Co("giacca2", "Giocatore 2: giacca"), Co("cappello2", "Giocatore 2: cappello"), Co("calzoni2", "Giocatore 2: calzoni"),
@@ -1869,11 +1871,19 @@ public:
         sx = tScosse > 0 ? std::round(Vis(-2, 2) * std::min(1.0f, tScosse * 3)) : 0;
         sy = tScosse > 0 ? std::round(Vis(-2, 2) * std::min(1.0f, tScosse * 3)) : 0;
         int o1 = (int)std::fmod(camX * 0.12f, (float)LS), o2 = (int)std::fmod(camX * 0.45f, (float)LS), o3 = (int)std::fmod(std::round(camX), (float)LW);
-        DrawTexture(gLon[ak], -o1, 0, WHITE); DrawTexture(gLon[ak], -o1 + LS, 0, WHITE);
-        DrawTexture(gMed[ak], -o2 + (int)sx, (int)sy, WHITE); DrawTexture(gMed[ak], -o2 + LS + (int)sx, (int)sy, WHITE);
+        // grafica propria (Studio): i piedi in 'piedi', alta h
+        auto Gr = [&](const json& j, float x, float piedi, float h, const char* anim, float t, bool specchia, Color tinta = WHITE, float rot = 0) {
+            return DisegnaGrafica(j, { x, piedi - h / 2 }, h, anim, t, specchia, tinta, rot);
+        };
+        if (!DisegnaSfondo(Amb(ak), camX)) {
+            DrawTexture(gLon[ak], -o1, 0, WHITE); DrawTexture(gLon[ak], -o1 + LS, 0, WHITE);
+            DrawTexture(gMed[ak], -o2 + (int)sx, (int)sy, WHITE); DrawTexture(gMed[ak], -o2 + LS + (int)sx, (int)sy, WHITE);
+        }
         bool bossSotto = boss.vivo && boss.comp == 3;
         Color tintaBoss = boss.lampo > 0 ? Color{ 255, 150, 150, 255 } : (boss.tMorte > 0 && (int)(tempo * 16) % 2 ? Color{ 255, 200, 160, 255 } : WHITE);
-        if (bossSotto && !(boss.sotto && boss.fase == 0) && bi >= 0) DisegnaSpr(gBossS[bi][boss.f], (float)X(boss.x), boss.y + boss.yOff + sy, false, tintaBoss);
+        float hBoss = (float)MISURE_BOSS[std::max(0, std::min(9, boss.aspetto))].h;
+        if (bossSotto && !(boss.sotto && boss.fase == 0) && bi >= 0 && !Gr(BossJ(bi), (float)X(boss.x), boss.y + boss.yOff + sy, hBoss, "attacco|fermo", tempo, false, tintaBoss))
+            DisegnaSpr(gBossS[bi][boss.f], (float)X(boss.x), boss.y + boss.yOff + sy, false, tintaBoss);
         DrawTexture(gSuo[ak], -o3 + (int)sx, Y_SUOLO + (int)sy, WHITE); DrawTexture(gSuo[ak], -o3 + LW + (int)sx, Y_SUOLO + (int)sy, WHITE);
         // oggetti del mondo
         for (auto& o : oggetti) {
@@ -1920,23 +1930,40 @@ public:
             else f = (int)(tempo * 20) % 2;
             bool flip = n.dir > 0;
             Color tinta = n.lampo > 0 ? Color{ 255, 110, 110, 255 } : WHITE;
+            const float hNem[6] = { 46, 46, 46, 56, 64, 30 };
+            float hn = hNem[std::max(0, std::min(5, n.comp))];
+            float piediN = n.comp == 5 ? n.y + sy + hn / 2 : n.y + sy;
+            if (n.stato == 1 && GraficaDi(NemJ(n.tipo))) {
+                if ((int)(n.t * 14) % 2 && n.t > 0.6f) continue;
+                Gr(NemJ(n.tipo), (float)X(n.x), piediN, hn, "colpito|fermo", n.t, n.dir < 0, tinta, std::min(1.0f, n.t * 3) * 90 * (flip ? -1 : 1));
+                continue;
+            }
+            if (n.stato != 1 && Gr(NemJ(n.tipo), (float)X(n.x), piediN, hn, f == 4 || f == 5 ? "sparo|attacco|fermo" : f < 4 && n.stato == 0 ? "corsa|fermo" : "fermo",
+                                   n.tAnim, n.dir < 0, tinta)) continue;
             if (n.stato == 1) {
                 if ((int)(n.t * 14) % 2 && n.t > 0.6f) continue;
                 if (n.comp == 5) DisegnaSpr(gNem[n.tipo][0], (float)X(n.x), n.y + sy, flip, C(0x8a8080), n.t * 90);
                 else DisegnaSpr(gNem[n.tipo][n.comp <= 2 ? 6 : 0], (float)X(n.x), n.y + sy, flip, tinta, std::min(1.0f, n.t * 3) * 90 * (flip ? -1 : 1));
             } else DisegnaSpr(gNem[n.tipo][f], (float)X(n.x), n.y + sy, flip, tinta);
         }
-        if (boss.vivo && !bossSotto && bi >= 0) DisegnaSpr(gBossS[bi][boss.f], (float)X(boss.x), boss.y + boss.yOff + sy, false, tintaBoss);
+        if (boss.vivo && !bossSotto && bi >= 0 && !Gr(BossJ(bi), (float)X(boss.x), boss.y + boss.yOff + sy, hBoss, "attacco|fermo", tempo, false, tintaBoss))
+            DisegnaSpr(gBossS[bi][boss.f], (float)X(boss.x), boss.y + boss.yOff + sy, false, tintaBoss);
         // l'eroe
         bool lampeggia = tInv > 0 && tMorto <= 0 && std::fmod(tempo, 0.16f) < 0.06f;
         if (tMorto > 0) {
-            if ((int)(tMorto * 10) % 2 || tMorto > 0.8f) DisegnaSpr(gEroe[giocatore][5][0][0], (float)X(ex), ey + sy, dir < 0, WHITE, ey >= TERRA - 1 ? -90.0f * dir : 0);
+            if ((int)(tMorto * 10) % 2 || tMorto > 0.8f) {
+                if (!Gr(Gen(), (float)X(ex), ey + sy, 46, "colpito|fermo", tMorto, dir < 0, WHITE, ey >= TERRA - 1 ? -90.0f * dir : 0))
+                    DisegnaSpr(gEroe[giocatore][5][0][0], (float)X(ex), ey + sy, dir < 0, WHITE, ey >= TERRA - 1 ? -90.0f * dir : 0);
+            }
         } else if (!lampeggia) {
             if (inCarro) DisegnaSpr(gCarro[(int)(tAnim * 10) % 2][1], (float)X(ex), ey + sy, dir < 0);
             else {
                 int g = !aTerra ? 5 : std::fabs(evx) > 1 ? 1 + (int)(tAnim * 10) % 4 : 0;
-                DisegnaSpr(gEroe[giocatore][g][mira][arma > 0 ? 1 : 0], (float)X(ex), ey + sy, dir < 0);
                 const float cad[5] = { 0.22f, 0.075f, 0.5f, 0.05f, 0.35f };
+                bool sparando = tSparo > cad[arma] - 0.05f;
+                const char* an = !aTerra ? "salto|fermo" : sparando ? "sparo|attacco|fermo" : g > 0 ? "corsa|fermo" : "fermo";
+                if (!Gr(Gen(), (float)X(ex), ey + sy, 46, an, tAnim, dir < 0))
+                    DisegnaSpr(gEroe[giocatore][g][mira][arma > 0 ? 1 : 0], (float)X(ex), ey + sy, dir < 0);
                 if (tSparo > cad[arma] - 0.05f && arma != 3) {
                     Vector2 cn = Canna(mira, arma > 0);
                     int fx = X(ex + cn.x * dir), fy = (int)(ey + cn.y + sy);
