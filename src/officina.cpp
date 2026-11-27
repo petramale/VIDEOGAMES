@@ -355,7 +355,7 @@ void Officina::Layout() {
 }
 
 void Officina::Frame(float dt) {
-    Ui::Inizia(GetScreenHeight() / 900.0f);
+    Ui::Inizia(std::min(GetScreenHeight() / 900.0f, GetScreenWidth() / 1650.0f));   // anche sugli schermi 16:10 e 4:3 c'e' posto per tutto
     tempo += dt;
     if (tAvviso > 0) tAvviso -= dt;
     ControllaChat();
@@ -567,9 +567,15 @@ void Officina::Schede() {
     DrawRectangleRec(r, Hex(0x0b0d22));
     DrawLineEx({ r.x, r.y + r.height }, { r.x + r.width, r.y + r.height }, 1, Ui::Bordo());
     float x = r.x + 10 * s;
+    // Se le schede non ci stanno accanto a Prova e Crea .exe, quelle non attive mostrano solo l'icona
+    // (il nome compare fermandosi col mouse).
+    float totale = 0;
+    for (int i = 0; i < (int)Sezione::Totale; i++) if (SezioneVisibile(i)) totale += Ui::Larghezza(NOMI_SEZIONI[i], Ui::T()) + 58 * s;
+    bool compatte = totale > r.width - 2 * 120 * s - 50 * s;
     for (int i = 0; i < (int)Sezione::Totale; i++) {
         if (!SezioneVisibile(i)) continue;
-        float w = Ui::Larghezza(NOMI_SEZIONI[i], Ui::T()) + 54 * s;
+        bool soloIcona = compatte && (int)sezione != i;
+        float w = soloIcona ? 44 * s : Ui::Larghezza(NOMI_SEZIONI[i], Ui::T()) + 54 * s;
         Rectangle v = { x, r.y + 6 * s, w, r.height - 6 * s };
         bool attiva = (int)sezione == i, sopra = Ui::MouseSu(v);
         DrawRectangleRounded({ v.x, v.y, v.width, v.height + 10 * s }, 0.25f, 6, attiva ? Ui::Fondo() : sopra ? Hex(0x1a1f48) : Hex(0x12153a));
@@ -577,9 +583,9 @@ void Officina::Schede() {
         Color c = attiva ? Ui::Accento() : sopra ? WHITE : Ui::TestoSpento();
         IconaSezione(i, { v.x + 10 * s, v.y + (v.height - 22 * s) / 2, 22 * s, 22 * s }, c);
         Ui::Suggerimento(v, AIUTO_SEZIONI[i]);
-        Ui::Testo(NOMI_SEZIONI[i], v.x + 40 * s, v.y + (v.height - Ui::T()) / 2, attiva ? WHITE : c, Ui::T());
+        if (!soloIcona) Ui::Testo(NOMI_SEZIONI[i], v.x + 40 * s, v.y + (v.height - Ui::T()) / 2, attiva ? WHITE : c, Ui::T());
         if (sopra && IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !attiva) { Vai((Sezione)i); gAudio.Suona(Effetto::Menu, 0.35f); }
-        if (sopra && TASTI_SEZIONI[i][0]) Ui::Testo(TASTI_SEZIONI[i], v.x + v.width - Ui::Larghezza(TASTI_SEZIONI[i], (int)(10 * s)) - 6 * s, v.y + 2 * s, Ui::TestoSpento(), (int)(10 * s));
+        if (sopra && !soloIcona && TASTI_SEZIONI[i][0]) Ui::Testo(TASTI_SEZIONI[i], v.x + v.width - Ui::Larghezza(TASTI_SEZIONI[i], (int)(10 * s)) - 6 * s, v.y + 2 * s, Ui::TestoSpento(), (int)(10 * s));
         x += w + 4 * s;
     }
     // Pulsanti rapidi a destra: prova e .exe.

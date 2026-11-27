@@ -582,7 +582,7 @@ void EditorMondo::Layout(Rectangle& barra, Rectangle& schede, Rectangle& sinistr
 }
 
 void EditorMondo::Frame(float dt) {
-    if (!incorporato) Ui::Inizia(GetScreenHeight() / 900.0f);
+    if (!incorporato) Ui::Inizia(std::min(GetScreenHeight() / 900.0f, GetScreenWidth() / 1650.0f));   // anche sugli schermi 16:10 e 4:3 c'e' posto per tutto
     tempo += dt;
     if (tMessaggio > 0) tMessaggio -= dt;
     sfondo.Aggiorna(dt);

@@ -700,9 +700,9 @@ void Officina::Scenari(Rectangle r, float dt) {
     float y = prev.y + prev.height + 12 * s;
     std::string usate;
     for (auto& m : progetto.mondo.mappe) if (m.scenarioLibreria == sc.nome) usate += (usate.empty() ? "" : ", ") + m.nome;
-    Ui::Testo(usate.empty() ? "Non e' usato da nessuna mappa." : "Usato nelle mappe: " + usate, prev.x, y, Ui::TestoSpento(), Ui::TP());
     if (Ui::Pulsante({ prev.x + prev.width - 260 * s, y - 4 * s, 260 * s, 30 * s }, "Usa nella mappa aperta", true)) AzioneSezione("s:usa");
-    y += 34 * s;
+    float hU = Ui::TestoACapo(usate.empty() ? "Non e' usato da nessuna mappa." : "Usato nelle mappe: " + usate, prev.x, y, prev.width - 272 * s, Ui::TestoSpento(), Ui::TP());
+    y += std::max(34 * s, hU + 10 * s);
     Ui::TestoACapo("Trascina qui un'immagine PNG o JPG: diventa uno strato dello scenario. Gli strati si muovono a velocita' diverse (parallasse) "
                    "mentre la telecamera scorre.", prev.x, y, prev.width, Ui::TestoSpento(), (int)(13 * s));
 
