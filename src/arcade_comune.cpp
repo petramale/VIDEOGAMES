@@ -5,6 +5,7 @@
 #include "rlgl.h"
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <map>
 #include <sstream>
 
@@ -20,6 +21,18 @@ std::string Num(double v) {
     std::snprintf(b, sizeof b, "%.17g", v);
     return b;
 }
+
+Color ColoreDi(const nlohmann::json& j, const char* k, Color d) {
+    if (!j.is_object() || !j.contains(k) || !j[k].is_string()) return d;
+    std::string t = j[k].get<std::string>();
+    if (t.size() != 7 || t[0] != '#') return d;
+    unsigned v = (unsigned)std::strtoul(t.c_str() + 1, nullptr, 16);
+    return Color{ (unsigned char)(v >> 16), (unsigned char)(v >> 8), (unsigned char)v, 255 };
+}
+std::string Esa(Color c) { char b[8]; std::snprintf(b, sizeof b, "#%02x%02x%02x", c.r, c.g, c.b); return b; }
+float NumDi(const nlohmann::json& j, const char* k, float d) { return j.is_object() && j.contains(k) && j[k].is_number() ? j[k].get<float>() : d; }
+int IntDi(const nlohmann::json& j, const char* k, int d) { return j.is_object() && j.contains(k) && j[k].is_number() ? (int)std::lround(j[k].get<double>()) : d; }
+std::string TestoDi(const nlohmann::json& j, const char* k, const std::string& d) { return j.is_object() && j.contains(k) && j[k].is_string() ? j[k].get<std::string>() : d; }
 
 // --- regista ----------------------------------------------------------------------------------
 void Regista::Osserva(float dt, float xn, float yn, bool spara) {
@@ -59,6 +72,24 @@ void Regista::DaJson(const std::string& t) {
     g("sfida", sfida); g("sparati", colpiSparati); g("aSegno", colpiAndatiASegno); g("vitePerse", vitePerse);
     g("tappe", tappeFinite); g("tempoTappe", tempoTappe); g("abitX", abitX); g("abitY", abitY);
     g("fuoco", fuocoMedio); g("rischio", rischio);
+}
+
+// --- dati del progetto ------------------------------------------------------------------------
+nlohmann::json Unisci(const nlohmann::json& a, const nlohmann::json& b) {
+    if (!a.is_object() || !b.is_object()) return b.is_null() ? a : (a.is_null() || a.type() == b.type() || (a.is_number() && b.is_number()) ? b : a);
+    nlohmann::json r = a;
+    for (auto it = b.begin(); it != b.end(); ++it) r[it.key()] = a.contains(it.key()) ? Unisci(a[it.key()], it.value()) : it.value();
+    return r;
+}
+void GiocoArcade::Configura(const nlohmann::json& dati, const ProgettoGioco* p) {
+    progetto = p;
+    cfg = Unisci(Predefiniti(), dati.is_object() ? dati : nlohmann::json::object());
+    ImpostaSuoni(cfg.contains("suoni") ? cfg["suoni"] : nlohmann::json(), p);
+}
+Brano GiocoArcade::BranoDi(const std::string& nome) const {
+    if (progetto) if (const Brano* b = progetto->TrovaBrano(nome)) return *b;
+    for (auto& b : BraniPredefiniti()) if (b.nome == nome) return b;
+    Brano vuoto; vuoto.nome = nome; return vuoto;
 }
 
 // --- disegno ----------------------------------------------------------------------------------
@@ -199,8 +230,18 @@ void CreaSuono(const std::string& nome, float durata, const std::function<float(
     gSuoni[nome] = vs;
 }
 bool gSilenzio = false;
+static std::map<std::string, EffettoSuono> gSostituiti;
+void ImpostaSuoni(const nlohmann::json& suoni, const ProgettoGioco* p) {
+    gSostituiti.clear();
+    if (!p || !suoni.is_object()) return;
+    for (auto it = suoni.begin(); it != suoni.end(); ++it)
+        if (it.value().is_string() && !it.value().get<std::string>().empty())
+            if (const EffettoSuono* e = p->TrovaEffetto(it.value().get<std::string>())) gSostituiti[it.key()] = *e;
+}
 void Suona(const std::string& nome, float volume, float tono) {
     if (gAudio.muto || gSilenzio) return;
+    auto so = gSostituiti.find(nome);
+    if (so != gSostituiti.end()) { gAudio.SuonaEffetto(so->second, volume); return; }
     auto it = gSuoni.find(nome);
     if (it == gSuoni.end()) return;
     VociSuono& v = it->second;
@@ -213,6 +254,7 @@ void Suona(const std::string& nome, float volume, float tono) {
 static std::string gBranoAttuale;
 void SuonaMusica(const Brano& b) {
     if (gSilenzio) return;
+    if (b.tracce.empty() && b.file.empty()) { FermaMusica(); return; }
     if (gBranoAttuale == b.nome) return;
     gBranoAttuale = b.nome;
     gAudio.SuonaBrano(b);

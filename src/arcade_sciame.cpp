@@ -18,7 +18,6 @@ namespace {
 using namespace arte;
 
 constexpr float TAU = 6.2831853f;
-constexpr int LIVELLI = 15;
 constexpr float Y_CACCIA = 960;
 constexpr float PASSO_C = 96, PASSO_R = 70;
 
@@ -87,7 +86,7 @@ struct Anello { Vector2 p; float t, durata, r; Color c; };
 
 struct Parte { Vector2 off{ 0, 0 }; float r = 50, hp = 10, hpMax = 10; bool vulnerabile = true; float lampo = 0; };
 struct Boss {
-    int tipo = -1;
+    int tipo = -1, indice = 0;
     bool vivo = false;
     Vector2 p{ 960, -300 };
     float t = 0, tAtt = 2, ingresso = 1, aperto = 1, tCiclo = 0, tSpirale = 0, angSpirale = 0, tMorte = 0, tEvoca = 6;
@@ -100,20 +99,122 @@ struct Boss {
 };
 
 // risorse condivise (gioco e vetrina del menu)
-Texture2D sfondi[5]{}, insTex[4][4][2]{}, cacciaTex{}, capsTex[4]{}, bossTex[5]{}, testaIdra{}, alaRegina{}, irideTex{}, gusciTex{}, cannoneTex{}, alaImp{}, sferaTex{};
-Brano brani[7];
+Texture2D sfondi[5]{}, insTex[4][2][2]{}, cacciaTex{}, capsTex[4]{}, bossTex[5]{}, testaIdra{}, alaRegina{}, irideTex{}, gusciTex{}, cannoneTex{}, alaImp{}, sferaTex{};
+std::string gFirma;
 
 class Sciame : public GiocoArcade {
 public:
     const char* Nome() const override { return "sciame"; }
     std::string Titolo() const override { return "Sciame di Orione"; }
-    std::string Tappa() const override { return "Livello " + std::to_string(livello) + " - " + SETTORI[Settore()]; }
+    std::string Tappa() const override { return "Livello " + std::to_string(livello) + " - " + NomeSettore(Settore()); }
     std::vector<std::string> Aiuto() const override {
         return { "Frecce, A/D, levetta o mouse: muovi il caccia", "Spazio, J, clic sinistro o pulsante A: spara",
                  "Gli insetti con l'aura dorata lasciano armi: Laser, Missili, Scudo, Doppio",
                  "Ogni 3 livelli arriva un boss: colpisci i suoi punti deboli" };
     }
-    Brano MusicaMenu() const override { return brani[6]; }
+    Brano MusicaMenu() const override { return BranoDi(TestoDi(Gen(), "musicaMenu", "Sciame - Tema")); }
+
+    // --- dati del progetto ---
+    static const json& Elem(const json& lista, int k) { static const json vuoto = json::object(); return lista.is_array() && k >= 0 && k < (int)lista.size() ? lista[k] : vuoto; }
+    int NLiv() const { return cfg["livelli"].is_array() && !cfg["livelli"].empty() ? (int)cfg["livelli"].size() : 1; }
+    const json& Liv() const { return Elem(cfg["livelli"], livello - 1); }
+    const json& Gen() const { return cfg["generale"]; }
+    const json& SettoreJ(int k) const { return Elem(cfg["settori"], k); }
+    const json& SpecieJ(int k) const { return Elem(cfg["specie"], k); }
+    const json& BossJ(int k) const { return Elem(cfg["boss"], k); }
+    std::string NomeSettore(int k) const { return TestoDi(SettoreJ(k), "nome", SETTORI[std::max(0, std::min(4, k))]); }
+    int IndiceBoss() const { int b = IntDi(Liv(), "boss", -1); return b >= 0 && b < (int)cfg["boss"].size() ? b : -1; }
+    std::string NomeBoss() const { return TestoDi(BossJ(boss.indice), "nome", NOMI_BOSS[std::max(0, boss.tipo)]); }
+    Color ColSp(int sp, int var) const { return ColoreDi(SpecieJ(sp), var ? "chiaro2" : "chiaro", Hex(COL_SP[sp][var][0])); }
+    Color ColSpScuro(int sp, int var) const { return ColoreDi(SpecieJ(sp), var ? "scuro2" : "scuro", Hex(COL_SP[sp][var][1])); }
+    int PuntiSp(int sp, bool volo) const { return IntDi(SpecieJ(sp), volo ? "puntiVolo" : "punti", PUNTI[sp][volo ? 1 : 0]); }
+
+    static std::vector<std::pair<std::string, std::string>> NomiSuoni() {
+        return { { "sc_sparo", "Sparo del caccia" }, { "sc_esplodi", "Insetto abbattuto" }, { "sc_tuffo", "Picchiata" }, { "sc_ingresso", "Inizio livello" },
+                 { "sc_allarme", "Arriva il boss" }, { "sc_metallo", "Colpo su corazza" }, { "sc_boom", "Grande esplosione" }, { "sc_capsula", "Arma presa" },
+                 { "sc_missile", "Missili" }, { "sc_laser", "Laser" }, { "sc_scudo", "Scudo consumato" }, { "sc_morte", "Caccia distrutto" },
+                 { "sc_vita", "Vita extra" }, { "sc_stemma", "Livello superato" }, { "sc_colpito", "Boss colpito" } };
+    }
+    json Predefiniti() const override {
+        json j;
+        j["generale"] = { { "vite", 3 }, { "vitaExtra", 30000 }, { "vitaOgni", 100000 }, { "velocitaCaccia", 820 }, { "colpi", 2 },
+                          { "aura", 0.11 }, { "musicaMenu", "Sciame - Tema" }, { "fine", "LO SCIAME E' SCONFITTO!" } };
+        const char* cieli[5][5] = { { "#000814", "#04213f", "#0a3b5c", "#00b4ff", "#7fe0ff" }, { "#0a0418", "#2a0a40", "#4a1060", "#ff5ad0", "#ffb0f0" },
+                                    { "#000a10", "#022a30", "#063a40", "#3cffe0", "#b0fff0" }, { "#0c0800", "#2a1a08", "#4a2a10", "#ffb040", "#ffe0a0" },
+                                    { "#0a0000", "#2a0410", "#40081a", "#ff3a3a", "#ffa0a0" } };
+        const char* musiche[5] = { "Sciame - Cintura di Orione", "Sciame - Nebulosa del Cigno", "Sciame - Abisso di Cristallo", "Sciame - Campi di Vega", "Sciame - Cuore dello Sciame" };
+        for (int k = 0; k < 5; k++)
+            j["settori"].push_back({ { "nome", SETTORI[k] }, { "alto", cieli[k][0] }, { "medio", cieli[k][1] }, { "basso", cieli[k][2] }, { "luce", cieli[k][3] },
+                                     { "chiaro", cieli[k][4] }, { "musica", musiche[k] } });
+        const char* nomi[4] = { "Scarabeo", "Farfalla", "Vespa", "Libellula" };
+        for (int k = 0; k < 4; k++)
+            j["specie"].push_back({ { "nome", nomi[k] }, { "chiaro", HexS(COL_SP[k][0][0]) }, { "scuro", HexS(COL_SP[k][0][1]) },
+                                    { "chiaro2", HexS(COL_SP[k][1][0]) }, { "scuro2", HexS(COL_SP[k][1][1]) }, { "punti", PUNTI[k][0] }, { "puntiVolo", PUNTI[k][1] },
+                                    { "vita", k == 0 ? 2 : 1 }, { "velocita", k == 3 ? 1.25 : 1.0 } });
+        const char* nb[5] = { "Regina Vespa di Cristallo", "Idra Meccanica", "Occhio della Nebulosa", "Corazzata Scarabeo", "Imperatrice dello Sciame" };
+        for (int k = 0; k < 5; k++)
+            j["boss"].push_back({ { "nome", nb[k] }, { "comportamento", k }, { "resistenza", 1.0 }, { "aggressivita", 1.0 }, { "punti", 10000 + k * 5000 },
+                                  { "musica", "Sciame - Boss" } });
+        for (int n = 1; n <= 15; n++) {
+            bool b = n % 3 == 0;
+            j["livelli"].push_back({ { "settore", std::min(4, (n - 1) / 3) }, { "boss", b ? n / 3 - 1 : -1 },
+                                     { "riga1", b ? -1 : 0 }, { "riga2", b ? -1 : 1 }, { "riga3", b ? -1 : (n >= 10 ? 3 : 1) }, { "riga4", 2 },
+                                     { "riga5", b ? (n >= 6 ? 3 : 1) : (n >= 4 ? 3 : 2) }, { "ingresso", 0 },
+                                     { "picchiate", 1.0 }, { "velocita", 1.0 }, { "fuoco", 1.0 } });
+        }
+        j["armi"] = { { "laser", 15 }, { "missili", 15 } };
+        json su = json::object();
+        for (auto& n : NomiSuoni()) su[n.first] = "";
+        j["suoni"] = su;
+        return j;
+    }
+    json Schema() const override {
+        json voci = json::array();
+        auto Cat = [&](const char* chiave, const char* nome, bool lista, const char* aiuto, json campi, int min = 0, int max = 0, const char* elemento = "") {
+            json c = { { "chiave", chiave }, { "nome", nome }, { "lista", lista }, { "aiuto", aiuto }, { "campi", campi } };
+            if (lista) { c["min"] = min; c["max"] = max; c["elemento"] = elemento; }
+            voci.push_back(c);
+        };
+        auto N = [](const char* k, const char* n, double mi, double ma, double passo, const char* f = "%.0f") { return json{ { "chiave", k }, { "nome", n }, { "tipo", "numero" }, { "min", mi }, { "max", ma }, { "passo", passo }, { "formato", f } }; };
+        auto C = [](const char* k, const char* n) { return json{ { "chiave", k }, { "nome", n }, { "tipo", "colore" } }; };
+        auto T = [](const char* k, const char* n) { return json{ { "chiave", k }, { "nome", n }, { "tipo", "testo" } }; };
+        auto S = [](const char* k, const char* n, json v) { return json{ { "chiave", k }, { "nome", n }, { "tipo", "scelta" }, { "voci", v } }; };
+        auto Rf = [](const char* k, const char* n, const char* da, const char* vuoto = "") { json f = { { "chiave", k }, { "nome", n }, { "tipo", "rif" }, { "da", da } }; if (*vuoto) f["vuoto"] = vuoto; return f; };
+        auto B = [](const char* k, const char* n) { return json{ { "chiave", k }, { "nome", n }, { "tipo", "brano" } }; };
+        Cat("livelli", "Livelli", true, "Ogni livello: il settore dello spazio, il boss (se c'e'), quale insetto in ogni riga della formazione, le traiettorie d'ingresso, "
+            "quanto spesso si tuffano, velocita' e fuoco. Il gioco finisce dopo l'ultimo livello.",
+            { Rf("settore", "Settore", "settori"), Rf("boss", "Boss", "boss", "(nessuno)"),
+              Rf("riga1", "Riga 1 (in alto)", "specie", "(vuota)"), Rf("riga2", "Riga 2", "specie", "(vuota)"), Rf("riga3", "Riga 3", "specie", "(vuota)"),
+              Rf("riga4", "Riga 4", "specie", "(vuota)"), Rf("riga5", "Riga 5 (in basso)", "specie", "(vuota)"),
+              S("ingresso", "Traiettorie d'ingresso", { "A sorpresa", "Giro della morte", "Curva dal basso", "Serpentina", "Spirale", "Picchiata e risalita", "Doppio otto" }),
+              N("picchiate", "Quanto spesso si tuffano", 0.2, 3, 0.05, "%.2f"), N("velocita", "Velocita' degli insetti", 0.5, 2, 0.05, "%.2f"),
+              N("fuoco", "Quanto sparano", 0.2, 3, 0.05, "%.2f") }, 1, 60, "Livello");
+        Cat("specie", "Insetti", true, "Le quattro specie: nome, due coppie di colori (la seconda si vede a righe alterne e quando lo scarabeo e' ferito), punti, colpi per abbatterli e velocita' in picchiata. "
+            "Scarabeo: si tuffa con due farfalle di scorta. Farfalla: fa un anello. Libellula: scende a zig-zag.",
+            { T("nome", "Nome"), C("chiaro", "Colore chiaro"), C("scuro", "Colore scuro"), C("chiaro2", "Secondo colore chiaro"), C("scuro2", "Secondo colore scuro"),
+              N("punti", "Punti in formazione", 10, 5000, 10), N("puntiVolo", "Punti in picchiata", 10, 5000, 10), N("vita", "Colpi per abbatterlo", 1, 9, 1),
+              N("velocita", "Velocita' in picchiata", 0.5, 2.5, 0.05, "%.2f") }, 4, 4, "Insetto");
+        Cat("boss", "Boss", true, "I boss: nome, comportamento (ognuno ha i suoi attacchi e punti deboli), resistenza, aggressivita', punti e musica.",
+            { T("nome", "Nome"), S("comportamento", "Comportamento", { "Regina Vespa (ventagli, evoca, carica)", "Idra (tre teste, poi il nucleo)",
+                                                                         "Occhio (si apre, spirali, raggio)", "Corazzata (guscio che si apre, cannoni)", "Imperatrice (ali, spirali, evoca)" }),
+              N("resistenza", "Resistenza", 0.3, 4, 0.05, "%.2f"), N("aggressivita", "Aggressivita'", 0.3, 3, 0.05, "%.2f"), N("punti", "Punti", 0, 100000, 500),
+              B("musica", "Musica") }, 1, 20, "Boss");
+        Cat("settori", "Settori", true, "Gli sfondi: i colori del cielo, della luce e del pianeta in basso, e la musica del settore.",
+            { T("nome", "Nome"), C("alto", "Cielo in alto"), C("medio", "Cielo a meta'"), C("basso", "Cielo in basso"), C("luce", "Luce e nebulose"),
+              C("chiaro", "Pianeta e luna"), B("musica", "Musica") }, 5, 5, "Settore");
+        Cat("generale", "Caccia e regole", false, "Le regole della partita e il caccia del giocatore.",
+            { N("vite", "Vite all'inizio", 1, 9, 1), N("vitaExtra", "Prima vita extra a", 0, 300000, 1000), N("vitaOgni", "Poi una vita ogni", 1000, 500000, 1000),
+              N("velocitaCaccia", "Velocita' del caccia", 300, 1500, 20), N("colpi", "Colpi in volo insieme", 1, 6, 1),
+              N("aura", "Insetti con l'aura dorata (armi)", 0, 0.6, 0.01, "%.2f"), B("musicaMenu", "Musica del menu"), T("fine", "Scritta della vittoria") });
+        Cat("armi", "Armi bonus", false, "Quanti secondi durano Laser e Missili. Scudo e Doppio caccia durano fino al primo colpo preso.",
+            { N("laser", "Laser (secondi)", 1, 90, 1), N("missili", "Missili (secondi)", 1, 90, 1) });
+        json su = json::array();
+        for (auto& n : NomiSuoni()) su.push_back({ { "chiave", n.first }, { "nome", n.second }, { "tipo", "effetto" } });
+        Cat("suoni", "Effetti sonori", false, "Ogni suono del gioco: lascia 'predefinito' o scegli un effetto creato nella sezione Audio.", su);
+        return voci;
+    }
+    int Tappe() const override { return NLiv(); }
+    void IniziaDa(int tappa) override { livello = std::max(1, std::min(NLiv(), tappa + 1)); IniziaLivello(); }
 
     // --- stato ---
     Caso caso;
@@ -140,10 +241,10 @@ public:
     std::vector<Testo> testi;
     float colpiLivello = 0, aSegnoLivello = 0;
 
-    int Settore() const { return std::min(4, (livello - 1) / 3); }
-    bool LivelloBoss() const { return livello % 3 == 0; }
+    int Settore() const { return std::max(0, std::min(4, IntDi(Liv(), "settore", (livello - 1) / 3))); }
+    bool LivelloBoss() const { return IndiceBoss() >= 0; }
 
-    void Prepara() override { PreparaGrafica(); PreparaSuoni(); PreparaMusica(); }
+    void Prepara() override { PreparaGrafica(); PreparaSuoni(); }
 
     // ======================= GRAFICA =======================
     static void Scarabeo(K& c, const std::string& c1, const std::string& c2, int f) {
@@ -237,10 +338,16 @@ public:
     }
 
     void PreparaGrafica() {
-        if (cacciaTex.id) return;
-        const char* cieli[5][5] = { { "#000814", "#04213f", "#0a3b5c", "#00b4ff", "#7fe0ff" }, { "#0a0418", "#2a0a40", "#4a1060", "#ff5ad0", "#ffb0f0" },
-                                    { "#000a10", "#022a30", "#063a40", "#3cffe0", "#b0fff0" }, { "#0c0800", "#2a1a08", "#4a2a10", "#ffb040", "#ffe0a0" },
-                                    { "#0a0000", "#2a0410", "#40081a", "#ff3a3a", "#ffa0a0" } };
+        std::string firma = cfg["settori"].dump() + cfg["specie"].dump();
+        if (cacciaTex.id && firma == gFirma) return;
+        bool primaVolta = !cacciaTex.id;
+        if (!primaVolta) { for (auto& t : sfondi) UnloadTexture(t); for (auto& a : insTex) for (auto& b : a) for (auto& t : b) UnloadTexture(t); }
+        gFirma = firma;
+        std::string cieli[5][5];
+        for (int k = 0; k < 5; k++) {
+            const char* ch[5] = { "alto", "medio", "basso", "luce", "chiaro" };
+            for (int i = 0; i < 5; i++) cieli[k][i] = Esa(ColoreDi(SettoreJ(k), ch[i], GRAY));
+        }
         for (int k = 0; k < 5; k++)
             sfondi[k] = Dipingi(1280, 720, [&](K& c) {
                 Caso r; r.Semina(500 + k);
@@ -248,7 +355,7 @@ public:
                 c.lighter();
                 for (int i = 0; i < 6; i++) {
                     float x = r.F(0, 1280), y = r.F(0, 560), rad = r.F(180, 460);
-                    std::string col = i % 2 ? cieli[k][3] : "#7a40ff";
+                    std::string col = i % 2 ? cieli[k][3] : std::string("#7a40ff");
                     c.fillStyle(rgs(x, y, 0, rad, { { 0, rgba(col, 0.16f) }, { 1, rgba(col, 0) } }));
                     c.beginPath(); c.arc(x, y, rad, 0, TAU); c.fill();
                 }
@@ -271,13 +378,14 @@ public:
                 c.beginPath(); c.arc(lx, ly, lr, 0, TAU); c.fill();
             });
         for (int sp = 0; sp < 4; sp++)
-            for (int v = 0; v < 4; v++)
+            for (int v = 0; v < 2; v++)
                 for (int f = 0; f < 2; f++)
                     insTex[sp][v][f] = Dipingi(132, 132, [&](K& c) {
                         c.translate(66, 66); c.scale(2, 2);
-                        std::string a = HexS(COL_SP[sp][v][0]), b = HexS(COL_SP[sp][v][1]);
+                        std::string a = Esa(ColSp(sp, v)), b = Esa(ColSpScuro(sp, v));
                         if (sp == 0) Scarabeo(c, a, b, f); else if (sp == 1) Farfalla(c, a, b, f); else if (sp == 2) Vespa(c, a, b, f); else Libellula(c, a, b, f);
                     });
+        if (!primaVolta) return;
         cacciaTex = Dipingi(250, 220, [&](K& c) { c.translate(125, 120); c.scale(1.6f, 1.6f); Caccia(c); });
         const char* capCol[4] = { "#ff5a5a", "#5ac8ff", "#7aff7a", "#ffd23c" };
         for (int i = 0; i < 4; i++)
@@ -479,37 +587,39 @@ public:
         CreaSuono("sc_stemma", 1.4f, [](float t) { return 0.2f * (Onda(3, 1568 * t) + 0.6f * Onda(3, 2349 * t) + 0.4f * Onda(3, 3136 * t)) * Inviluppo(t, 0.005f, 1.4f, 2); });
         CreaSuono("sc_colpito", 0.12f, [](float t) { return 0.25f * Onda(0, 300 * t) * Inviluppo(t, 0, 0.12f, 2); });
     }
-    void PreparaMusica() {
-        brani[0] = CreaBrano("Sciame - Cintura di Orione", 126, 8, {
+    std::vector<Brano> BraniPredefiniti() const override {
+        std::vector<Brano> b;
+        b.push_back(CreaBrano("Sciame - Cintura di Orione", 126, 8, {
             { "Guida", 0, 0.28f, "E5:1 B4:1 E5:1 G5:1 F#5:2 E5:1 D5:1 E5:2 B4:2 C5:1 D5:1 E5:2 G5:1 A5:1 B5:2 A5:1 G5:1 F#5:1 D5:1 E5:4" },
             { "Basso", 2, 0.4f, "E2:1 E2:1 E3:1 E2:1 C2:1 C2:1 C3:1 C2:1 D2:1 D2:1 D3:1 D2:1 B1:1 B1:1 B2:1 B1:1" },
             { "Arpa", 1, 0.16f, "E4:1 G4:1 B4:1 G4:1 C4:1 E4:1 G4:1 E4:1 D4:1 F#4:1 A4:1 F#4:1 B3:1 D#4:1 F#4:1 D#4:1" },
-            { "Batteria", 4, 0.45f, "K.h.S.h.K.KhS.h.", true } });
-        brani[1] = CreaBrano("Sciame - Nebulosa del Cigno", 100, 8, {
+            { "Batteria", 4, 0.45f, "K.h.S.h.K.KhS.h.", true } }));
+        b.push_back(CreaBrano("Sciame - Nebulosa del Cigno", 100, 8, {
             { "Campane", 3, 0.34f, "D5:2 F5:2 A5:3 G5:1 F5:2 E5:2 D5:4 C5:2 E5:2 G5:3 F5:1 E5:2 C5:2 D5:4" },
             { "Pad", 1, 0.22f, "D3:8 Bb2:8 C3:8 A2:8" },
-            { "Battito", 4, 0.32f, "K...h.S.K.h.S.hh", true } });
-        brani[2] = CreaBrano("Sciame - Abisso di Cristallo", 138, 8, {
+            { "Battito", 4, 0.32f, "K...h.S.K.h.S.hh", true } }));
+        b.push_back(CreaBrano("Sciame - Abisso di Cristallo", 138, 8, {
             { "Cristallo", 3, 0.3f, "A5:1 E5:1 A5:1 C6:1 B5:1 G5:1 E5:2 F5:1 C5:1 F5:1 A5:1 G5:2 E5:2 A5:1 E5:1 A5:1 C6:1 D6:1 C6:1 B5:2 C6:4 A5:4" },
             { "Basso", 0, 0.36f, "A1:1 A2:1 A1:1 A2:1 F1:1 F2:1 F1:1 F2:1 G1:1 G2:1 G1:1 G2:1 E1:1 E2:1 E1:1 E2:1" },
-            { "Batteria", 4, 0.5f, "K.hhS.hoK.KhS.hh", true } });
-        brani[3] = CreaBrano("Sciame - Campi di Vega", 112, 8, {
+            { "Batteria", 4, 0.5f, "K.hhS.hoK.KhS.hh", true } }));
+        b.push_back(CreaBrano("Sciame - Campi di Vega", 112, 8, {
             { "Ottoni", 2, 0.28f, "G4:2 B4:1 D5:1 G5:2 F#5:1 E5:1 D5:2 B4:2 C5:2 E5:1 G5:1 A5:2 G5:1 F#5:1 G5:4 D5:4" },
             { "Basso", 2, 0.4f, "G1:2 G2:2 E1:2 E2:2 C2:2 C3:2 D2:2 D3:2" },
-            { "Batteria", 4, 0.45f, "K..hS..hK.KhS.hh", true } });
-        brani[4] = CreaBrano("Sciame - Cuore dello Sciame", 144, 8, {
+            { "Batteria", 4, 0.45f, "K..hS..hK.KhS.hh", true } }));
+        b.push_back(CreaBrano("Sciame - Cuore dello Sciame", 144, 8, {
             { "Guida", 2, 0.27f, "C5:1 Eb5:1 G5:1 C6:1 Bb5:1 G5:1 Ab5:2 F5:1 Ab5:1 C6:1 F6:1 Eb6:1 C6:1 D6:2 C5:1 Eb5:1 G5:1 C6:1 D6:1 Eb6:1 D6:1 B5:1 C6:4" },
             { "Basso", 0, 0.38f, "C2:1 C3:1 C2:1 C3:1 Ab1:1 Ab2:1 Ab1:1 Ab2:1 F1:1 F2:1 F1:1 F2:1 G1:1 G2:1 G1:1 G2:1" },
-            { "Batteria", 4, 0.5f, "KhhhShhhKhKhShho", true } });
-        brani[5] = CreaBrano("Sciame - Boss", 150, 8, {
+            { "Batteria", 4, 0.5f, "KhhhShhhKhKhShho", true } }));
+        b.push_back(CreaBrano("Sciame - Boss", 150, 8, {
             { "Allarme", 2, 0.26f, "E5:1 E5:1 F5:1 E5:1 G5:1 E5:1 Bb5:2 A5:1 A5:1 Bb5:1 A5:1 C6:1 A5:1 E5:2 E5:1 E5:1 F5:1 E5:1 G5:1 Bb5:1 C6:1 Db6:1 E6:4 E5:4" },
             { "Basso", 0, 0.42f, "E1:1 E2:1 E1:1 E2:1 E1:1 E2:1 F1:1 F2:1 E1:1 E2:1 E1:1 E2:1 G1:1 G2:1 F1:1 F2:1" },
-            { "Batteria", 4, 0.55f, "KoKoSoKoKoKoSoKS", true } });
-        brani[6] = CreaBrano("Sciame - Tema", 118, 8, {
+            { "Batteria", 4, 0.55f, "KoKoSoKoKoKoSoKS", true } }));
+        b.push_back(CreaBrano("Sciame - Tema", 118, 8, {
             { "Melodia", 0, 0.3f, "G4:1 C5:1 E5:1 G5:1 F5:2 E5:1 D5:1 C5:2 G4:2 A4:1 C5:1 F5:1 A5:1 G5:2 E5:2 F5:1 E5:1 D5:1 B4:1 C5:4" },
             { "Basso", 2, 0.4f, "C2:1 C3:1 C2:1 C3:1 A1:1 A2:1 A1:1 A2:1 F1:1 F2:1 F1:1 F2:1 G1:1 G2:1 G1:1 G2:1" },
             { "Arpeggio", 1, 0.15f, "C4:1 E4:1 G4:1 E4:1 A3:1 C4:1 E4:1 C4:1 F3:1 A3:1 C4:1 A3:1 G3:1 B3:1 D4:1 B3:1" },
-            { "Batteria", 4, 0.42f, "K...S...K.K.S..h", true } });
+            { "Batteria", 4, 0.42f, "K...S...K.K.S..h", true } }));
+        return b;
     }
 
     // ======================= PARTITA =======================
@@ -517,7 +627,7 @@ public:
         seme = s; giocatore = g;
         caso.Semina(s ^ 0x5C1A3Eull);
         regista = Regista{};
-        livello = 1; vite = 3; prossimaVita = 30000; punteggio = 0; tempo = 0;
+        livello = 1; vite = IntDi(Gen(), "vite", 3); prossimaVita = IntDi(Gen(), "vitaExtra", 30000); punteggio = 0; tempo = 0;
         finito = vinto = false; puntiDiControllo = 0;
         arma = 0; tArma = 0; scudo = doppio = false; px = 960; tMorto = 0; tInv = 0;
         colpi.clear(); nemici.clear(); capsule.clear(); part.v.clear(); testi.clear(); anelli.clear();
@@ -543,49 +653,57 @@ public:
         // la formazione: 4 scarabei, 16 farfalle, 20 vespe (o libellule dal livello 4)
         auto Aggiungi = [&](int riga, int col, int sp) {
             Insetto a; a.riga = riga; a.col = col; a.specie = sp;
-            a.var = (sett + (sp == 0 ? 0 : riga % 2)) % 4;
-            a.vita = sp == 0 ? 2 : 1;
-            a.aura = caso.P(0.11f);
+            a.var = (sett + (sp == 0 ? 0 : riga)) % 2;
+            a.vita = std::max(1, IntDi(SpecieJ(sp), "vita", sp == 0 ? 2 : 1));
+            a.aura = caso.P(NumDi(Gen(), "aura", 0.11f));
             a.vivo = true; a.stato = 0; a.p = { -999, -999 };
             ins.push_back(a);
             return (int)ins.size() - 1;
         };
+        // specie di ogni riga (dai dati del livello; -1 = riga vuota)
+        int sr[5];
+        const char* chiavi[5] = { "riga1", "riga2", "riga3", "riga4", "riga5" };
+        for (int k = 0; k < 5; k++) { sr[k] = IntDi(Liv(), chiavi[k], -1); if (sr[k] >= (int)cfg["specie"].size() || sr[k] > 3) sr[k] = -1; }
+        auto Metti = [&](std::vector<int>& gr, int riga, int col) { if (sr[riga] >= 0) gr.push_back(Aggiungi(riga, col, sr[riga])); };
         std::vector<int> g[5];
         if (LivelloBoss()) {
-            for (int c = 1; c <= 8; c++) g[c <= 4 ? 0 : 1].push_back(Aggiungi(3, c, 2));
-            for (int c = 1; c <= 8; c++) g[c <= 4 ? 0 : 1].push_back(Aggiungi(4, c, livello >= 6 ? 3 : 1));
-            boss.tipo = livello / 3 - 1; boss.vivo = true; boss.p = { 960, -300 }; boss.ingresso = 1;
+            for (int c = 1; c <= 8; c++) for (int rr = 0; rr < 5; rr++) if (rr >= 3 || c % 2 == 0) Metti(g[c <= 4 ? 0 : 1], rr, c);
+            boss.indice = IndiceBoss();
+            boss.tipo = std::max(0, std::min(4, IntDi(BossJ(boss.indice), "comportamento", 0)));
+            boss.vivo = true; boss.p = { 960, -300 }; boss.ingresso = 1;
             CreaParti();
         } else {
-            for (int c = 1; c <= 8; c++) g[0].push_back(c <= 4 ? Aggiungi(3, c + 2, 2) : Aggiungi(1, c - 4 + 2, 1));   // centro
-            for (int c = 3; c <= 6; c++) g[1].push_back(Aggiungi(0, c, 0));
-            for (int c : { 1, 2, 7, 8 }) g[1].push_back(Aggiungi(1, c, 1));
-            for (int c = 1; c <= 8; c++) g[2].push_back(Aggiungi(2, c, livello >= 10 && c % 3 == 0 ? 3 : 1));
-            for (int c : { 0, 1, 2, 7, 8, 9 }) g[3].push_back(Aggiungi(3, c, 2));
-            for (int c : { 0, 1 }) g[3].push_back(Aggiungi(4, c, livello >= 4 ? 3 : 2));
-            for (int c = 2; c <= 9; c++) g[4].push_back(Aggiungi(4, c, livello >= 4 ? 3 : 2));
+            for (int c = 3; c <= 6; c++) Metti(g[0], 3, c);
+            for (int c = 3; c <= 6; c++) Metti(g[0], 1, c);
+            for (int c = 3; c <= 6; c++) Metti(g[1], 0, c);
+            for (int c : { 1, 2, 7, 8 }) Metti(g[1], 1, c);
+            for (int c = 1; c <= 8; c++) Metti(g[2], 2, c);
+            for (int c : { 0, 1, 2, 7, 8, 9 }) Metti(g[3], 3, c);
+            for (int c : { 0, 1 }) Metti(g[3], 4, c);
+            for (int c = 2; c <= 9; c++) Metti(g[4], 4, c);
         }
-        for (auto& v : g) if (!v.empty()) { gruppi.push_back(v); modelli.push_back(caso.I(0, 5)); }
+        int ingresso = IntDi(Liv(), "ingresso", 0);
+        for (auto& v : g) if (!v.empty()) { gruppi.push_back(v); int m = caso.I(0, 5); modelli.push_back(ingresso > 0 ? std::min(5, ingresso - 1 + (int)gruppi.size() % 2) : m); }
         gruppiEntrati = 0; tGruppo = 1.2f;
         tFormazione = 0; respiro = 0;
         tPicchiata = 4.0f;
         tLivello = 0; tFine = -1;
         colpiLivello = regista.colpiSparati; aSegnoLivello = regista.colpiAndatiASegno;
         if (LivelloBoss()) {
-            scritta = "ATTENZIONE!"; sotto = std::string("Arriva il boss: ") + NOMI_BOSS[boss.tipo]; colScritta = Hex(0xff5a7a);
+            scritta = "ATTENZIONE!"; sotto = "Arriva il boss: " + NomeBoss(); colScritta = Hex(0xff5a7a);
             Suona("sc_allarme", 0.8f);
-            SuonaMusica(brani[5]);
+            SuonaMusica(BranoDi(TestoDi(BossJ(boss.indice), "musica", "Sciame - Boss")));
         } else {
-            scritta = "LIVELLO " + std::to_string(livello); sotto = SETTORI[sett]; colScritta = WHITE;
+            scritta = "LIVELLO " + std::to_string(livello); sotto = NomeSettore(sett); colScritta = WHITE;
             Suona("sc_ingresso", 0.8f);
-            SuonaMusica(brani[sett]);
+            SuonaMusica(BranoDi(TestoDi(SettoreJ(sett), "musica")));
         }
         tScritta = 2.8f;
         puntiDiControllo++;
     }
 
     void CreaParti() {
-        float k = 0.85f + 0.3f * regista.sfida;
+        float k = (0.85f + 0.3f * regista.sfida) * std::max(0.1f, NumDi(BossJ(boss.indice), "resistenza", 1));
         auto P = [&](float x, float y, float r, float hp, bool vul) { Parte q; q.off = { x, y }; q.r = r; q.hp = q.hpMax = std::round(hp * k); q.vulnerabile = vul; boss.parti.push_back(q); };
         switch (boss.tipo) {
             case 0: P(0, 20, 95, 90, true); break;
@@ -657,7 +775,7 @@ public:
         punteggio += p;
         testi.push_back({ dove, std::to_string(p), 0.8f, c });
         if (punteggio >= prossimaVita) {
-            vite++; prossimaVita += prossimaVita < 100000 ? 70000 : 100000;
+            vite++; prossimaVita += std::max(1000, IntDi(Gen(), "vitaOgni", 100000));
             Suona("sc_vita");
             testi.push_back({ { 960, 620 }, "VITA EXTRA!", 1.6f, Hex(0x8aff6a) });
         }
@@ -671,14 +789,14 @@ public:
 
     void ColpisciInsetto(Insetto& a, int danno) {
         a.vita -= danno; a.lampo = 0.12f;
-        if (a.vita > 0) { Suona("sc_metallo", 0.5f); a.var = (a.var + 1) % 4; return; }
+        if (a.vita > 0) { Suona("sc_metallo", 0.5f); a.var = (a.var + 1) % 2; return; }
         a.vivo = false;
         regista.Bersaglio();
-        Color c = Hex(COL_SP[a.specie][a.var][0]);
+        Color c = ColSp(a.specie, a.var);
         Esplosione(a.p, c, a.specie == 0 ? 1.4f : 1.0f);
         bool inVolo = a.stato == 3;
-        int p = PUNTI[a.specie][inVolo ? 1 : 0];
-        if (a.specie == 0 && inVolo) p = 800;
+        int p = PuntiSp(a.specie, inVolo);
+        if (a.specie == 0 && inVolo) p *= 2;
         Punti(p, { a.p.x, a.p.y - 30 }, c);
         Suona("sc_esplodi", 0.7f, Vis(0.85f, 1.2f));
         if (a.aura) capsule.push_back({ a.p, caso.I(0, 3) });
@@ -694,13 +812,14 @@ public:
             nemici.push_back({ da, { std::cos(a) * vel, std::sin(a) * vel }, tipo, r });
         }
     }
-    float VelProiettile() const { return (430 + livello * 10) * (0.8f + 0.2f * regista.sfida); }
+    float VelProiettile() const { return (430 + livello * 10) * (0.8f + 0.2f * regista.sfida) * std::max(0.5f, std::sqrt(NumDi(Liv(), "fuoco", 1))); }
 
     void Spara() {
         if (tRicarica > 0) return;
         int miei = 0;
         for (auto& c : colpi) miei += !c.missile;
-        int massimo = (doppio ? 4 : 2) + (arma == 1 ? 1 : 0);
+        int colpiMax = std::max(1, IntDi(Gen(), "colpi", 2));
+        int massimo = colpiMax * (doppio ? 2 : 1) + (arma == 1 ? 1 : 0);
         if (miei >= massimo) return;
         tRicarica = 0.12f;
         auto Uno = [&](float x) { Colpo c; c.p = { x, Y_CACCIA - 70 }; c.laser = arma == 1; colpi.push_back(c); };
@@ -823,7 +942,7 @@ public:
                     }
                 }
                 int vivi = Vivi();
-                float base = std::max(0.5f, 2.8f - livello * 0.12f) / regista.sfida;
+                float base = std::max(0.5f, 2.8f - livello * 0.12f) / regista.sfida / std::max(0.2f, NumDi(Liv(), "picchiate", 1));
                 if (vivi < 10) base *= 0.6f;   // gli ultimi rimasti diventano nervosi
                 tPicchiata = base * caso.F(0.7f, 1.3f);
             }
@@ -833,8 +952,8 @@ public:
         Insetto& a = ins[i];
         a.per = PercorsoPicchiata(a);
         a.s = 0; a.stato = 3; a.ritardo = 0;
-        a.vel = (520 + livello * 14) * (0.85f + 0.15f * regista.sfida) * (a.specie == 3 ? 1.25f : 1.0f);
-        a.colpiDaSparare = std::min(3, 1 + livello / 5 + (regista.sfida > 1.1f ? 1 : 0));
+        a.vel = (520 + livello * 14) * (0.85f + 0.15f * regista.sfida) * NumDi(SpecieJ(a.specie), "velocita", a.specie == 3 ? 1.25f : 1.0f) * NumDi(Liv(), "velocita", 1);
+        a.colpiDaSparare = std::max(0, std::min(5, (int)std::lround((1 + livello / 5 + (regista.sfida > 1.1f ? 1 : 0)) * NumDi(Liv(), "fuoco", 1))));
         a.tFuoco = caso.F(0.3f, 0.9f);
         Suona("sc_tuffo", 0.35f, Vis(0.9f, 1.15f));
     }
@@ -861,7 +980,7 @@ public:
             return;
         }
         float rabbia = 1 + (1 - b.Hp() / b.HpMax()) * 0.8f;   // piu' e' ferito, piu' e' veloce
-        float s = regista.sfida * rabbia;
+        float s = regista.sfida * rabbia * std::max(0.2f, NumDi(BossJ(b.indice), "aggressivita", 1));
         b.tAtt -= dt * s;
         Vector2 bocca = { b.p.x, b.p.y + 120 };
         switch (b.tipo) {
@@ -993,7 +1112,7 @@ public:
         if (vivi > 14) return;
         for (int i = 0; i < quanti; i++) {
             Insetto a;
-            a.specie = specie; a.var = (Settore() + i) % 4; a.vita = 1; a.riga = 4; a.col = caso.I(0, 9);
+            a.specie = specie; a.var = (Settore() + i) % 2; a.vita = 1; a.riga = 4; a.col = caso.I(0, 9);
             a.aura = caso.P(0.2f);
             a.p = { boss.p.x + (i - 1) * 80.0f, boss.p.y + 60 };
             a.vivo = true;
@@ -1017,9 +1136,9 @@ public:
         if (boss.Hp() <= 0 && boss.tMorte <= 0) {
             boss.tMorte = 2.2f;
             Suona("sc_boom", 1);
-            Punti(10000 + boss.tipo * 5000, { boss.p.x, boss.p.y - 80 }, Hex(0xffe14a));
+            Punti(IntDi(BossJ(boss.indice), "punti", 10000 + boss.tipo * 5000), { boss.p.x, boss.p.y - 80 }, Hex(0xffe14a));
             nemici.clear();
-            for (auto& a : ins) if (a.vivo) { a.vivo = false; Esplosione(a.p, Hex(COL_SP[a.specie][a.var][0]), 1); Punti(PUNTI[a.specie][0], a.p, WHITE); }
+            for (auto& a : ins) if (a.vivo) { a.vivo = false; Esplosione(a.p, ColSp(a.specie, a.var), 1); Punti(PuntiSp(a.specie, false), a.p, WHITE); }
         }
     }
     // Il punto della parte del boss colpito da p (o null).
@@ -1052,8 +1171,9 @@ public:
                 tInv = 2.2f; px = 960;
             }
         } else {
-            float vx = pad.x * 820;
-            if (pad.clic && pad.mouse.y > 0) vx = std::max(-820.0f, std::min(820.0f, (pad.mouse.x - px) * 8));
+            float vmax = NumDi(Gen(), "velocitaCaccia", 820);
+            float vx = pad.x * vmax;
+            if (pad.clic && pad.mouse.y > 0) vx = std::max(-vmax, std::min(vmax, (pad.mouse.x - px) * 8));
             px = std::max(80.0f, std::min(1840.0f - (doppio ? 34 : 0), px + vx * dt));
             tRicarica -= dt; tInv -= dt;
             if (pad.fuoco) Spara();
@@ -1119,8 +1239,8 @@ public:
                 Suona("sc_capsula");
                 const char* nomi[4] = { "LASER", "MISSILI", "SCUDO", "DOPPIO CACCIA" };
                 testi.push_back({ { px, Y_CACCIA - 120 }, nomi[k.tipo], 1.4f, WHITE });
-                if (k.tipo == 0) { arma = 1; tArma = 15; }
-                else if (k.tipo == 1) { arma = 2; tArma = 15; }
+                if (k.tipo == 0) { arma = 1; tArma = NumDi(cfg["armi"], "laser", 15); }
+                else if (k.tipo == 1) { arma = 2; tArma = NumDi(cfg["armi"], "missili", 15); }
                 else if (k.tipo == 2) scudo = true;
                 else { doppio = true; px = std::min(px, 1806.0f); }
             }
@@ -1144,7 +1264,7 @@ public:
         if (tFine > 0) {
             tFine -= dt;
             if (tFine <= 0) {
-                if (livello >= LIVELLI) { finito = vinto = true; ScriviRecord(); scritta = "LO SCIAME E' SCONFITTO!"; sotto = "Hai liberato tutti e 5 i settori di Orione"; colScritta = Hex(0x8affd0); tScritta = 99; Suona("sc_vita"); return; }
+                if (livello >= NLiv()) { finito = vinto = true; ScriviRecord(); scritta = TestoDi(Gen(), "fine", "LO SCIAME E' SCONFITTO!"); sotto = "Hai superato tutti i " + std::to_string(NLiv()) + " livelli"; colScritta = Hex(0x8affd0); tScritta = 99; Suona("sc_vita"); return; }
                 livello++;
                 IniziaLivello();
             }
@@ -1324,7 +1444,7 @@ public:
                 float pul = 0.5f + 0.5f * std::sin(tempo * 6 + a.col);
                 Bagliore(x, y, 70, ConAlfa(Hex(0xffdc50), 0.25f + 0.2f * pul));
                 DrawRing({ x, y }, 38, 41, tempo * 120, tempo * 120 + 300, 24, ConAlfa(Hex(0xffe678), 0.7f));
-            } else Bagliore(x, y, 46, ConAlfa(Hex(COL_SP[a.specie][a.var][0]), 0.18f));
+            } else Bagliore(x, y, 46, ConAlfa(ColSp(a.specie, a.var), 0.18f));
             Sprite(insTex[a.specie][a.var][f], x, y, 0.5f, rot, WHITE);
             if (a.lampo > 0) Bagliore(x, y, 40, ConAlfa(WHITE, 0.7f));
         }
@@ -1393,7 +1513,7 @@ public:
         DrawRectangleGradientV(0, 0, 1920, 72, Hex(0x000814, 210), Hex(0x000814, 40));
         Scritta((giocatore == 0 ? "1UP  " : "2UP  ") + std::to_string(punteggio), 40, 36, 34, WHITE, -1);
         Scritta("RECORD  " + std::to_string(std::max(record, punteggio)), 960, 36, 32, Hex(0xffd27a), 0);
-        Scritta("LIVELLO " + std::to_string(livello) + " / " + std::to_string(LIVELLI), 1880, 36, 34, Hex(0x88ffff), 1);
+        Scritta("LIVELLO " + std::to_string(livello) + " / " + std::to_string(NLiv()), 1880, 36, 34, Hex(0x88ffff), 1);
         if (altroPunteggio >= 0) Scritta((giocatore == 0 ? "2UP " : "1UP ") + std::to_string(altroPunteggio), 1880, 76, 24, Hex(0xb0b8e0), 1);
         for (int i = 0; i < std::min(vite - (tMorto > 0 ? 0 : 1), 8); i++) Sprite(cacciaTex, 60 + i * 64.0f, 1040, 0.22f);
         if (arma) {
@@ -1403,9 +1523,10 @@ public:
         } else if (doppio) Scritta("DOPPIO CACCIA", 960, 1036, 26, Hex(0xffd23c), 0);
         // stemmi dei livelli superati
         for (int i = 1; i < livello || (tFine > 0 && i == livello); i++) {
-            if (i > LIVELLI) break;
-            float x = 1880 - (LIVELLI - i) * 30.0f, y = 1036;
-            bool boss = i % 3 == 0;
+            if (i > NLiv()) break;
+            float x = 1880 - (std::min(NLiv(), 30) - i) * 30.0f, y = 1036;
+            if (x < 1200) continue;
+            bool boss = IntDi(Elem(cfg["livelli"], i - 1), "boss", -1) >= 0;
             Color c = boss ? Hex(0xffc83a) : (i % 2 ? Hex(0xe03050) : Hex(0x3060e0));
             Vector2 q[5] = { { x - 11, y - 14 }, { x + 11, y - 14 }, { x + 11, y + 3 }, { x, y + 15 }, { x - 11, y + 3 } };
             DrawTriangle(q[0], q[4], q[1], c); DrawTriangle(q[1], q[4], q[2], c); DrawTriangle(q[4], q[3], q[2], c);
@@ -1418,7 +1539,7 @@ public:
             DrawRectangleRounded({ 560, 96, 800, 26 }, 1, 12, ConAlfa(BLACK, 0.6f));
             DrawRectangleRounded({ 564, 100, 792 * k, 18 }, 1, 12, Hex(0xff3a6a));
             DrawRectangleRounded({ 564, 100, 792 * k, 7 }, 1, 12, ConAlfa(Hex(0xffb02a), 0.8f));
-            Scritta(std::string("BOSS  -  ") + NOMI_BOSS[boss.tipo], 960, 142, 24, Hex(0xffd0e8), 0);
+            Scritta("BOSS  -  " + NomeBoss(), 960, 142, 24, Hex(0xffd0e8), 0);
         }
         if (tScritta > 0) {
             float a = std::min(1.0f, tScritta * 2);
@@ -1447,7 +1568,7 @@ public:
         gSilenzio = true;
         Nuova(s, j.value("giocatore", 0));
         gSilenzio = vecchioSilenzio;
-        livello = std::max(1, std::min(LIVELLI, j.value("livello", 1)));
+        livello = std::max(1, std::min(NLiv(), j.value("livello", 1)));
         vite = std::max(1, j.value("vite", 3));
         prossimaVita = j.value("prossimaVita", 30000);
         punteggio = j.value("punteggio", 0);

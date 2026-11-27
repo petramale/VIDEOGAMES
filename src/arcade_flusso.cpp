@@ -74,10 +74,19 @@ static Pad LeggiPad(Rectangle area, int L, int A) {
 using namespace arcade;
 
 int GiocaArcade(const DatiGioco& dati) {
+    // Il pacchetto e' un progetto .gioco con i dati del gioco arcade (o il vecchio pacchetto con il solo nome).
     json pj = json::parse(dati.livello, nullptr, false);
-    std::string nome = pj.is_object() ? pj.value("gioco", "") : "";
+    static ProgettoGioco progetto;
+    json datiArcade = json::object();
+    std::string nome;
+    std::string errProgetto;
+    if (pj.is_object() && pj.contains("arcade") && progetto.DaJson(dati.livello, errProgetto)) {
+        nome = progetto.arcade;
+        datiArcade = json::parse(progetto.arcadeDati.empty() ? std::string("{}") : progetto.arcadeDati, nullptr, false);
+    } else nome = pj.is_object() ? pj.value("gioco", "") : "";
     std::unique_ptr<GiocoArcade> gioco = Crea(nome), vetrina = Crea(nome);
-    std::string titolo = gioco ? gioco->Titolo() : dati.titolo;
+    if (gioco) { gioco->Configura(datiArcade, &progetto); vetrina->Configura(datiArcade, &progetto); }
+    std::string titolo = !dati.titolo.empty() ? dati.titolo : gioco ? gioco->Titolo() : nome;
 
     SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT | FLAG_MSAA_4X_HINT);
     InitWindow(1280, 720, titolo.c_str());
@@ -190,6 +199,7 @@ int GiocaArcade(const DatiGioco& dati) {
         MetaSalvataggio m = MetaDi(j);
         std::string e;
         std::unique_ptr<GiocoArcade> g = Crea(nome);
+        g->Configura(datiArcade, &progetto);
         g->Prepara();
         if (!g->Ripristina(tutto["arcade"].dump(), e)) { Avvisa("Non riesco a caricare: " + e); return false; }
         gioco = std::move(g);

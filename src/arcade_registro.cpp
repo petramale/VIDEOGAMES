@@ -37,6 +37,17 @@ std::string TitoloDi(const std::string& nome) {
     return nome;
 }
 
+ProgettoGioco ProgettoArcade(const std::string& nome) {
+    ProgettoGioco p = NuovoProgetto(Genere::Sparatutto, nome == "polvere" ? StileGrafico::PixelFine : StileGrafico::Disegnato, TitoloDi(nome));
+    p.personaggi.clear(); p.oggetti.clear(); p.scenari.clear(); p.caselle.clear(); p.regole.clear(); p.variabili.clear(); p.effetti.clear();
+    p.eroe.clear(); p.eroe2.clear();
+    for (auto& m : p.mondo.mappe) { m.brano.clear(); m.scenarioLibreria.clear(); }
+    p.arcade = nome;
+    auto g = Crea(nome);
+    if (g) { p.arcadeDati = g->Predefiniti().dump(); p.brani = g->BraniPredefiniti(); }
+    return p;
+}
+
 }  // namespace arcade
 
 using namespace arcade;
@@ -47,15 +58,19 @@ static bool LeggiFile(const std::string& f, std::string& s) {
 }
 
 int CreaArcadeDaRigaDiComando(int argc, char** argv) {
-    if (argc < 4) { std::fprintf(stderr, "Uso: --crea-arcade nome Gioco.exe [base.exe]\n"); return 1; }
+    if (argc < 4) { std::fprintf(stderr, "Uso: --crea-arcade nome Gioco.exe [base.exe [progetto.gioco]]\n"); return 1; }
     std::string nome = argv[2];
     bool noto = false;
     for (auto& n : Nomi()) noto |= n == nome;
     if (!noto) { std::fprintf(stderr, "Gioco sconosciuto: %s\n", nome.c_str()); return 1; }
-    DatiGioco d{ TitoloDi(nome), Pacchetto(nome), {} };
+    // Il gioco e' un progetto .gioco come quelli dello Studio (accanto all'exe si salva anche il .gioco).
+    ProgettoGioco p = ProgettoArcade(nome);
+    std::string testo = p.Json();
+    if (argc > 5) { std::ofstream f(argv[5], std::ios::binary); f << testo; }
+    DatiGioco d{ TitoloDi(nome), p.Json(true), {} };
     std::string dati = SerializzaGioco(d), errore;
     bool ok;
-    if (argc > 4) {
+    if (argc > 4 && std::string(argv[4]) != "-") {
         std::string base;
         if (!LeggiFile(argv[4], base)) { std::fprintf(stderr, "Non leggo %s\n", argv[4]); return 1; }
         ok = CreaEseguibileDa(base, argv[3], dati, errore);
@@ -70,6 +85,7 @@ int FotoArcadeDaRigaDiComando(int argc, char** argv) {
     if (argc < 4) return 1;
     auto g = Crea(argv[2]);
     if (!g) return 1;
+    g->Configura(nlohmann::json::object(), nullptr);
     float secondi = argc > 4 ? (float)std::atof(argv[4]) : 60;
     int foto = argc > 5 ? std::atoi(argv[5]) : 6;
     uint64_t seme = argc > 6 ? std::strtoull(argv[6], nullptr, 10) : 777;
@@ -106,6 +122,7 @@ int ProvaArcadeDaRigaDiComando(int argc, char** argv) {
     if (argc < 3) return 1;
     auto g = Crea(argv[2]);
     if (!g) return 1;
+    g->Configura(nlohmann::json::object(), nullptr);
     float secondi = argc > 3 ? (float)std::atof(argv[3]) : 300;
     SetTraceLogLevel(LOG_WARNING);
     SetConfigFlags(FLAG_WINDOW_HIDDEN);
@@ -124,6 +141,7 @@ int ProvaArcadeDaRigaDiComando(int argc, char** argv) {
                 // salva e ricarica in un'altra istanza: lo stato deve tornare identico
                 std::string s = g->Stato(), errore;
                 auto h = Crea(argv[2]);
+                h->Configura(nlohmann::json::object(), nullptr);
                 if (!h->Ripristina(s, errore)) { std::printf("  ripristino fallito: %s\n", errore.c_str()); problemi++; }
                 else if (h->Stato() != s) {
                     auto a = nlohmann::json::parse(s), b = nlohmann::json::parse(h->Stato());

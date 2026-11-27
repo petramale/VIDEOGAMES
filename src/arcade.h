@@ -14,6 +14,7 @@
 #include "arte.h"
 #include "platform_tre.h"
 #include "progetto_gioco.h"
+#include "json.hpp"
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -95,6 +96,21 @@ public:
     virtual std::vector<std::string> Aiuto() const = 0;   // righe con i comandi
     virtual Brano MusicaMenu() const = 0;
     virtual bool SalvaQuandoVuoi() const { return false; }   // true: si salva in ogni momento (avventura)
+
+    // --- Dati modificabili nello Studio --------------------------------------------------------
+    // Ogni gioco descrive le sue parti modificabili (schema) e i valori di partenza; lo Studio le mostra
+    // nella sezione del gioco arcade e le salva nel progetto .gioco. Il gioco le legge in Configura().
+    virtual nlohmann::json Schema() const = 0;
+    virtual nlohmann::json Predefiniti() const = 0;
+    virtual std::vector<Brano> BraniPredefiniti() const = 0;   // la musica che va nel progetto
+    virtual int Tappe() const = 0;                     // quanti livelli/ondate/capitoli ci sono nei dati
+    virtual void IniziaDa(int tappa) = 0;              // dopo Nuova(): salta a quella tappa (prove nello Studio)
+    // Usa i dati del progetto (quelli mancanti restano predefiniti). p puo' essere nullo.
+    void Configura(const nlohmann::json& dati, const ProgettoGioco* p);
+    nlohmann::json cfg;
+    const ProgettoGioco* progetto = nullptr;
+    // Il brano con quel nome: dal progetto (scritto nella sezione Audio) o, se manca, quello predefinito.
+    Brano BranoDi(const std::string& nome) const;
     bool finito = false, vinto = false;
     int punteggio = 0;
     float tempo = 0;
@@ -104,6 +120,12 @@ public:
 };
 
 std::unique_ptr<GiocoArcade> Crea(const std::string& nome);
+// Il progetto .gioco d'esempio di un gioco arcade: dati predefiniti, musica e titolo, pronto per lo Studio.
+ProgettoGioco ProgettoArcade(const std::string& nome);
+// Fonde i dati salvati con quelli predefiniti (le chiavi mancanti prendono il valore predefinito).
+nlohmann::json Unisci(const nlohmann::json& predefinito, const nlohmann::json& dati);
+// Gli effetti sonori sostituiti nel progetto: evento del gioco -> effetto della sezione Audio.
+void ImpostaSuoni(const nlohmann::json& suoni, const ProgettoGioco* p);
 const std::vector<std::string>& Nomi();
 std::string TitoloDi(const std::string& nome);
 // Il testo del pacchetto: {"formato":"studio-videogiochi/arcade-1","gioco":"stellaria",...}
@@ -146,5 +168,11 @@ void FermaMusica();
 
 // --- JSON minimo per i salvataggi ----------------------------------------------------------------
 std::string Num(double v);   // numero esatto (17 cifre se serve)
+// Letture comode dai dati del progetto (con il valore predefinito se manca o e' sbagliato).
+Color ColoreDi(const nlohmann::json& j, const char* chiave, Color predefinito = WHITE);
+std::string Esa(Color c);    // "#rrggbb"
+float NumDi(const nlohmann::json& j, const char* chiave, float predefinito);
+int IntDi(const nlohmann::json& j, const char* chiave, int predefinito);
+std::string TestoDi(const nlohmann::json& j, const char* chiave, const std::string& predefinito = "");
 
 }  // namespace arcade

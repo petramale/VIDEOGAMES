@@ -23,7 +23,6 @@ constexpr float Y_GIOCATORE = 975;
 constexpr int CB = 8;                       // lato di un mattoncino delle barriere
 constexpr int BW = 24, BH = 17;             // barriera: 24 x 17 mattoncini
 constexpr float Y_BARRIERE = 790;
-constexpr int ONDATE = 30;
 
 const char* NOMI_CIELI[6] = { "Nebulosa Rosa", "Aurora Boreale", "Tempesta Ionica", "Anelli di Saturnia", "Corona del Sole", "Orizzonte Oscuro" };
 // colori delle cinque specie di alieni (chiaro, scuro)
@@ -40,18 +39,111 @@ struct Meteora { Vector2 p, v; float r, rot; int vita; };
 
 // risorse condivise da tutte le partite (gioco e vetrina del menu): si dipingono una volta sola
 Texture2D cieli[6]{}, alieniTex[5][2]{}, cannone{}, disco{}, capsTex[5]{}, meteoraTex{};
-Brano brani[7];
+std::string gFirma;   // i dati grafici con cui sono state dipinte le texture
 
 class Stellaria : public GiocoArcade {
 public:
     const char* Nome() const override { return "stellaria"; }
     std::string Titolo() const override { return "Stellaria: l'Invasione dei Prismi"; }
-    std::string Tappa() const override { return "Ondata " + std::to_string(ondata) + " - " + NOMI_CIELI[Cielo()]; }
+    std::string Tappa() const override { return "Ondata " + std::to_string(ondata) + " - " + NomeCielo(Cielo()); }
     std::vector<std::string> Aiuto() const override {
         return { "Frecce, A/D, levetta o mouse: muovi il cannone", "Spazio, J, clic sinistro o pulsante A: spara",
                  "Colpisci alieni dello stesso colore di fila per la COMBO", "Le capsule danno colpo triplo, laser, scudo, fuoco rapido o una vita" };
     }
-    Brano MusicaMenu() const override { return brani[6]; }
+    Brano MusicaMenu() const override { return BranoDi(TestoDi(cfg["generale"], "musicaMenu", "Stellaria - Tema")); }
+
+    // --- dati del progetto ---
+    int NOndate() const { return cfg.contains("ondate") && cfg["ondate"].is_array() && !cfg["ondate"].empty() ? (int)cfg["ondate"].size() : 1; }
+    const json& Ond() const { static const json vuoto = json::object(); return cfg.contains("ondate") && cfg["ondate"].is_array() && ondata - 1 < (int)cfg["ondate"].size() ? cfg["ondate"][ondata - 1] : vuoto; }
+    const json& CieloJ(int k) const { static const json vuoto = json::object(); return cfg["cieli"].is_array() && k < (int)cfg["cieli"].size() ? cfg["cieli"][k] : vuoto; }
+    const json& SpecieJ(int k) const { static const json vuoto = json::object(); return cfg["specie"].is_array() && k < (int)cfg["specie"].size() ? cfg["specie"][k] : vuoto; }
+    std::string NomeCielo(int k) const { return TestoDi(CieloJ(k), "nome", NOMI_CIELI[k]); }
+    Color ColSpecie(int sp, int i) const { return ColoreDi(SpecieJ(sp), i ? "scuro" : "chiaro", Hex(COL_ALIENI[sp][i])); }
+    Color ColBarriere() const { return ColoreDi(CieloJ(Cielo()), "barriere", Hex(COL_BARRIERE[Cielo()])); }
+    const json& Gen() const { return cfg["generale"]; }
+
+    json Predefiniti() const override {
+        json j;
+        j["generale"] = { { "vite", 3 }, { "vitaExtra", 20000 }, { "vitaOgni", 50000 }, { "velocitaCannone", 760 }, { "colpi", 2 },
+                          { "coloreCannone", "#5cff9a" }, { "musicaMenu", "Stellaria - Tema" }, { "fine", "STELLARIA E' SALVA!" } };
+        const char* pc[6] = { "#ffb06b", "#b0fff0", "#c8b0ff", "#ffe0a0", "#fff6b0", "#2a1040" };
+        const unsigned neb[6][4] = { { 0x07021a, 0x1a0b3d, 0x3b0d4f, 0xff3cb4 }, { 0x021018, 0x063040, 0x0b4a4a, 0x3cffb0 }, { 0x040414, 0x101040, 0x2a1050, 0x8a6aff },
+                                     { 0x0a0610, 0x2a1820, 0x4a2a20, 0xffb06a }, { 0x120400, 0x401008, 0x6a2a08, 0xffd040 }, { 0x000000, 0x08040e, 0x140820, 0xb04aff } };
+        const int pianeta[6] = { 1, 0, 0, 1, 0, 2 };
+        for (int k = 0; k < 6; k++)
+            j["cieli"].push_back({ { "nome", NOMI_CIELI[k] }, { "alto", HexS(neb[k][0]) }, { "medio", HexS(neb[k][1]) }, { "basso", HexS(neb[k][2]) },
+                                   { "nebulosa", HexS(neb[k][3]) }, { "pianeta", pianeta[k] }, { "colorePianeta", pc[k] }, { "barriere", HexS(COL_BARRIERE[k]) },
+                                   { "musica", std::string("Stellaria - ") + NOMI_CIELI[k] } });
+        const char* nomi[5] = { "Prisma rosa", "Cuneo arancio", "Granchio azzurro", "Torre verde", "Stella d'oro" };
+        for (int k = 0; k < 5; k++)
+            j["specie"].push_back({ { "nome", nomi[k] }, { "chiaro", HexS(COL_ALIENI[k][0]) }, { "scuro", HexS(COL_ALIENI[k][1]) }, { "forma", k }, { "punti", PUNTI_SPECIE[k] } });
+        for (int n = 1; n <= 30; n++)
+            j["ondate"].push_back({ { "cielo", (n - 1) / 5 }, { "formazione", n <= 3 ? 1 : 0 }, { "riga1", 0 }, { "riga2", 1 }, { "riga3", 2 }, { "riga4", 3 }, { "riga5", 4 },
+                                    { "evento", n % 5 == 0 ? 2 : n > 2 ? 5 : 0 }, { "velocita", 1.0 }, { "fuoco", 1.0 }, { "barriereNuove", n > 1 && (n - 1) % 5 == 0 },
+                                    { "discesa", (n - 1) % 5 } });
+        j["disco"] = { { "ogni", 22 }, { "velocita", 330 }, { "capsula", 0.5 } };
+        j["capsule"] = { { "probabilita", 0.035 }, { "triplo", 12 }, { "laser", 7 }, { "rapido", 12 } };
+        json su = json::object();
+        for (auto& n : NomiSuoni()) su[n.first] = "";
+        j["suoni"] = su;
+        return j;
+    }
+    static std::vector<std::pair<std::string, std::string>> NomiSuoni() {
+        return { { "st_sparo", "Sparo del cannone" }, { "st_laser", "Laser" }, { "st_alieno", "Alieno colpito" }, { "st_esplosione", "Cannone distrutto" },
+                 { "st_passo0", "Passo della formazione 1" }, { "st_passo1", "Passo della formazione 2" }, { "st_passo2", "Passo della formazione 3" },
+                 { "st_passo3", "Passo della formazione 4" }, { "st_sirena", "Sirena del disco" }, { "st_disco", "Disco colpito" }, { "st_capsula", "Capsula presa" },
+                 { "st_mattone", "Mattoncino scheggiato" }, { "st_combo", "Combo" }, { "st_vita", "Vita extra" }, { "st_ondata", "Inizio ondata" },
+                 { "st_scudo", "Scudo consumato" }, { "st_colpito", "Corazzato colpito" } };
+    }
+    json Schema() const override {
+        json voci = json::array();
+        auto Cat = [&](const char* chiave, const char* nome, bool lista, const char* aiuto, json campi, int min = 0, int max = 0, const char* elemento = "") {
+            json c = { { "chiave", chiave }, { "nome", nome }, { "lista", lista }, { "aiuto", aiuto }, { "campi", campi } };
+            if (lista) { c["min"] = min; c["max"] = max; c["elemento"] = elemento; }
+            voci.push_back(c);
+        };
+        auto N = [](const char* k, const char* n, double mi, double ma, double passo, const char* f = "%.0f") { return json{ { "chiave", k }, { "nome", n }, { "tipo", "numero" }, { "min", mi }, { "max", ma }, { "passo", passo }, { "formato", f } }; };
+        auto C = [](const char* k, const char* n) { return json{ { "chiave", k }, { "nome", n }, { "tipo", "colore" } }; };
+        auto T = [](const char* k, const char* n) { return json{ { "chiave", k }, { "nome", n }, { "tipo", "testo" } }; };
+        auto S = [](const char* k, const char* n, json v) { return json{ { "chiave", k }, { "nome", n }, { "tipo", "scelta" }, { "voci", v } }; };
+        auto Rf = [](const char* k, const char* n, const char* da, const char* vuoto = "") { json f = { { "chiave", k }, { "nome", n }, { "tipo", "rif" }, { "da", da } }; if (*vuoto) f["vuoto"] = vuoto; return f; };
+        auto B = [](const char* k, const char* n) { return json{ { "chiave", k }, { "nome", n }, { "tipo", "brano" } }; };
+        auto V = [](const char* k, const char* n) { return json{ { "chiave", k }, { "nome", n }, { "tipo", "vero" } }; };
+        Cat("ondate", "Ondate", true, "Ogni ondata: in quale cielo, la forma della formazione, quale specie in ogni riga, l'evento speciale, velocita' e fuoco. "
+            "Aggiungi o togli ondate: il gioco finisce dopo l'ultima.",
+            { Rf("cielo", "Cielo", "cieli"), S("formazione", "Formazione", { "A sorpresa", "Rettangolo", "Rombo", "Scacchiera", "Due blocchi", "Freccia" }),
+              Rf("riga1", "Riga 1 (in alto)", "specie", "(vuota)"), Rf("riga2", "Riga 2", "specie", "(vuota)"), Rf("riga3", "Riga 3", "specie", "(vuota)"),
+              Rf("riga4", "Riga 4", "specie", "(vuota)"), Rf("riga5", "Riga 5 (in basso)", "specie", "(vuota)"),
+              S("evento", "Evento", { "Nessuno", "Pioggia di meteore", "Corazzati in prima fila", "Doppio disco bonus", "Alieni frenetici", "A sorpresa (cambia ogni partita)" }),
+              N("velocita", "Velocita' della formazione", 0.4, 2.5, 0.05, "%.2f"), N("fuoco", "Quanto sparano", 0.2, 3, 0.05, "%.2f"),
+              N("discesa", "Parte piu' in basso (righe)", 0, 6, 1), V("barriereNuove", "Barriere nuove all'inizio") }, 1, 99, "Ondata");
+        Cat("specie", "Alieni", true, "Le cinque specie di alieni: nome, colori del cristallo, forma e punti. I colori ridipingono gli alieni.",
+            { T("nome", "Nome"), C("chiaro", "Colore chiaro"), C("scuro", "Colore scuro"), S("forma", "Forma", { "Prisma", "Cuneo", "Granchio", "Torre", "Stella" }),
+              N("punti", "Punti", 10, 5000, 10) }, 5, 5, "Alieno");
+        Cat("cieli", "Cieli", true, "Gli sfondi delle ondate: colori del cielo e della nebulosa, il pianeta, il colore delle barriere e la musica.",
+            { T("nome", "Nome"), C("alto", "Cielo in alto"), C("medio", "Cielo a meta'"), C("basso", "Cielo in basso"), C("nebulosa", "Nebulosa"),
+              S("pianeta", "Pianeta", { "Pianeta", "Pianeta con anelli", "Buco nero", "Nessuno" }), C("colorePianeta", "Colore del pianeta"),
+              C("barriere", "Colore delle barriere"), B("musica", "Musica") }, 6, 6, "Cielo");
+        Cat("generale", "Cannone e regole", false, "Le regole della partita e il cannone del giocatore.",
+            { N("vite", "Vite all'inizio", 1, 9, 1), N("vitaExtra", "Prima vita extra a", 0, 200000, 1000), N("vitaOgni", "Poi una vita ogni", 1000, 500000, 1000),
+              N("velocitaCannone", "Velocita' del cannone", 300, 1500, 20), N("colpi", "Colpi in volo insieme", 1, 6, 1), C("coloreCannone", "Colore del cannone"),
+              B("musicaMenu", "Musica del menu"), T("fine", "Scritta della vittoria") });
+        Cat("disco", "Disco bonus", false, "Il disco che passa in alto: ogni quanti secondi, quanto e' veloce, quante volte lascia una capsula.",
+            { N("ogni", "Passa ogni (secondi)", 5, 120, 1), N("velocita", "Velocita'", 100, 900, 10), N("capsula", "Probabilita' di capsula", 0, 1, 0.05, "%.2f") });
+        Cat("capsule", "Potenziamenti", false, "Le capsule lasciate dagli alieni: quanto spesso cadono e quanto durano le armi (secondi).",
+            { N("probabilita", "Probabilita' per alieno", 0, 0.5, 0.005, "%.3f"), N("triplo", "Colpo triplo", 1, 60, 1), N("laser", "Laser", 1, 60, 1), N("rapido", "Fuoco rapido", 1, 60, 1) });
+        json su = json::array();
+        for (auto& n : NomiSuoni()) su.push_back({ { "chiave", n.first }, { "nome", n.second }, { "tipo", "effetto" } });
+        Cat("suoni", "Effetti sonori", false, "Ogni suono del gioco: lascia 'predefinito' o scegli un effetto creato nella sezione Audio.", su);
+        return voci;
+    }
+    int Tappe() const override { return NOndate(); }
+    void IniziaDa(int tappa) override {
+        ondata = std::max(1, std::min(NOndate(), tappa + 1));
+        RicostruisciBarriere();
+        IniziaOndata();
+    }
+
 
     // --- stato della partita ---
     Caso caso;
@@ -81,38 +173,46 @@ public:
     std::vector<Testo> testi;
 
 
-    int Cielo() const { return std::min(5, (ondata - 1) / 5); }
+    int Cielo() const { return std::max(0, std::min(5, IntDi(Ond(), "cielo", (ondata - 1) / 5))); }
 
     void Prepara() override {
         PreparaGrafica();
         PreparaSuoni();
-        PreparaMusica();
     }
 
     // ======================= GRAFICA (Pennello) =======================
     void PreparaGrafica() {
-        if (cannone.id) return;
-        const unsigned nebula[6][4] = {
-            { 0x07021a, 0x1a0b3d, 0x3b0d4f, 0xff3cb4 }, { 0x021018, 0x063040, 0x0b4a4a, 0x3cffb0 }, { 0x040414, 0x101040, 0x2a1050, 0x8a6aff },
-            { 0x0a0610, 0x2a1820, 0x4a2a20, 0xffb06a }, { 0x120400, 0x401008, 0x6a2a08, 0xffd040 }, { 0x000000, 0x08040e, 0x140820, 0xb04aff } };
+        std::string firma = cfg["cieli"].dump() + cfg["specie"].dump() + TestoDi(Gen(), "coloreCannone");
+        if (cannone.id && firma == gFirma) return;
+        if (cannone.id) {   // i colori sono cambiati nello Studio: si ridipinge
+            for (auto& t : cieli) UnloadTexture(t);
+            for (auto& a : alieniTex) for (auto& t : a) UnloadTexture(t);
+            UnloadTexture(cannone); UnloadTexture(disco); UnloadTexture(meteoraTex);
+            for (auto& t : capsTex) UnloadTexture(t);
+        }
+        gFirma = firma;
         for (int k = 0; k < 6; k++) {
+            const json& cj = CieloJ(k);
+            std::string nb[4] = { Esa(ColoreDi(cj, "alto")), Esa(ColoreDi(cj, "medio")), Esa(ColoreDi(cj, "basso")), Esa(ColoreDi(cj, "nebulosa")) };
+            int tipoPianeta = IntDi(cj, "pianeta", 0);
+            std::string colP = Esa(ColoreDi(cj, "colorePianeta", Hex(0xffb06b)));
             cieli[k] = Dipingi(1280, 720, [&](K& c) {
                 Caso r; r.Semina(100 + k);
-                c.fillStyle(lg(0, 0, 0, 720, { HexS(nebula[k][0]), HexS(nebula[k][1]), HexS(nebula[k][2]) }));
+                c.fillStyle(lg(0, 0, 0, 720, { nb[0], nb[1], nb[2] }));
                 c.fillRect(0, 0, 1280, 720);
                 // nebulose morbide
                 for (int i = 0; i < 7; i++) {
                     float x = r.F(0, 1280), y = r.F(0, 600), rad = r.F(160, 420);
-                    unsigned col = i % 2 ? nebula[k][3] : 0x4a8aff;
+                    std::string col = i % 2 ? nb[3] : std::string("#4a8aff");
                     c.lighter();
-                    c.fillStyle(rgs(x, y, 0, rad, { { 0, rgba(HexS(col), 0.20f) }, { 0.5f, rgba(HexS(col), 0.08f) }, { 1, rgba(HexS(col), 0) } }));
+                    c.fillStyle(rgs(x, y, 0, rad, { { 0, rgba(col, 0.20f) }, { 0.5f, rgba(col, 0.08f) }, { 1, rgba(col, 0) } }));
                     c.beginPath(); c.arc(x, y, rad, 0, TAU); c.fill();
                     c.normal();
                 }
                 // filamenti di polvere
                 for (int i = 0; i < 160; i++) {
                     float x = r.F(0, 1280), y = r.F(0, 620);
-                    c.fillStyle(V(rgba(HexS(nebula[k][3]), r.F(0.02f, 0.06f))));
+                    c.fillStyle(V(rgba(nb[3], r.F(0.02f, 0.06f))));
                     c.beginPath(); c.ellipse(x, y, r.F(20, 90), r.F(4, 14), r.F(-0.6f, 0.6f), 0, TAU); c.fill();
                 }
                 // stelle fisse
@@ -122,26 +222,29 @@ public:
                 }
                 // un pianeta diverso per ogni cielo
                 float qx = k % 2 ? 1080 : 200, qy = 120 + k * 8, qr = 60 + k * 10;
-                const char* pc[6][3] = { { "#ffb06b", "#d6406a", "#3a0d3e" }, { "#b0fff0", "#3aa0a0", "#0a3040" }, { "#c8b0ff", "#6a4ad0", "#1a1040" },
-                                         { "#ffe0a0", "#c08040", "#40200a" }, { "#fff6b0", "#ff8a20", "#802000" }, { "#2a1040", "#0a0010", "#000000" } };
-                if (k == 5) {   // buco nero con disco luminoso
+                if (tipoPianeta == 3) return;
+                if (tipoPianeta == 2) {   // buco nero con disco luminoso
                     c.lighter();
                     c.fillStyle(rgs(qx, qy + 40, 0, 260, { { 0, "rgba(255,160,255,0.35)" }, { 1, "rgba(120,40,200,0)" } }));
                     c.beginPath(); c.ellipse(qx, qy + 40, 260, 60, -0.2f, 0, TAU); c.fill();
                     c.normal();
                     c.fillStyle(V("#000000")); c.beginPath(); c.arc(qx, qy + 40, 70, 0, TAU); c.fill();
                 } else {
-                    c.fillStyle(rgs(qx - qr * 0.3f, qy - qr * 0.3f, qr * 0.1f, qr * 1.1f, { { 0, pc[k][0] }, { 0.6f, pc[k][1] }, { 1, pc[k][2] } }));
+                    c.fillStyle(rgs(qx - qr * 0.3f, qy - qr * 0.3f, qr * 0.1f, qr * 1.1f, { { 0, colP }, { 0.6f, sh(colP, -0.35f) }, { 1, sh(colP, -0.8f) } }));
                     c.beginPath(); c.arc(qx, qy, qr, 0, TAU); c.fill();
-                    if (k == 3 || k == 0) { c.strokeStyle(V(rgba("#ffd0a0", 0.6f))); c.lineWidth(5); c.beginPath(); c.ellipse(qx, qy, qr * 1.8f, qr * 0.35f, -0.25f, 0, TAU); c.stroke(); }
+                    if (tipoPianeta == 1) { c.strokeStyle(V(rgba("#ffd0a0", 0.6f))); c.lineWidth(5); c.beginPath(); c.ellipse(qx, qy, qr * 1.8f, qr * 0.35f, -0.25f, 0, TAU); c.stroke(); }
                 }
             });
         }
         // alieni: cinque specie, due fotogrammi, disegnati in grande e rimpiccioliti (bordi netti)
         for (int sp = 0; sp < 5; sp++)
             for (int f = 0; f < 2; f++)
-                alieniTex[sp][f] = Dipingi(176, 136, [&](K& c) { c.translate(88, 70); c.scale(2, 2); DisegnaAlieno(c, sp, f); });
-        cannone = Dipingi(260, 200, [&](K& c) { c.translate(130, 110); c.scale(1.8f, 1.8f); DisegnaCannone(c); });
+                alieniTex[sp][f] = Dipingi(176, 136, [&](K& c) {
+                    c.translate(88, 70); c.scale(2, 2);
+                    DisegnaAlieno(c, std::max(0, std::min(4, IntDi(SpecieJ(sp), "forma", sp))), f, Esa(ColSpecie(sp, 0)), Esa(ColSpecie(sp, 1)));
+                });
+        std::string cc = Esa(ColoreDi(Gen(), "coloreCannone", Hex(0x5cff9a)));
+        cannone = Dipingi(260, 200, [&](K& c) { c.translate(130, 110); c.scale(1.8f, 1.8f); DisegnaCannone(c, cc); });
         disco = Dipingi(320, 140, [&](K& c) { c.translate(160, 80); c.scale(1.2f, 1.2f); DisegnaDisco(c); });
         const char* capCol[5] = { "#ffe14a", "#ff5a5a", "#5ac8ff", "#8aff6a", "#ff7ad0" };
         const char* capLet[5] = { "3", "L", "S", "R", "+" };
@@ -162,8 +265,7 @@ public:
         });
     }
 
-    static void DisegnaAlieno(K& c, int sp, int f) {
-        std::string a = HexS(COL_ALIENI[sp][0]), b = HexS(COL_ALIENI[sp][1]);
+    static void DisegnaAlieno(K& c, int sp, int f, const std::string& a, const std::string& b) {
         // sagome spigolose senza gambe; il fotogramma 1 apre le "ali" o le punte
         static const float P[5][16][2] = {
             { { -12, -30 }, { 12, -30 }, { 30, -12 }, { 30, 8 }, { 18, 8 }, { 18, 22 }, { 6, 22 }, { 6, 10 }, { -6, 10 }, { -6, 22 }, { -18, 22 }, { -18, 8 }, { -30, 8 }, { -30, -12 }, { -12, -30 }, { -12, -30 } },
@@ -188,9 +290,9 @@ public:
         c.fillStyle(V("#120420")); c.fillRect(-17 + o, -12, 11, 11); c.fillRect(6 + o, -12, 11, 11);
         c.fillStyle(V("#ffffff")); c.fillRect(-14 + o, -10, 4, 4); c.fillRect(9 + o, -10, 4, 4);
     }
-    static void DisegnaCannone(K& c) {
-        c.glow(22, "rgba(80,255,160,0.8)");
-        c.fillStyle(lg(0, -56, 0, 30, { "#eaffef", "#5cff9a", "#0a7a4a" }));
+    static void DisegnaCannone(K& c, const std::string& col) {
+        c.glow(22, rgba(col, 0.8f));
+        c.fillStyle(lg(0, -56, 0, 30, { sh(col, 0.8f), col, sh(col, -0.55f) }));
         c.beginPath();
         const float P[][2] = { { -4, -56 }, { 4, -56 }, { 6, -40 }, { 14, -40 }, { 14, -22 }, { 50, -14 }, { 62, -4 }, { 62, 28 }, { -62, 28 }, { -62, -4 }, { -50, -14 }, { -14, -22 }, { -14, -40 }, { -6, -40 } };
         for (auto& p : P) c.lineTo(p[0], p[1]);
@@ -232,37 +334,39 @@ public:
         CreaSuono("st_scudo", 0.4f, [](float t) { return 0.3f * Onda(3, (300 + 900 * t) * t) * Inviluppo(t, 0, 0.4f, 1); });
         CreaSuono("st_colpito", 0.2f, [](float t) { return 0.3f * Onda(0, 200 * t) * Inviluppo(t, 0, 0.2f, 2); });
     }
-    void PreparaMusica() {
-        brani[0] = CreaBrano("Stellaria - Nebulosa Rosa", 112, 8, {
+    std::vector<Brano> BraniPredefiniti() const override {
+        std::vector<Brano> b;
+        b.push_back(CreaBrano("Stellaria - Nebulosa Rosa", 112, 8, {
             { "Sintetizzatore", 0, 0.32f, "E5:1 G5:1 B5:2 A5:1 G5:1 E5:2 D5:1 E5:1 G5:2 F#5:2 B4:2 E5:1 G5:1 B5:2 C6:2 B5:1 A5:1 G5:2 A5:1 G5:1 F#5:4" },
             { "Basso", 2, 0.4f, "E2:1 E3:1 E2:1 E3:1 C2:1 C3:1 C2:1 C3:1 D2:1 D3:1 D2:1 D3:1 B1:1 B2:1 B1:1 B2:1" },
-            { "Batteria", 4, 0.45f, "K...S...K.K.S...", true } });
-        brani[1] = CreaBrano("Stellaria - Aurora Boreale", 96, 8, {
+            { "Batteria", 4, 0.45f, "K...S...K.K.S...", true } }));
+        b.push_back(CreaBrano("Stellaria - Aurora Boreale", 96, 8, {
             { "Campane", 3, 0.38f, "A5:2 E5:2 C#6:2 B5:2 A5:3 E5:1 F#5:4 D6:2 C#6:2 B5:2 A5:2 G#5:4 E5:4" },
             { "Pad", 1, 0.25f, "A3:8 F#3:8 D3:8 E3:8" },
-            { "Battito", 4, 0.3f, "K.......K..hS...", true } });
-        brani[2] = CreaBrano("Stellaria - Tempesta Ionica", 132, 8, {
+            { "Battito", 4, 0.3f, "K.......K..hS...", true } }));
+        b.push_back(CreaBrano("Stellaria - Tempesta Ionica", 132, 8, {
             { "Guida", 2, 0.28f, "D5:1 D5:1 F5:1 D5:1 G5:1 D5:1 A5:1 G5:1 F5:1 D5:1 C5:1 D5:1 A4:2 C5:2 D5:1 D5:1 F5:1 D5:1 A5:1 D5:1 C6:1 A5:1 G5:2 F5:2 E5:4" },
             { "Basso", 0, 0.38f, "D2:1 D2:1 D3:1 D2:1 Bb1:1 Bb1:1 Bb2:1 Bb1:1 C2:1 C2:1 C3:1 C2:1 A1:1 A1:1 A2:1 A1:1" },
-            { "Batteria", 4, 0.5f, "K.hhS.hhK.KhS.hh", true } });
-        brani[3] = CreaBrano("Stellaria - Anelli di Saturnia", 104, 8, {
+            { "Batteria", 4, 0.5f, "K.hhS.hhK.KhS.hh", true } }));
+        b.push_back(CreaBrano("Stellaria - Anelli di Saturnia", 104, 8, {
             { "Flauto", 3, 0.36f, "G5:3 A5:1 B5:2 D6:2 C6:2 B5:2 A5:4 E5:2 G5:2 A5:2 B5:2 G5:4 D5:4" },
             { "Arpeggio", 1, 0.2f, "G3:1 B3:1 D4:1 G4:1 E3:1 G3:1 B3:1 E4:1 C3:1 E3:1 G3:1 C4:1 D3:1 F#3:1 A3:1 D4:1" },
             { "Basso", 3, 0.45f, "G1:4 E1:4 C2:4 D2:4" },
-            { "Spazzole", 4, 0.3f, "K..h..h.K..hS.h.", true } });
-        brani[4] = CreaBrano("Stellaria - Corona del Sole", 140, 8, {
+            { "Spazzole", 4, 0.3f, "K..h..h.K..hS.h.", true } }));
+        b.push_back(CreaBrano("Stellaria - Corona del Sole", 140, 8, {
             { "Ottoni", 2, 0.3f, "C5:2 E5:1 G5:1 C6:2 B5:1 A5:1 G5:2 E5:2 F5:2 A5:1 C6:1 D6:2 C6:1 B5:1 C6:4 G5:4" },
             { "Basso", 0, 0.4f, "C2:1 C3:1 C2:1 C3:1 A1:1 A2:1 A1:1 A2:1 F1:1 F2:1 F1:1 F2:1 G1:1 G2:1 G1:1 G2:1" },
-            { "Batteria", 4, 0.5f, "K.h.S.hhK.h.S.ho", true } });
-        brani[5] = CreaBrano("Stellaria - Orizzonte Oscuro", 88, 8, {
+            { "Batteria", 4, 0.5f, "K.h.S.hhK.h.S.ho", true } }));
+        b.push_back(CreaBrano("Stellaria - Orizzonte Oscuro", 88, 8, {
             { "Organo", 2, 0.26f, "B4:2 D5:2 F#5:2 G5:2 F#5:4 D5:2 B4:2 C5:2 E5:2 G5:2 A5:2 G5:8" },
             { "Basso", 3, 0.5f, "B1:8 G1:8 C2:8 F#1:8" },
-            { "Tamburo", 4, 0.4f, "K.......S..K....", true } });
-        brani[6] = CreaBrano("Stellaria - Tema", 120, 8, {
+            { "Tamburo", 4, 0.4f, "K.......S..K....", true } }));
+        b.push_back(CreaBrano("Stellaria - Tema", 120, 8, {
             { "Melodia", 0, 0.32f, "A4:1 C5:1 E5:1 A5:1 G5:2 E5:2 F5:1 E5:1 D5:1 C5:1 D5:2 E5:2 A4:1 C5:1 E5:1 A5:1 B5:2 C6:2 B5:1 A5:1 G5:1 E5:1 A5:4" },
             { "Basso", 2, 0.4f, "A1:1 A2:1 A1:1 A2:1 F1:1 F2:1 F1:1 F2:1 G1:1 G2:1 G1:1 G2:1 E1:1 E2:1 E1:1 E2:1" },
             { "Arpeggio", 1, 0.16f, "A4:1 C5:1 E5:1 C5:1 F4:1 A4:1 C5:1 A4:1 G4:1 B4:1 D5:1 B4:1 E4:1 G#4:1 B4:1 G#4:1" },
-            { "Batteria", 4, 0.45f, "K...S...K.K.S..h", true } });
+            { "Batteria", 4, 0.45f, "K...S...K.K.S..h", true } }));
+        return b;
     }
 
     // ======================= PARTITA =======================
@@ -270,7 +374,7 @@ public:
         seme = s; giocatore = g;
         caso.Semina(s ^ 0x5157ull);
         regista = Regista{};
-        ondata = 1; vite = 3; prossimaVita = 20000; punteggio = 0; tempo = 0;
+        ondata = 1; vite = IntDi(Gen(), "vite", 3); prossimaVita = IntDi(Gen(), "vitaExtra", 20000); punteggio = 0; tempo = 0;
         finito = vinto = false; puntiDiControllo = 0;
         arma = 0; tArma = 0; scudo = false; px = 960; tMorto = 0; tInvulnerabile = 0;
         colpi.clear(); capsule.clear(); meteore.clear(); part.v.clear(); testi.clear();
@@ -307,13 +411,18 @@ public:
     void IniziaOndata() {
         casoInizioOndata = caso.s;
         alieni.clear();
-        int forma = ondata <= 3 ? 0 : caso.I(0, 4);
-        evento = 0;
-        if (ondata % 5 == 0) evento = 2;                                  // ogni quinta ondata: alieni corazzati
-        else if (ondata > 2 && caso.P(0.35f)) evento = caso.I(1, 4) == 2 ? 1 : caso.I(1, 4);   // gli eventi cambiano a ogni partita
-        // specie per riga: l'ordine dei colori cambia con il seme (partite uniche)
-        int specie[RIGHE] = { 0, 1, 2, 3, 4 };
-        if (ondata > 1 && caso.P(0.5f)) std::swap(specie[caso.I(0, 4)], specie[caso.I(0, 4)]);
+        const json& o = Ond();
+        int forma = IntDi(o, "formazione", 0) - 1;               // -1 = a sorpresa
+        if (forma < 0) forma = caso.I(0, 4);
+        forma = std::min(4, forma);
+        evento = IntDi(o, "evento", 0);
+        if (evento == 5) evento = caso.P(0.35f) ? (caso.I(1, 4) == 2 ? 1 : caso.I(1, 4)) : 0;   // a sorpresa: cambia a ogni partita
+        evento = std::max(0, std::min(4, evento));
+        // specie per riga (dai dati); con "a sorpresa" l'ordine dei colori cambia con il seme (partite uniche)
+        int specie[RIGHE];
+        const char* chiavi[RIGHE] = { "riga1", "riga2", "riga3", "riga4", "riga5" };
+        for (int k = 0; k < RIGHE; k++) specie[k] = std::max(-1, std::min(4, IntDi(o, chiavi[k], k)));
+        if (IntDi(o, "formazione", 0) == 0 && ondata > 1 && caso.P(0.5f)) std::swap(specie[caso.I(0, 4)], specie[caso.I(0, 4)]);
         for (int r = 0; r < RIGHE; r++)
             for (int col = 0; col < COLONNE; col++) {
                 bool c = true;
@@ -322,7 +431,7 @@ public:
                 else if (forma == 2) c = (r + col) % 2 == 0 || r == 4;                      // scacchiera
                 else if (forma == 3) c = std::fabs(cx) >= 1;                                 // due blocchi
                 else if (forma == 4) c = std::fabs(cx) <= r + 1.5f;                          // freccia
-                if (!c) continue;
+                if (!c || specie[r] < 0) continue;
                 Alieno a;
                 a.ox = col * PASSO_X; a.oy = r * PASSO_Y;
                 a.specie = specie[r];
@@ -331,21 +440,21 @@ public:
                 alieni.push_back(a);
             }
         formX = 960 - (COLONNE - 1) * PASSO_X / 2;
-        float altezza = 190 + std::min(5, (ondata - 1) % 5) * 22.0f;   // dentro un cielo, si parte un po' piu' in basso
+        float altezza = 190 + std::max(0, std::min(6, IntDi(o, "discesa", 0))) * 22.0f;   // si puo' partire un po' piu' in basso
         formY = altezza;
         discesaIngresso = 520;
         dir = 1; tPasso = 0; fotogramma = 0; nota = 0;
         colpi.erase(std::remove_if(colpi.begin(), colpi.end(), [](const Colpo& c) { return !c.amico; }), colpi.end());
-        tDisco = caso.F(10, 18) / (evento == 3 ? 2.0f : 1.0f);
+        tDisco = caso.F(0.45f, 0.8f) * NumDi(cfg["disco"], "ogni", 22) / (evento == 3 ? 2.0f : 1.0f);
         discoVivo = false;
         tOndata = 0; tFineOndata = -1;
         scritta = "ONDATA " + std::to_string(ondata);
-        sottoScritta = NOMI_CIELI[Cielo()];
+        sottoScritta = NomeCielo(Cielo());
         const char* ev[5] = { "", "Pioggia di meteore!", "Alieni corazzati in prima fila", "Doppio disco bonus", "Alieni frenetici" };
         if (evento) sottoScritta += std::string("  -  ") + ev[evento];
         tScritta = 2.6f;
         Suona("st_ondata", 0.8f);
-        SuonaMusica(brani[Cielo()]);
+        SuonaMusica(BranoDi(TestoDi(CieloJ(Cielo()), "musica")));
         puntiDiControllo++;   // il flusso salva qui (inizio ondata)
     }
 
@@ -356,7 +465,7 @@ public:
         punteggio += p;
         testi.push_back({ dove, "+" + std::to_string(p), 0.9f, c });
         if (punteggio >= prossimaVita) {
-            vite++; prossimaVita += 50000;
+            vite++; prossimaVita += std::max(1000, IntDi(Gen(), "vitaOgni", 50000));
             Suona("st_vita");
             testi.push_back({ { 960, 600 }, "VITA EXTRA!", 1.6f, Hex(0x8aff6a) });
         }
@@ -374,7 +483,7 @@ public:
                     Particella p;
                     p.p = { BarrieraX(b) + i * CB + CB / 2.0f, Y_BARRIERE + j * CB + CB / 2.0f };
                     p.v = { Vis(-120, 120), dalBasso ? Vis(-260, -40) : Vis(40, 260) };
-                    p.vita = p.durata = Vis(0.3f, 0.7f); p.r = 3; p.c = Hex(COL_BARRIERE[Cielo()]); p.forma = 1; p.gravita = 500;
+                    p.vita = p.durata = Vis(0.3f, 0.7f); p.r = 3; p.c = ColBarriere(); p.forma = 1; p.gravita = 500;
                     part.Aggiungi(p);
                 }
             }
@@ -396,7 +505,7 @@ public:
     }
 
     void Spara() {
-        int maxColpi = arma == 3 ? 4 : 2;
+        int maxColpi = IntDi(Gen(), "colpi", 2) * (arma == 3 ? 2 : 1);
         int miei = 0;
         for (auto& c : colpi) miei += c.amico && !c.laser;
         if (arma == 2) {   // laser: un raggio che attraversa tutto
@@ -419,18 +528,18 @@ public:
         if (a.vita > 0) { Suona("st_colpito", 0.5f); return; }
         a.vivo = false;
         regista.Bersaglio();
-        Color col = Hex(COL_ALIENI[a.specie][0]);
+        Color col = ColSpecie(a.specie, 0);
         part.Esplosione(dove, col, 26, 520, 6, 0.6f);
         part.Esplosione(dove, WHITE, 8, 300, 4, 0.3f);
         // combo di colore
         if (a.specie == comboSpecie && tCombo > 0) combo++; else { comboSpecie = a.specie; combo = 1; }
         tCombo = 2.2f;
         int molt = std::min(5, std::max(1, combo - 1));
-        Punti(PUNTI_SPECIE[a.specie] / 10 * 10 * molt, { dove.x, dove.y - 30 }, col);
+        Punti(IntDi(SpecieJ(a.specie), "punti", PUNTI_SPECIE[a.specie]) * molt, { dove.x, dove.y - 30 }, col);
         if (combo >= 3) { Suona("st_combo", 0.6f, 1 + combo * 0.06f); testi.push_back({ { dove.x, dove.y - 70 }, "COMBO x" + std::to_string(molt), 1.0f, col }); }
         Suona("st_alieno", 0.7f, Vis(0.9f, 1.1f));
         // a volte cade una capsula (piu' spesso a chi fa fatica)
-        if (caso.P(0.035f / regista.sfida)) capsule.push_back({ dove, caso.I(0, 3) });
+        if (caso.P(NumDi(cfg["capsule"], "probabilita", 0.035f) / regista.sfida)) capsule.push_back({ dove, caso.I(0, 3) });
     }
 
     void MuoviFormazione(float dt) {
@@ -438,7 +547,7 @@ public:
         if (n == 0) return;
         // intervallo tra un passo e l'altro: piu' alieni abbattuti = piu' veloci (come nei classici)
         float base = 0.62f - std::min(0.25f, ondata * 0.012f);
-        intervallo = std::max(0.035f, base * std::pow(n / 55.0f, 0.85f) / regista.sfida);
+        intervallo = std::max(0.035f, base * std::pow(n / 55.0f, 0.85f) / regista.sfida / std::max(0.2f, NumDi(Ond(), "velocita", 1)));
         if (evento == 4) intervallo *= 0.7f;
         tPasso -= dt;
         if (tPasso > 0) return;
@@ -458,7 +567,7 @@ public:
         int maxColpi = 2 + std::min(4, ondata / 5) + (regista.sfida > 1.2f ? 1 : 0);
         int loro = 0;
         for (auto& c : colpi) loro += !c.amico;
-        float freq = (0.9f + ondata * 0.05f) * regista.sfida;
+        float freq = (0.9f + ondata * 0.05f) * regista.sfida * NumDi(Ond(), "fuoco", 1);
         if (loro >= maxColpi || !caso.P(freq * dt)) return;
         // l'alieno che spara: in fondo alla sua colonna, spesso sopra dove il giocatore sta di solito
         float mira = caso.P(ondata < 3 ? 0.3f : 0.5f) ? px : regista.abitX * 1920;
@@ -515,8 +624,9 @@ public:
                 tInvulnerabile = 2.0f; px = 960;
             }
         } else {
-            float vx = pad.x * 760;
-            if (pad.clic && pad.mouse.y > 0) vx = std::max(-760.0f, std::min(760.0f, (pad.mouse.x - px) * 8));
+            float vmax = NumDi(Gen(), "velocitaCannone", 760);
+            float vx = pad.x * vmax;
+            if (pad.clic && pad.mouse.y > 0) vx = std::max(-vmax, std::min(vmax, (pad.mouse.x - px) * 8));
             px = std::max(80.0f, std::min(1840.0f, px + vx * dt));
             tRicarica -= dt;
             tInvulnerabile -= dt;
@@ -580,10 +690,10 @@ public:
         tDisco -= dt;
         if (!discoVivo && tDisco <= 0 && discesaIngresso <= 0 && VivoContati() > 6) {
             discoVivo = true; discoDir = caso.P(0.5f) ? 1.0f : -1.0f; discoX = discoDir > 0 ? -140.0f : 2060.0f;
-            tDisco = caso.F(18, 28) / (evento == 3 ? 2.0f : 1.0f);
+            tDisco = caso.F(0.8f, 1.25f) * NumDi(cfg["disco"], "ogni", 22) / (evento == 3 ? 2.0f : 1.0f);
         }
         if (discoVivo) {
-            discoX += discoDir * 330 * dt;
+            discoX += discoDir * NumDi(cfg["disco"], "velocita", 330) * dt;
             tSirena -= dt;
             if (tSirena <= 0) { Suona("st_sirena", 0.45f); tSirena = 0.48f; }
             if (discoX < -200 || discoX > 2120) discoVivo = false;
@@ -597,10 +707,10 @@ public:
                 Suona("st_capsula");
                 const char* nomi[5] = { "COLPO TRIPLO", "LASER", "SCUDO", "FUOCO RAPIDO", "VITA EXTRA" };
                 testi.push_back({ { px, Y_GIOCATORE - 110 }, nomi[k.tipo], 1.3f, WHITE });
-                if (k.tipo == 0) { arma = 1; tArma = 12; }
-                else if (k.tipo == 1) { arma = 2; tArma = 7; }
+                if (k.tipo == 0) { arma = 1; tArma = NumDi(cfg["capsule"], "triplo", 12); }
+                else if (k.tipo == 1) { arma = 2; tArma = NumDi(cfg["capsule"], "laser", 7); }
                 else if (k.tipo == 2) scudo = true;
-                else if (k.tipo == 3) { arma = 3; tArma = 12; }
+                else if (k.tipo == 3) { arma = 3; tArma = NumDi(cfg["capsule"], "rapido", 12); }
                 else { vite++; Suona("st_vita"); }
             }
         }
@@ -630,9 +740,9 @@ public:
         if (tFineOndata > 0) {
             tFineOndata -= dt;
             if (tFineOndata <= 0) {
-                if (ondata >= ONDATE) { finito = vinto = true; ScriviRecord(); scritta = "STELLARIA E' SALVA!"; sottoScritta = "Hai respinto tutte le 30 ondate"; tScritta = 99; Suona("st_vita"); return; }
+                if (ondata >= NOndate()) { finito = vinto = true; ScriviRecord(); scritta = TestoDi(Gen(), "fine", "STELLARIA E' SALVA!"); sottoScritta = "Hai respinto tutte le " + std::to_string(NOndate()) + " ondate"; tScritta = 99; Suona("st_vita"); return; }
                 ondata++;
-                if ((ondata - 1) % 5 == 0) RicostruisciBarriere();   // nuovo cielo: barriere nuove
+                if (Ond().value("barriereNuove", false)) RicostruisciBarriere();   // barriere nuove (di solito a ogni cielo nuovo)
                 IniziaOndata();
             }
         }
@@ -697,14 +807,14 @@ public:
         // barriere a mattoncini
         for (int b = 0; b < 4; b++) {
             float bx = BarrieraX(b);
-            Bagliore(bx + BW * CB / 2.0f, Y_BARRIERE + BH * CB / 2.0f, 170, ConAlfa(Hex(COL_BARRIERE[Cielo()]), 0.10f));
+            Bagliore(bx + BW * CB / 2.0f, Y_BARRIERE + BH * CB / 2.0f, 170, ConAlfa(ColBarriere(), 0.10f));
             for (int j = 0; j < BH; j++)
                 for (int i = 0; i < BW; i++) {
                     int v = barriere[b][j][i];
                     if (!v) continue;
                     unsigned hh = (unsigned)(b * 997 + j * 31 + i * 7) * 2654435761u;
                     float l = 0.75f + 0.25f * ((hh >> 12) % 100) / 100.0f;
-                    Color c = Hex(COL_BARRIERE[Cielo()]);
+                    Color c = ColBarriere();
                     float scuro = v == 3 ? 1.0f : v == 2 ? 0.78f : 0.5f;
                     l *= scuro;
                     c.r = (unsigned char)(c.r * l); c.g = (unsigned char)(c.g * l); c.b = (unsigned char)(c.b * l);
@@ -719,7 +829,7 @@ public:
         for (auto& a : alieni) {
             if (!a.vivo) continue;
             float x = formX + a.ox + sx, y = formY - discesaIngresso + a.oy + sy;
-            Color glowC = ConAlfa(Hex(COL_ALIENI[a.specie][0]), 0.22f);
+            Color glowC = ConAlfa(ColSpecie(a.specie, 0), 0.22f);
             Bagliore(x, y, 70, glowC);
             Sprite(alieniTex[a.specie][fotogramma], x, y, 0.5f, 0, a.lampo > 0 ? Color{ 255, 255, 255, 255 } : WHITE);
             if (a.lampo > 0) Bagliore(x, y, 50, ConAlfa(WHITE, 0.6f));
@@ -796,14 +906,14 @@ public:
         DrawRectangle(0, 70, 1920, 2, ConAlfa(Hex(0xff5ad8), 0.7f));
         Scritta((giocatore == 0 ? "1UP  " : "2UP  ") + std::to_string(punteggio), 40, 36, 36, WHITE, -1);
         Scritta("RECORD  " + std::to_string(std::max(record, punteggio)), 960, 36, 36, Hex(0xffe38a), 0);
-        Scritta("ONDATA " + std::to_string(ondata) + "/" + std::to_string(ONDATE), 1880, 36, 36, Hex(0x77ffff), 1);
+        Scritta("ONDATA " + std::to_string(ondata) + "/" + std::to_string(NOndate()), 1880, 36, 36, Hex(0x77ffff), 1);
         if (altroPunteggio >= 0) Scritta((giocatore == 0 ? "2UP " : "1UP ") + std::to_string(altroPunteggio), 1880, 1040, 26, Hex(0xb0b8e0), 1);
         for (int i = 0; i < std::min(vite - (tMorto > 0 ? 0 : 1), 8); i++) Sprite(cannone, 70 + i * 74.0f, 1040, 0.25f);
         if (arma) {
             const char* nomi[4] = { "", "COLPO TRIPLO", "LASER", "FUOCO RAPIDO" };
             Scritta(nomi[arma], 960, 1040, 28, Hex(0xffe14a), 0);
-            DrawRectangle(860, 1060, (int)(200 * tArma / 12), 6, Hex(0xffe14a));
-        } else if (tCombo > 0 && combo >= 2) Scritta("COMBO x" + std::to_string(std::min(5, combo - 1)), 960, 1040, 30, Hex(COL_ALIENI[comboSpecie][0]), 0);
+            DrawRectangle(860, 1060, (int)std::min(200.0f, 200 * tArma / 12), 6, Hex(0xffe14a));
+        } else if (tCombo > 0 && combo >= 2) Scritta("COMBO x" + std::to_string(std::min(5, combo - 1)), 960, 1040, 30, ColSpecie(std::max(0, comboSpecie), 0), 0);
         if (tScritta > 0) {
             float a = std::min(1.0f, tScritta * 2);
             Scritta(scritta, 960 + sx, 440, 96, ConAlfa(finito && !vinto ? Hex(0xff6a8a) : Hex(0xffffff), a), 0);
@@ -834,7 +944,7 @@ public:
             caso.s = std::stoull(j.value("casoInizioOndata", j.value("caso", std::string("1"))));
             seme = std::stoull(j.value("seme", std::string("1")));
         } catch (...) { errore = "stato del caso non valido"; return false; }
-        ondata = std::max(1, std::min(ONDATE, j.value("ondata", 1)));
+        ondata = std::max(1, std::min(NOndate(), j.value("ondata", 1)));
         vite = std::max(1, j.value("vite", 3));
         prossimaVita = j.value("prossimaVita", 20000);
         punteggio = j.value("punteggio", 0);

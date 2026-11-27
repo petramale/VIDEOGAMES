@@ -823,6 +823,10 @@ std::string ProgettoGioco::Json(bool compatto) const {
         a = json::array(); for (auto& p : profili) a.push_back(ProfiloJson(p)); j["comportamenti"] = a;
     }
     j["varieta"] = VarietaJson(varieta);
+    if (!arcade.empty()) {
+        json d = json::parse(arcadeDati.empty() ? std::string("{}") : arcadeDati, nullptr, false);
+        j["arcade"] = { { "formato", "studio-videogiochi/arcade-1" }, { "tipo", arcade }, { "dati", d.is_discarded() ? json::object() : d } };
+    }
     return compatto ? j.dump() : j.dump(1);
 }
 
@@ -865,6 +869,10 @@ bool ProgettoGioco::DaJson(const std::string& testo, std::string& errore) {
     if (auto a = Elenco("comportamenti"))
         for (auto& x : *a) { ProfiloComportamento d; if (!ProfiloDaJson(x, d, errore)) return false; p.profili.push_back(d); }
     if (j.contains("varieta")) VarietaDaJson(j["varieta"], p.varieta);
+    if (j.contains("arcade") && j["arcade"].is_object()) {
+        Leggi(j["arcade"], "tipo", p.arcade);
+        if (j["arcade"].contains("dati")) p.arcadeDati = j["arcade"]["dati"].dump();
+    }
     // Il mondo si controlla conoscendo i nomi della libreria.
     std::vector<std::string> nomi;
     for (auto& x : p.personaggi) nomi.push_back(x.nome);

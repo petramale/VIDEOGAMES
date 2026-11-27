@@ -211,6 +211,11 @@ struct ProgettoGioco {
     std::vector<std::pair<std::string, std::string>> immagini;   // immagini importate (nome, dati PNG/JPG)
     std::vector<ProfiloComportamento> profili;  // sezione Comportamenti
     VarietaPartita varieta;                     // ogni partita e' diversa
+    // Giochi arcade (nuovi tipi di gioco): "stellaria", "sciame", "polvere", "querciaverde"; vuoto = gioco a mappe.
+    // I dati (livelli, nemici, boss, suoni...) sono un JSON che si modifica nella sezione del gioco arcade.
+    std::string arcade;
+    std::string arcadeDati;
+    bool EArcade() const { return !arcade.empty(); }
 
     std::string Json(bool compatto = false) const;
     bool DaJson(const std::string& testo, std::string& errore);
