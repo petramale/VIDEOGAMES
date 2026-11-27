@@ -244,7 +244,8 @@ int GiocaArcade(const DatiGioco& dati) {
         Pad pad = LeggiPad(area, L, A);
 
         if (fase == Fase::Gioca) {
-            if (indietro || gInput.Premuto(Azione::Pausa) || IsKeyPressed(KEY_P)) { fase = Fase::Pausa; menuPausa.scelta = 0; tFase = 0; gAudio.Suona(Effetto::Menu); }
+            // in partita il tasto B del joypad serve al gioco (bomba, dinamite, chiudere le finestre): la pausa e' Esc, P o Start
+            if (IsKeyPressed(KEY_ESCAPE) || gInput.Premuto(Azione::Pausa) || IsKeyPressed(KEY_P)) { fase = Fase::Pausa; menuPausa.scelta = 0; tFase = 0; gAudio.Suona(Effetto::Menu); }
             else {
                 gioco->Aggiorna(dt, pad);
                 if (gioco->puntiDiControllo != ultimoAuto && !gioco->finito) { ultimoAuto = gioco->puntiDiControllo; Salva(0); }

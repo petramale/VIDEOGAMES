@@ -691,7 +691,7 @@ void Officina::Finestre() {
                 for (int i = 0; i < (int)nomi.size(); i++) {
                     bool pronto = (bool)arcade::Crea(nomi[i]);
                     std::string t = arcade::TitoloDi(nomi[i]);
-                    if (t.size() > 22) t = t.substr(0, t.find(':') != std::string::npos ? t.find(':') : 22);
+                    if (t.find(':') != std::string::npos) t = t.substr(0, t.find(':'));
                     if (Ui::Pulsante({ x + i * (aw + 8 * s), y, aw, 40 * s }, pronto ? t : t + " (presto)") && pronto) { ApriArcade(nomi[i]); finestra = 0; }
                 }
                 y += 56 * s;

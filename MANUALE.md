@@ -271,7 +271,46 @@ Novità del motore usate da questi giochi, disponibili anche nei tuoi:
 Gli stessi giochi si possono creare anche da riga di comando:
 `StudioVideogiochi --crea-platform A|B|C file.gioco [Gioco.exe]` (A Lumina, B Nora e Bullone, C Nilo).
 
-## 15. Tasti utili
+## 15. I quattro giochi arcade
+
+Sono quattro giochi completi, scritti per lo Studio e modificabili in ogni parte. Si aprono da
+**Gioco → Nuovo gioco** (riga "Oppure parti da un gioco arcade completo") o da **Gioco → Apri** (elenco
+**Giochi arcade**). Hanno lo stesso flusso dei giochi creati: intro Elvantis, menu con 1 o 2 giocatori (a turni),
+opzioni, crediti, salvataggi; si giocano con tastiera, mouse o joypad.
+
+| Gioco | Genere | Contenuto |
+| --- | --- | --- |
+| **Stellaria: l'Invasione dei Prismi** | sparatutto a ondate, disegnato HD | 30 ondate in 6 cieli, alieni di cristallo, disco bonus, potenziamenti, combo di colore |
+| **Sciame di Orione** | sparatutto a formazioni, disegnato HD | 15 livelli in 5 settori, insetti che entrano in volo e si tuffano, un boss ogni 3 livelli, armi bonus |
+| **Polvere da Sparo: Commando del West** | run-and-gun in pixel art fine | 10 missioni con boss, due pistoleri (giocatore 2), ostaggi che danno armi, carro corazzato "Bisonte", dinamite |
+| **Il Regno di Querciaverde** | avventura isometrica dipinta | 12 capitoli e 60 località, missioni "!", mercato, ricette, combattimenti, zaino, mappa |
+
+**Come si gioca a Querciaverde.** Tutto si fa con un clic: sugli alberi, le rocce, i campi e i pesci per
+raccogliere (serve l'attrezzo giusto e costa energia), sulle persone con il **!** per avere una missione e con
+il **?** per consegnarla, sui nemici per combattere (vinci se la tua **potenza**, data da arma e armatura, è almeno
+quella scritta sopra di loro; perdi un po' di vita), sulle **frecce dorate** per cambiare località, sulla locanda
+per riposare. Nei quattro angoli ci sono **Diario**, **Mappa** (viaggio rapido), **Lavori** (ricette) e **Zaino**;
+nella barra in basso ritratto, oro, vita, energia, potenza, posti nello zaino e il cibo da usare al volo.
+Un capitolo finisce quando tutte le sue missioni sono compiute. Si salva **in qualsiasi momento** dal menu di
+pausa (Esc). Clic destro, **Z** o **B** chiudono le finestre; con il joypad la levetta muove il puntatore e
+**X/Y** salta all'elemento successivo.
+
+**Ogni partita è diversa.** Il seme della partita cambia le formazioni, i nemici, le capsule, i prezzi del
+mercato e le borse di monete perse. Il **regista** (IA adattiva) osserva come giochi (precisione, vite perse,
+tempo) e regola la sfida fra facile e difficile; in Querciaverde cambia quanta vita costano i combattimenti e i prezzi.
+
+**Modificarli nello Studio.** La sezione **Gioco arcade** mostra le categorie del gioco aperto (per Querciaverde:
+Capitoli, Località, Elementi delle scene, Missioni, Oggetti, Ricette, Nemici, Eroe e regole, Effetti sonori).
+Ogni elemento si aggiunge, duplica, elimina e cambia; a destra l'**anteprima** mostra il pilota automatico che
+gioca con i tuoi dati. **Prova da qui (F5)** parte dal livello/capitolo scelto, **Crea .exe** fa il gioco completo.
+La musica dei giochi è nella sezione **Audio** (si riscrive nota per nota) e si sceglie nei campi "Musica";
+gli effetti sonori si sostituiscono con quelli creati in Audio. Anche **Claude** può cambiare i dati
+("aggiungi un capitolo nel deserto", "rendi i boss più forti").
+
+Da riga di comando: `StudioVideogiochi --crea-arcade stellaria|sciame|polvere|querciaverde Gioco.exe [base.exe [progetto.gioco]]`;
+`--prova-arcade nome secondi` fa giocare il pilota automatico e controlla i salvataggi.
+
+## 16. Tasti utili
 
 | Tasto | Dove | Cosa fa |
 | --- | --- | --- |
@@ -290,7 +329,7 @@ Gli stessi giochi si possono creare anche da riga di comando:
 | Ctrl+C, Ctrl+V | Mondi | copia e incolla l'oggetto o i blocchi selezionati |
 | Esc | Mondi | toglie la selezione |
 
-## 16. File e cartelle
+## 17. File e cartelle
 
 | Percorso | Contenuto |
 | --- | --- |

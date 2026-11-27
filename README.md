@@ -73,6 +73,8 @@ StudioVideogiochi.exe --crea MioGioco.exe livello.txt "Titolo"
 StudioVideogiochi.exe --esporta-audio cartella          effetti e musica in .wav
 StudioVideogiochi.exe --esporta-mondi cartella          i mondi d'esempio in JSON
 StudioVideogiochi.exe --verifica-mondi                  prove automatiche (mondi, progetti, risposte di Claude)
+StudioVideogiochi.exe --crea-arcade querciaverde Gioco.exe [base.exe [progetto.gioco]]   un gioco arcade
+StudioVideogiochi.exe --prova-arcade querciaverde 900    il pilota automatico gioca e verifica i salvataggi
 ```
 
 ## Struttura
@@ -99,6 +101,12 @@ src/
   gioco_mente.cpp       mente e indole nel motore, destino della partita (seme, eventi, relazioni)
   salvataggio.*         salvataggi dei giochi creati: CRC, scrittura atomica, versioni, ripristino
   verifica_salvataggi.cpp  prova automatica dei salvataggi (--verifica-salvataggi)
+  arcade.h, arcade_comune.cpp, arcade_flusso.cpp, arcade_registro.cpp   motore e flusso dei giochi arcade
+  arcade_stellaria.cpp  Stellaria: l'Invasione dei Prismi (sparatutto a ondate)
+  arcade_sciame.cpp     Sciame di Orione (sparatutto a formazioni con boss)
+  arcade_polvere.cpp    Polvere da Sparo: Commando del West (run-and-gun in pixel art)
+  arcade_querciaverde.cpp  Il Regno di Querciaverde (avventura isometrica dipinta)
+  officina_arcade.cpp   sezione Gioco arcade dello Studio (dati, anteprima, prova, crea .exe)
   mondo.*               mondi e mappe in JSON
   ui.*                  controlli dell'interfaccia (pulsanti, campi, scelte, colori)
   aiuto.cpp             le spiegazioni dei pulsanti (aiuto che compare fermandosi col mouse)
