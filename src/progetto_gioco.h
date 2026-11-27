@@ -27,6 +27,9 @@ struct Animazione {
     std::vector<Fotogramma> fotogrammi;
     float fps = 8;
     bool ripeti = true;
+    // Punto d'appoggio: di quanti pixel del disegno si sposta il fotogramma rispetto ai piedi
+    // (in basso al centro). Serve quando le immagini caricate non hanno i piedi in fondo.
+    int ox = 0, oy = 0;
 };
 
 // Un disegno con piu' animazioni (personaggi, oggetti, caselle). 'densita' = pixel del disegno

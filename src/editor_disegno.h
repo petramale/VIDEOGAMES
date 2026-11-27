@@ -29,6 +29,7 @@ public:
     void ChiudiImport();
     static const std::vector<std::string>& EstensioniImmagini();
     int Animazione() const { return anim; }
+    void ScegliAnimazione(int a) { if (a != anim) { anim = a; fot = 0; } }
     const std::string& Id() const { return id; }
 
 private:

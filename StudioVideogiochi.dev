@@ -28,7 +28,7 @@ Folders=raylib,studio
 IncludeVersionInfo=0
 SupportXPThemes=0
 CompilerSet=0
-UnitCount=100
+UnitCount=101
 
 [Unit1]
 FileName=src\audio.cpp
@@ -1027,6 +1027,16 @@ CompileCpp=1
 Folder=studio
 Compile=0
 Link=0
+Priority=1000
+OverrideBuildCmd=0
+BuildCmd=
+
+[Unit101]
+FileName=src\officina_animazioni.cpp
+CompileCpp=1
+Folder=studio
+Compile=1
+Link=1
 Priority=1000
 OverrideBuildCmd=0
 BuildCmd=

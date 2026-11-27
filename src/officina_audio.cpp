@@ -142,7 +142,7 @@ void Officina::Audio(Rectangle r, float dt) {
         x += w + 8 * s;
     }
     // Carica da file: musica (MP3, OGG, WAV, FLAC, XM, MOD, MIDI) o effetti (WAV, OGG, MP3).
-    if (schedaAudio < 2) {
+    if (schedaAudio == 1) {
         const char* et = schedaAudio == 0 ? "Carica musica (MP3, OGG, WAV, MIDI)..." : "Carica effetto (WAV, OGG, MP3)...";
         float w = Ui::Larghezza(et, Ui::TP()) + 40 * s;
         if (r.x + r.width - w - 10 * s <= x) { et = "Carica da file..."; w = Ui::Larghezza(et, Ui::TP()) + 30 * s; }
@@ -163,6 +163,34 @@ void Officina::Audio(Rectangle r, float dt) {
     }
     r.y += schede.height; r.height -= schede.height;
     if (schedaAudio == 2) { SuoniEventi(r); return; }
+    if (schedaAudio == 0) {
+        // Fascia in cima, ben visibile: caricare la musica da file.
+        Rectangle fascia = { r.x, r.y, r.width, 76 * s };
+        DrawRectangleRec(fascia, Hex(0x1a1f4a));
+        DrawLineEx({ fascia.x, fascia.y + fascia.height }, { fascia.x + fascia.width, fascia.y + fascia.height }, 1, Ui::Bordo());
+        const char* et = "Carica musica (MP3, WAV, OGG, MIDI)";
+        float tg = Ui::T() * 1.25f;
+        float bw = std::min(fascia.width * 0.45f, Ui::LarghezzaForte(et, (int)tg) + 90 * s);
+        Rectangle b = { fascia.x + 14 * s, fascia.y + 12 * s, bw, fascia.height - 24 * s };
+        Ui::Aiuto("Sceglie uno o piu' file musicali dal computer. MP3, WAV, OGG, FLAC, XM e MOD entrano nel gioco cosi' come sono; "
+                  "un MIDI diventa un brano a note che puoi modificare nel rullo.");
+        if (Ui::Pulsante(b, "", true)) CaricaMusica();
+        // nota musicale
+        Color cn = WHITE;
+        float nx = b.x + 34 * s, ny = b.y + b.height * 0.5f;
+        DrawCircleV({ nx - 6 * s, ny + 9 * s }, 8 * s, cn);
+        DrawRectangleRec({ nx, ny - 15 * s, 3.5f * s, 24 * s }, cn);
+        DrawRectangleRec({ nx, ny - 15 * s, 14 * s, 5 * s }, cn);
+        Ui::TestoForte(et, b.x + 62 * s, b.y + (b.height - tg) / 2, WHITE, (int)tg);
+        float tx = b.x + b.width + 18 * s;
+        Ui::TestoACapo(progetto.EArcade()
+                           ? "Il brano caricato compare nell'elenco a sinistra: sceglilo e premi Ascolta. Per farlo suonare in un livello vai "
+                             "nella scheda Gioco arcade e sceglilo nel campo Musica del livello."
+                           : "Il brano caricato compare nell'elenco a sinistra: sceglilo e premi Ascolta. Per farlo suonare in un livello "
+                             "accendi i livelli sotto il brano (per i brani caricati) oppure premi \"Usa nella mappa\".",
+                       tx, fascia.y + 10 * s, fascia.x + fascia.width - tx - 14 * s, Ui::TestoChiaro(), Ui::TP());
+        r.y += fascia.height; r.height -= fascia.height;
+    }
     Rectangle sx = { r.x, r.y, 250 * s, r.height };
     Rectangle centro = { sx.x + sx.width, r.y, r.width - sx.width, r.height };
     if (schedaAudio == 0) {
@@ -170,7 +198,15 @@ void Officina::Audio(Rectangle r, float dt) {
         for (auto& b : progetto.brani) {
             int usato = 0;
             for (auto& m : progetto.mondo.mappe) usato += m.brano == b.nome;
-            nomi.push_back(b.nome + "\n" + (b.file.empty() ? TextFormat("%.0f bpm, %d battute", b.bpm, b.battute) : b.file.c_str()) + (usato ? "  - in uso" : ""));
+            if (progetto.EArcade() && progetto.arcadeDati.find("\"" + b.nome + "\"") != std::string::npos) usato++;
+            std::string tipo;
+            if (!b.file.empty()) {
+                std::string est = GetFileExtension(b.file.c_str()) ? GetFileExtension(b.file.c_str()) : "";
+                for (auto& c : est) c = (char)toupper((unsigned char)c);
+                tipo = (est.size() > 1 ? est.substr(1) : std::string("file")) + " caricato";
+            } else if (b.autore == "MIDI") tipo = TextFormat("da MIDI, %d battute", b.battute);
+            else tipo = TextFormat("a note, %.0f bpm", b.bpm);
+            nomi.push_back(b.nome + "\n" + tipo + (usato ? ", in uso" : ""));
         }
         int prima = selBrano;
         int az = Elenco(sx, "BRANI DEL GIOCO", nomi, selBrano, [&](int i, Rectangle q) {
@@ -221,8 +257,48 @@ void Officina::Audio(Rectangle r, float dt) {
         if (Ui::Pulsante({ bx, y, 110 * s * k, h }, stretta ? "WAV" : "Esporta WAV")) AzioneAudio("b:wav");
         y += h + 10 * s;
         if (!b.file.empty()) {
-            Ui::TestoACapo("Brano importato dal file " + b.file + TextFormat(" (%.0f KB). Viene incluso nel gioco creato. ", b.dati.size() / 1024.0f) +
-                           "Per comporre a note crea un brano nuovo.", centro.x + 14 * s, y + 20 * s, centro.width - 28 * s, Ui::TestoChiaro(), Ui::T());
+            float cx = centro.x + 14 * s, cw = centro.width - 28 * s;
+            y += 10 * s;
+            float hh = Ui::TestoACapo("Brano caricato dal file " + b.file + TextFormat(" (%.0f KB). Viene incluso nel gioco creato. ", b.dati.size() / 1024.0f) +
+                                      "Premi Ascolta per sentirlo. Per comporre a note crea un brano nuovo con \"+ Nuovo\".", cx, y, cw, Ui::TestoChiaro(), Ui::T());
+            y += hh + 20 * s;
+            if (progetto.EArcade()) {
+                Ui::TestoACapo("In un gioco arcade la musica di ogni livello, del boss e del menu si sceglie nella scheda Gioco arcade, nel campo \"Musica\".",
+                               cx, y, cw, Ui::TestoSpento(), Ui::TP());
+                y += 40 * s;
+                if (Ui::Pulsante({ cx, y, 300 * s, 36 * s }, "Vai alla scheda Gioco arcade", true)) Vai(Sezione::Arcade);
+                return;
+            }
+            Ui::Testo("IN QUALI LIVELLI SUONA", cx, y, Ui::Accento(), Ui::TP());
+            y += 26 * s;
+            Rectangle area = { cx, y, cw, centro.y + centro.height - y - 10 * s };
+            float rh = 34 * s;
+            float col = std::max(1.0f, std::floor(area.width / (320 * s)));
+            float lw = area.width / col;
+            Ui::Ritaglia((int)area.x, (int)area.y, (int)area.width, (int)area.height);
+            for (int i = 0; i < (int)progetto.mondo.mappe.size(); i++) {
+                Mappa& m = progetto.mondo.mappe[i];
+                int c = i % (int)col, rg = i / (int)col;
+                Rectangle q = { area.x + c * lw, area.y + rg * (rh + 4 * s) - scorriProprieta, lw - 10 * s, rh };
+                if (q.y + q.height < area.y || q.y > area.y + area.height) continue;
+                bool usa = m.brano == b.nome;
+                std::string etichetta = m.nome;
+                if (Ui::Larghezza(etichetta, Ui::TP()) > q.width - 70 * s) {
+                    while (!etichetta.empty() && Ui::Larghezza(etichetta + "...", Ui::TP()) > q.width - 70 * s) etichetta.pop_back();
+                    while (!etichetta.empty() && ((unsigned char)etichetta.back() & 0xC0) == 0x80) etichetta.pop_back();
+                    if (!etichetta.empty() && ((unsigned char)etichetta.back() & 0xC0) == 0xC0) etichetta.pop_back();
+                    etichetta += "...";
+                }
+                if (Ui::Interruttore(q, etichetta, usa)) {
+                    Ricorda();
+                    m.brano = usa ? b.nome : std::string("");
+                    MondoCambiato();
+                }
+            }
+            Ui::FineRitaglio();
+            float tot = std::ceil(progetto.mondo.mappe.size() / col) * (rh + 4 * s);
+            if (Ui::MouseSu(area)) scorriProprieta -= GetMouseWheelMove() * 60 * s;
+            scorriProprieta = Limita(scorriProprieta, 0, std::max(0.0f, tot - area.height));
             return;
         }
         // Tracce.
@@ -272,7 +348,17 @@ void Officina::Audio(Rectangle r, float dt) {
         const char* nl[] = { "1/16", "1/8", "1/4", "1/2", "1" };
         for (int i = 0; i < 5; i++)
             if (Ui::Pulsante({ centro.x + 140 * s + i * 58 * s, yb, 54 * s, 28 * s }, nl[i], lunghezzaNota == lung[i])) lunghezzaNota = lung[i];
-        Ui::Testo("Clic: nota   Trascina: allunga   Destro: cancella   Rotella: su/giu'   Maiusc+rotella: avanti", centro.x + 450 * s, yb + 7 * s, Ui::TestoSpento(), (int)(13 * s));
+        {   // suggerimenti: solo quelli che ci stanno prima dell'indicatore di battuta (a destra)
+            const char* parti[] = { "Clic: nota", "Trascina: allunga", "Destro: cancella", "Rotella: su/giu'", "Maiusc+rotella: avanti" };
+            std::string h;
+            float lim = centro.x + centro.width - 14 * s - 190 * s - (centro.x + 450 * s);
+            for (auto p : parti) {
+                std::string prova = h.empty() ? std::string(p) : h + "   " + p;
+                if (Ui::Larghezza(prova, (int)(13 * s)) > lim) break;
+                h = prova;
+            }
+            Ui::Testo(h, centro.x + 450 * s, yb + 7 * s, Ui::TestoSpento(), (int)(13 * s));
+        }
         if (cambiato) {
             ProgettoGioco v = progetto;
             v.brani[selBrano] = vecchio;

@@ -118,6 +118,28 @@ Nomi di animazione usati dal motore: porte `chiusa`/`aperta`, interruttori `spen
 Anche gli oggetti hanno **Luce ed effetti** (una lanterna appesa, un cristallo che pulsa, una torcia: capitolo 7b)
 e il **Gestore delle immagini** per caricare i loro disegni.
 
+## 5b. Animazioni (lo studio di animazione)
+
+Scheda **Animazioni** nella barra in alto (icona della pellicola, anche nella Home). Vale per **personaggi e oggetti**.
+
+1. **A sinistra** scegli il personaggio o l'oggetto (sotto il nome: quante animazioni ha).
+2. **A destra** l'elenco delle sue animazioni con la miniatura; **+ Nuova**, **Duplica**, **Elimina**.
+3. **Carica immagini (PNG, JPG, BMP, GIF)…**: si apre il **Gestore delle immagini**. Puoi scegliere più file
+   (un file = un fotogramma), un **foglio di sprite** (righe × colonne trovate da sole, puoi correggerle),
+   o una **GIF animata** (ogni quadro diventa un fotogramma). Sfondo trasparente dal colore dell'angolo,
+   misura, allineamento e velocità; **Importa** e i fotogrammi entrano nell'animazione scelta.
+4. **Al centro** l'**anteprima che si muove** (Pausa / Riproduci) su un fondo a scacchi, con la linea del terreno
+   e una **croce gialla** = il **punto d'appoggio** (i piedi). **Trascina il disegno** con il mouse per mettere i piedi
+   sulla croce; oppure usa "Sposta a destra / Sposta in basso" e **Rimetti al centro**.
+5. **In basso la striscia dei fotogrammi** (la timeline): clic per vederne uno, **trascinali per cambiare l'ordine**
+   (una linea gialla mostra dove finiscono), **Duplica**, **Elimina**, **Inverti ordine**, **Specchia**, **+ immagini**.
+6. **Si usa per**: a quale azione del gioco va l'animazione. Personaggi: fermo, corsa, salto, caduta, colpito,
+   attacco, sparo, vittoria. Oggetti: fermo, aperta/chiusa (porte), accesa/spenta (interruttori), scatta (molle),
+   aperto/chiuso (forzieri). Con "(nome mio)" la scegli tu e la avvii dalla Logica con "anima".
+7. **Velocità (fps)** e **Si ripete (ciclo)**. **Ritocca i pixel** porta all'editor di disegno.
+
+Claude è nella chat a destra: *"fai l'animazione di corsa con 6 fotogrammi"*.
+
 ## 6. Scenari
 
 - Scheda **Scenari**: sfondi a strati (montagne, colline, foresta, nuvole, stelle, fasce, immagini importate) con parallasse,
@@ -131,7 +153,12 @@ e il **Gestore delle immagini** per caricare i loro disegni.
 
 - **Musica**: piano roll a più tracce (melodia, basso, arpeggio, batteria…), strumenti, tempo, ascolto dal vivo,
   "Componi" crea un brano in uno stile (Allegro, Epico, Calmo, Misterioso, Spaziale, Battaglia).
-- **Carica musica (MP3, OGG, WAV, MIDI)…** (in alto a destra, oppure trascina il file nella finestra):
+- **Carica musica (MP3, WAV, OGG, MIDI)**: il grande pulsante in cima alla scheda Musica (oppure trascina il file nella finestra).
+  Puoi scegliere più file insieme. Ogni brano caricato compare nell'**elenco a sinistra** (sotto il nome c'è il tipo:
+  "MP3 caricato", "da MIDI", "a note" e "in uso" se un livello lo usa): sceglilo e premi **Ascolta** / **Ferma**.
+  Per un brano caricato, sotto c'è **In quali livelli suona**: accendi l'interruttore dei livelli che devono usarlo.
+  Nei giochi arcade la musica di ogni livello/settore/missione, del boss e del menu si sceglie nella scheda
+  **Gioco arcade**, nel campo **Musica**, con **Ascolta** e **Carica…** per prendere subito un MP3/WAV/OGG/MIDI tuo.
   - **MP3, OGG, WAV, FLAC, XM, MOD**: il file entra nel gioco così com'è e suona anche nell'eseguibile creato.
     Lo usi come musica di una mappa ("Usa nella mappa aperta") o dalla Logica ("metti la musica").
   - **MIDI (.mid)**: le note diventano un **brano a note** che vedi e modifichi nel rullo, nota per nota:
@@ -345,7 +372,8 @@ Gli stessi giochi si possono creare anche da riga di comando:
    a destra i suoi valori (numeri con − e +, colori, scelte); l'anteprima cambia subito. Il pulsante
    **Come si usa?** riapre la guida.
 4. **F5** per giocare, **Ctrl+S** per salvare il tuo gioco (file `.gioco`), **Crea .exe** per il gioco finito.
-   Musica ed effetti: scheda **Audio** (anche MP3 e MIDI tuoi). Puoi anche chiedere a Claude nella chat:
+   Musica: il campo **Musica** di ogni livello (o settore/missione/località) con **Ascolta** e **Carica…** per un
+   MP3/WAV/OGG/MIDI tuo; tutte le musiche e gli effetti anche nella scheda **Audio**. Puoi anche chiedere a Claude nella chat:
    *"aggiungi tre ondate sempre più difficili"*.
 
 Con "Esempio completo da cambiare" (o "Apri e modifica" su un esempio) parti invece da uno dei quattro giochi pronti.

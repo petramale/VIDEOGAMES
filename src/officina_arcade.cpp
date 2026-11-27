@@ -3,6 +3,7 @@
 // (categorie, elenchi ed i loro campi); qui diventano elenchi, numeri, colori, scelte, brani ed effetti.
 // A destra un'anteprima dal vivo del livello scelto; F5 prova il gioco da quel livello.
 #include "officina.h"
+#include "sistema.h"
 #include "arcade.h"
 #include "audio.h"
 #include "ui.h"
@@ -156,6 +157,7 @@ void Officina::Arcade(Rectangle r, float dt) {
     const json& campi = cat["campi"];
     float hc = 36 * s, gap = 8 * s;
     float totale = campi.size() * (hc + gap);
+    for (auto& c : campi) if (c.value("tipo", "") == "brano") totale += hc + gap;   // riga in piu' per Ascolta e Carica
     if (Ui::MouseSu(rf)) scorriCampiArcade -= GetMouseWheelMove() * 60 * s;
     scorriCampiArcade = Limita(scorriCampiArcade, 0, std::max(0.0f, totale - rf.height));
     Ui::Ritaglia((int)rf.x, (int)rf.y, (int)rf.width, (int)rf.height);
@@ -165,6 +167,7 @@ void Officina::Arcade(Rectangle r, float dt) {
     for (auto& c : campi) {
         Rectangle f = { rf.x, yy, rf.width, hc };
         yy += hc + gap;
+        if (c.value("tipo", "") == "brano") yy += hc + gap;
         if (f.y + f.height < rf.y || f.y > rf.y + rf.height) continue;
         std::string k = c["chiave"], nome = c.value("nome", k), tipo = c.value("tipo", "numero");
         json& v = (*elem)[k];
@@ -214,6 +217,27 @@ void Officina::Arcade(Rectangle r, float dt) {
             Rectangle fs = f;
             if (tipo == "effetto") fs.width -= 90 * s;
             if (Ui::Scelta(fs, nome, i, voci)) { v = i == 0 ? std::string("") : voci[i]; cambiato = true; }
+            if (tipo == "brano") {
+                // Ascolta il brano scelto; "Carica..." prende un MP3/WAV/OGG/MIDI dal computer e lo mette qui.
+                const Brano* bs = i > 0 ? progetto.TrovaBrano(voci[i]) : nullptr;
+                bool suona = bs && suonaBrano && branoArcadeInAscolto == bs->nome;
+                Ui::Aiuto("Ascolta la musica scelta (premi ancora per fermarla).");
+                float le2 = f.width * 0.45f, bw2 = (f.width - le2 - 8 * s) / 2;
+                Rectangle b1 = { f.x + le2, f.y + hc + gap, bw2, hc }, b2 = { f.x + le2 + bw2 + 8 * s, f.y + hc + gap, bw2, hc };
+                if (Ui::Pulsante(b1, suona ? "Ferma" : "Ascolta", suona, bs != nullptr)) {
+                    if (suona) { gAudio.FermaBranoPersonale(); suonaBrano = false; branoArcadeInAscolto.clear(); }
+                    else if (bs) { gAudio.SuonaBrano(*bs); suonaBrano = true; branoArcadeInAscolto = bs->nome; }
+                }
+                Ui::Aiuto("Carica una musica tua (MP3, WAV, OGG, MIDI) e la usa qui.");
+                if (Ui::Pulsante(b2, bw2 > 160 * s ? "Carica MP3/MIDI..." : "Carica...")) {
+                    std::vector<std::string> est = { ".mp3", ".wav", ".ogg", ".mid", ".midi", ".flac", ".xm", ".mod", ".qoa" };
+                    auto files = ScegliFile("Scegli la musica (MP3, WAV, OGG, MIDI)", "Musica", est, false);
+                    if (!files.empty()) {
+                        std::string n = ImportaBrano(files[0]);
+                        if (!n.empty()) { v = n; cambiato = true; }
+                    }
+                }
+            }
             if (tipo == "effetto" && Ui::Pulsante({ f.x + f.width - 84 * s, f.y, 84 * s, hc }, "Ascolta")) {
                 if (i > 0) { if (const EffettoSuono* e = progetto.TrovaEffetto(voci[i])) gAudio.SuonaEffetto(*e); }
                 else arcade::Suona(k);
@@ -423,7 +447,7 @@ void Officina::GuidaArcade() {
         "Al centro scegli l'elemento da cambiare; con + Nuovo, Duplica ed Elimina aggiungi o togli livelli e nemici.",
         "A destra cambi i suoi valori: numeri con - e +, colori, scelte. L'anteprima mostra subito il risultato.",
         "F5 = gioca e prova. Ctrl+S = salva il gioco. \"Crea .exe\" in alto a destra = il gioco finito.",
-        "Musica ed effetti sonori: scheda Audio. Tasti e joypad: scheda Comandi. Puoi anche chiedere a Claude nella chat." };
+        "La musica di ogni livello si sceglie nel campo \"Musica\" (con Ascolta e Carica MP3/MIDI); le musiche si caricano anche nella scheda Audio. Tasti e joypad: scheda Comandi. Puoi anche chiedere a Claude nella chat." };
     for (int i = 0; i < 5; i++) {
         DrawCircleV({ x + 14 * s, y + 11 * s }, 13 * s, Ui::Accento());
         Ui::TestoCentrato(std::to_string(i + 1), { x + 1 * s, y - 2 * s, 26 * s, 26 * s }, Hex(0x101428), Ui::TP());

@@ -21,7 +21,7 @@ using nlohmann::json;
 
 namespace {
 
-const char* NOMI_SEZIONI[] = { "Home", "Mondi", "Personaggi", "Oggetti", "Scenari", "Audio", "Logica", "Librerie", "Comandi", "Comportamenti", "Gioco arcade" };
+const char* NOMI_SEZIONI[] = { "Home", "Mondi", "Personaggi", "Oggetti", "Scenari", "Audio", "Logica", "Librerie", "Comandi", "Comportamenti", "Gioco arcade", "Animazioni" };
 const char* AIUTO_SEZIONI[] = { "Pagina iniziale: nuovo gioco, apri, salva e tutte le sezioni.",
     "Mondi (Alt+1): disegna le mappe a blocchi, metti oggetti e personaggi, porte, telecamera e scenario di ogni mappa.",
     "Personaggi (Alt+2): disegna e anima i personaggi, scegli l'eroe e il comportamento dei nemici e degli amici.",
@@ -32,8 +32,9 @@ const char* AIUTO_SEZIONI[] = { "Pagina iniziale: nuovo gioco, apri, salva e tut
     "Librerie (Alt+7): tutto quello che il gioco contiene e le 23 raccolte pronte da aggiungere.",
     "Comandi (Alt+8): tasti, mouse e joypad, con la prova dal vivo.",
     "Comportamenti (Alt+9): il carattere e la mente di nemici e personaggi, l'indole degli oggetti, come cambia ogni partita.",
-    "Gioco arcade (Alt+0): livelli, nemici, boss, colori, regole e suoni del gioco arcade, con l'anteprima dal vivo." };
-const char* TASTI_SEZIONI[] = { "", "Alt+1", "Alt+2", "Alt+3", "Alt+4", "Alt+5", "Alt+6", "Alt+7", "Alt+8", "Alt+9", "Alt+0" };
+    "Gioco arcade (Alt+0): livelli, nemici, boss, colori, regole e suoni del gioco arcade, con l'anteprima dal vivo.",
+    "Animazioni: lo studio delle animazioni di personaggi e oggetti. Carica immagini PNG, JPG, BMP, GIF, riordina i fotogrammi, scegli velocita' e azione." };
+const char* TASTI_SEZIONI[] = { "", "Alt+1", "Alt+2", "Alt+3", "Alt+4", "Alt+5", "Alt+6", "Alt+7", "Alt+8", "Alt+9", "Alt+0", "" };
 
 bool Ctrl() { return IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL); }
 bool Alt() { return IsKeyDown(KEY_LEFT_ALT) || IsKeyDown(KEY_RIGHT_ALT); }
@@ -73,6 +74,10 @@ void IconaSezione(int i, Rectangle r, Color c) {
         case 10: DrawRectangleRec({ cx - 6 * u, cy - 4 * u, 12 * u, 7 * u }, c); DrawRectangleRec({ cx - 8 * u, cy - u, 2 * u, 5 * u }, c); DrawRectangleRec({ cx + 6 * u, cy - u, 2 * u, 5 * u }, c);
                  DrawRectangleRec({ cx - 4 * u, cy - 7 * u, 2 * u, 3 * u }, c); DrawRectangleRec({ cx + 2 * u, cy - 7 * u, 2 * u, 3 * u }, c);
                  DrawRectangleRec({ cx - 3 * u, cy - 2 * u, 2 * u, 2 * u }, Hex(0x0d0f24)); DrawRectangleRec({ cx + u, cy - 2 * u, 2 * u, 2 * u }, Hex(0x0d0f24)); break;
+        case 11:   // pellicola
+            DrawRectangleRec({ cx - 7 * u, cy - 5 * u, 14 * u, 10 * u }, c);
+            for (int k = 0; k < 4; k++) { DrawRectangleRec({ cx - 6 * u + k * 3.5f * u, cy - 4.4f * u, 1.6f * u, 1.4f * u }, Hex(0x0d0f24)); DrawRectangleRec({ cx - 6 * u + k * 3.5f * u, cy + 3 * u, 1.6f * u, 1.4f * u }, Hex(0x0d0f24)); }
+            DrawRectangleRec({ cx - 5 * u, cy - 2 * u, 4 * u, 4 * u }, Hex(0x0d0f24)); DrawRectangleRec({ cx + u, cy - 2 * u, 4 * u, 4 * u }, Hex(0x0d0f24)); break;
     }
 }
 
@@ -387,6 +392,7 @@ void Officina::Frame(float dt) {
         case Sezione::Comandi: Comandi(rCorpo, dt); break;
         case Sezione::Comportamenti: Comportamenti(rCorpo, dt); break;
         case Sezione::Arcade: Arcade(rCorpo, dt); break;
+        case Sezione::Animazioni: Animazioni(rCorpo, dt); break;
         default: break;
     }
     if (editorMondo.Provando() || provaArcade) return;   // la prova e' partita da un menu dell'editor
@@ -401,7 +407,7 @@ void Officina::Frame(float dt) {
     if (editorDisegno.ImportAperto() && editorDisegno.FinestraImport()) {
         std::string msg;
         Ricorda();
-        if (editorDisegno.EseguiImport(msg)) { modificato = true; LibreriaCambiata(); }
+        if (editorDisegno.EseguiImport(msg)) { modificato = true; LibreriaCambiata(); animAnim = editorDisegno.Animazione(); animFot = 0; }
         else annulla.pop_back();
         Avvisa(msg);
     }
@@ -427,7 +433,7 @@ void Officina::Scorciatoie() {
             if (IsKeyPressed(KEY_Y)) Ripeti();
         }
     }
-    if (Alt()) for (int i = 1; i < (int)Sezione::Totale; i++) if (IsKeyPressed(KEY_ZERO + i % 10) && SezioneVisibile(i)) Vai((Sezione)i);
+    if (Alt()) for (int i = 1; i <= (int)Sezione::Arcade; i++) if (IsKeyPressed(KEY_ZERO + i % 10) && SezioneVisibile(i)) Vai((Sezione)i);
     if (IsKeyPressed(KEY_F5)) AvviaProva();
     if (IsKeyPressed(KEY_F1)) finestra = 3;
     if (IsKeyPressed(KEY_F3)) { chatAperta = true; Ui::DaiFuoco("chat"); }
@@ -439,7 +445,7 @@ void Officina::FileTrascinati() {
     if (sezione == Sezione::Mondi) return;   // le immagini nel mondo le prende l'editor dei mondi
     FilePathList l = LoadDroppedFiles();
     // Piu' immagini trascinate insieme in un editor di disegno vanno tutte nel gestore delle immagini.
-    bool disegno = (sezione == Sezione::Personaggi || sezione == Sezione::Oggetti || (sezione == Sezione::Scenari && schedaScenari == 1)) && !editorDisegno.Id().empty();
+    bool disegno = (sezione == Sezione::Personaggi || sezione == Sezione::Oggetti || sezione == Sezione::Animazioni || (sezione == Sezione::Scenari && schedaScenari == 1)) && !editorDisegno.Id().empty();
     std::vector<std::string> immagini;
     for (unsigned int i = 0; i < l.count; i++) {
         std::string e = Estensione(l.paths[i]);
@@ -597,7 +603,8 @@ void Officina::Schede() {
     bool compatte = totale > r.width - 2 * 120 * s - 50 * s;
     // Le schede restano dentro la loro barra: non coprono mai l'inizio delle sezioni (sotto-schede, titoli).
     Ui::Ritaglia((int)r.x, (int)r.y, (int)r.width, (int)(r.height + 1));
-    for (int i = 0; i < (int)Sezione::Totale; i++) {
+    for (int k = 0; k < (int)Sezione::Totale; k++) {
+        int i = ORDINE_SEZIONI[k];
         if (!SezioneVisibile(i)) continue;
         bool soloIcona = compatte && (int)sezione != i;
         float w = soloIcona ? 44 * s : Ui::Larghezza(NOMI_SEZIONI[i], Ui::T()) + 54 * s;
@@ -967,11 +974,13 @@ void Officina::Home(Rectangle r) {
                            "Sfondi a strati, cielo, pioggia e neve, caselle disegnate", "Musica a note, effetti sonori, suoni degli eventi",
                            "Regole: quando succede qualcosa, allora...", "La libreria del gioco e le 23 raccolte pronte",
                            "Tastiera, mouse e joypad", "Carattere e mente delle creature, ogni partita diversa",
-                           "Livelli, nemici, boss, colori, regole e suoni del gioco arcade" };
+                           "Livelli, nemici, boss, colori, regole e suoni del gioco arcade",
+                           "Carica PNG, JPG, BMP, GIF: fotogrammi, velocita', azioni di personaggi e oggetti" };
     int col = r.width > 1300 * s ? 4 : 3;
     float gap = 14 * s, cw = (r.width - 80 * s - (col - 1) * gap) / col, ch = 92 * s;
     int carta = 0;
-    for (int i = 1; i < (int)Sezione::Totale; i++) {
+    for (int k = 1; k < (int)Sezione::Totale; k++) {
+        int i = ORDINE_SEZIONI[k];
         if (!SezioneVisibile(i)) continue;
         Rectangle c = { x + (carta % col) * (cw + gap), y + (carta / col) * (ch + gap), cw, ch };
         carta++;
@@ -1013,6 +1022,7 @@ std::string Officina::NomeSezione() const {
         case Sezione::Logica: return "logica";
         case Sezione::Librerie: return "librerie";
         case Sezione::Comandi: return "comandi";
+        case Sezione::Animazioni: return "animazioni (" + ElementoAperto() + ")";
         case Sezione::Arcade: return progetto.EArcade() ? "gioco arcade (" + progetto.arcade + ")" : std::string("giochi arcade (scelta)");
         case Sezione::Comportamenti: {
             const char* sch[] = { "carattere", "azioni", "reazioni", "chi lo usa", "indole degli oggetti", "partita unica" };
@@ -1026,6 +1036,11 @@ std::string Officina::ElementoAperto() const {
     switch (sezione) {
         case Sezione::Personaggi: return selPersonaggio < (int)progetto.personaggi.size() ? progetto.personaggi[selPersonaggio].nome : "";
         case Sezione::Oggetti: return selOggetto < (int)progetto.oggetti.size() ? progetto.oggetti[selOggetto].nome : "";
+        case Sezione::Animazioni: {
+            int np = (int)progetto.personaggi.size();
+            if (animElem < np) return progetto.personaggi[animElem].nome;
+            return animElem - np < (int)progetto.oggetti.size() ? progetto.oggetti[animElem - np].nome : "";
+        }
         case Sezione::Scenari: return selScenario < (int)progetto.scenari.size() ? progetto.scenari[selScenario].nome : "";
         case Sezione::Audio:
             if (schedaAudio == 0) return selBrano < (int)progetto.brani.size() ? progetto.brani[selBrano].nome : "";
@@ -1356,7 +1371,7 @@ void Officina::ImportaFile(const std::string& file) {
     }
     if (e == ".png" || e == ".jpg" || e == ".jpeg" || e == ".bmp" || e == ".gif" || e == ".tga" || e == ".qoi") {
         // Nelle sezioni di disegno diventa fotogrammi; altrove uno strato dello scenario o un nuovo personaggio.
-        if ((sezione == Sezione::Personaggi || sezione == Sezione::Oggetti || (sezione == Sezione::Scenari && schedaScenari == 1)) && !editorDisegno.Id().empty()) {
+        if ((sezione == Sezione::Personaggi || sezione == Sezione::Oggetti || sezione == Sezione::Animazioni || (sezione == Sezione::Scenari && schedaScenari == 1)) && !editorDisegno.Id().empty()) {
             editorDisegno.PreparaImport({ file });
             if (!editorDisegno.ImportAperto()) Avvisa("Non riesco ad aprire " + std::string(GetFileName(file.c_str())));
             return;
@@ -1439,4 +1454,33 @@ void Officina::ImportaFile(const std::string& file) {
         return;
     }
     Avvisa("Non so importare " + std::string(GetFileName(file.c_str())));
+}
+
+// Un file musicale diventa un brano del gioco. MP3, OGG, WAV, FLAC, XM e MOD si includono cosi' come sono;
+// un MIDI diventa un brano a note modificabile nel rullo.
+std::string Officina::ImportaBrano(const std::string& file) {
+    std::string e = Estensione(file);
+    Brano b;
+    if (e == ".mid" || e == ".midi") {
+        std::string errore;
+        if (!BranoDaMidi(LeggiTesto(file), b, errore)) { Avvisa("MIDI non importato: " + errore); return ""; }
+        b.autore = "MIDI";
+    } else if (e == ".wav" || e == ".ogg" || e == ".mp3" || e == ".qoa" || e == ".flac" || e == ".xm" || e == ".mod") {
+        b.file = GetFileName(file.c_str());
+        b.dati = LeggiTesto(file);
+        b.autore = "importato";
+        if (b.dati.empty()) { Avvisa("Non riesco a leggere " + b.file); return ""; }
+    } else { Avvisa("Non e' un file musicale: " + std::string(GetFileName(file.c_str()))); return ""; }
+    Ricorda();
+    b.nome = progetto.NomeLibero(GetFileNameWithoutExt(file.c_str()));
+    progetto.brani.push_back(b);
+    selBrano = (int)progetto.brani.size() - 1;
+    modificato = true;
+    Avvisa("Musica caricata: " + b.nome);
+    return b.nome;
+}
+
+void Officina::CaricaMusica() {
+    std::vector<std::string> est = { ".mp3", ".wav", ".ogg", ".mid", ".midi", ".flac", ".xm", ".mod", ".qoa" };
+    for (auto& f : ScegliFile("Scegli la musica (MP3, WAV, OGG, MIDI)", "Musica", est, true)) ImportaBrano(f);
 }

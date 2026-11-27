@@ -19,7 +19,9 @@
 #include <string>
 #include <vector>
 
-enum class Sezione { Home, Mondi, Personaggi, Oggetti, Scenari, Audio, Logica, Librerie, Comandi, Comportamenti, Arcade, Totale };
+enum class Sezione { Home, Mondi, Personaggi, Oggetti, Scenari, Audio, Logica, Librerie, Comandi, Comportamenti, Arcade, Animazioni, Totale };
+// L'ordine delle schede nella barra in alto (Animazioni sta accanto a Personaggi e Oggetti).
+const int ORDINE_SEZIONI[] = { 0, 1, 2, 3, 11, 4, 5, 6, 7, 8, 9, 10 };
 
 namespace arcade { class GiocoArcade; }
 
@@ -37,7 +39,7 @@ public:
     ProgettoGioco& Progetto() { return progetto; }
     // Alla chiusura della finestra: salva il lavoro non salvato (un file nuovo non sovrascrive altri giochi).
     // La musica suona nello studio solo se accesa (F7) o quando serve: prova del gioco, ascolto nella sezione Audio.
-    bool AscoltaMusica() const { return sezione == Sezione::Audio && suonaBrano; }
+    bool AscoltaMusica() const { return (sezione == Sezione::Audio || sezione == Sezione::Arcade) && suonaBrano; }
     std::string fileOpzioni;              // dove ricordare le opzioni audio dello studio
     void SalvaPrimaDiUscire() { if (modificato || editorMondo.Modificato()) Salva(percorso.empty()); }
 
@@ -179,6 +181,12 @@ private:
     void FrameProvaArcade(float dt);
     void ApriArcade(const std::string& nome, const std::string& titoloNuovo = "", bool vuoto = false);
     void SceltaArcade(Rectangle r);
+    // Sezione Animazioni (officina_animazioni.cpp): lo studio delle animazioni di personaggi e oggetti.
+    void Animazioni(Rectangle r, float dt);
+    int animElem = 0, animAnim = 0, animFot = 0, animTrascina = -1;
+    float tAnimStudio = 0, scorriAnimStudio = 0, scorriFotStudio = 0;
+    bool animPausa = false, animTrascinaAppoggio = false;
+    Vector2 animTrascinaDa{ 0, 0 }, animAppoggioDa{ 0, 0 };
     void GuidaArcade();
     bool GuidaArcadeAperta() const { return guidaArcade && !sceltaArcade && sezione == Sezione::Arcade && progetto.EArcade() && finestra == 0; }
 
@@ -197,6 +205,9 @@ private:
 
     // Importazioni
     void ImportaFile(const std::string& file);
+    std::string branoArcadeInAscolto;
+    std::string ImportaBrano(const std::string& file);   // musica da file: nome del brano nuovo, "" se non riesce
+    void CaricaMusica();                                  // finestra per scegliere MP3/WAV/OGG/MIDI
     bool ImportaElemento(const std::string& testo, std::string& messaggio);
     std::string ElementoJson() const;   // l'elemento aperto, da esportare
 };

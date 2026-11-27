@@ -87,6 +87,7 @@ src/
   main.cpp              avvio dello studio, intro Elvantis, flusso dei giochi creati (menu, 2 giocatori)
   officina.*            l'officina: menu di sistema, schede, chat con Claude, file .gioco
   officina_sezioni.cpp  sezioni Mondi, Personaggi, Oggetti, Scenari
+  officina_animazioni.cpp  sezione Animazioni (fotogrammi, timeline, punto d'appoggio, azioni)
   officina_audio.cpp    sezione Audio (musica, effetti, suoni degli eventi)
   officina_logica.cpp   sezioni Logica, Librerie, Comandi
   officina_comportamenti.cpp  sezione Comportamenti (profili, indole, partita unica, simulatore)

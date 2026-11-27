@@ -193,7 +193,8 @@ void Disegno::DisegnaBase(int anim, float t, Vector2 base, bool specchia, Color 
     const Fotogramma& fo = a.fotogrammi[f];
     float ww = fo.w / densita * scala, hh = fo.h / densita * scala;
     Rectangle src = { 0, 0, (float)fo.w * (specchia ? -1 : 1), (float)fo.h };
-    DrawTexturePro(tex, src, { base.x - ww / 2, base.y - hh, ww, hh }, { 0, 0 }, 0, tinta);
+    float dx = a.ox / densita * scala * (specchia ? -1 : 1), dy = a.oy / densita * scala;
+    DrawTexturePro(tex, src, { base.x - ww / 2 + dx, base.y - hh + dy, ww, hh }, { 0, 0 }, 0, tinta);
 }
 
 void Disegno::DisegnaIn(Rectangle r, int anim, float t, Color tinta) const {
@@ -360,6 +361,8 @@ json DisegnoJson(const Disegno& d) {
     json an = json::array();
     for (auto& a : d.animazioni) {
         json ja = { { "nome", a.nome }, { "fps", R(a.fps) }, { "ripeti", a.ripeti } };
+        if (a.ox) ja["ox"] = a.ox;
+        if (a.oy) ja["oy"] = a.oy;
         json fs = json::array();
         for (auto& f : a.fotogrammi) fs.push_back(FotogrammaInBase64(f));
         ja["fotogrammi"] = fs;
@@ -378,7 +381,7 @@ bool DisegnoDaJson(const json& j, Disegno& d, std::string& errore) {
     std::map<char, Color> palette;
     if (j.contains("palette")) palette = LeggiPalette(j["palette"]);
     auto LeggiAnimazione = [&](const json& ja, Animazione& a) -> bool {
-        Leggi(ja, "nome", a.nome); Leggi(ja, "fps", a.fps); Leggi(ja, "ripeti", a.ripeti);
+        Leggi(ja, "nome", a.nome); Leggi(ja, "fps", a.fps); Leggi(ja, "ripeti", a.ripeti); Leggi(ja, "ox", a.ox); Leggi(ja, "oy", a.oy);
         a.fps = a.fps <= 0 ? 0 : Limita(a.fps, 0.5f, 60);   // 0: varianti fisse (caselle)
         std::map<char, Color> pal = palette;
         if (ja.contains("palette")) for (auto& p : LeggiPalette(ja["palette"])) pal[p.first] = p.second;

@@ -78,7 +78,26 @@ int Officina::Elenco(Rectangle r, const std::string& titolo, std::vector<std::st
         Rectangle ic = { b.x + 4 * s, b.y + 4 * s, h - 8 * s, h - 8 * s };
         DrawRectangleRec(ic, Hex(0x2a2e50));
         if (icona) icona(i, ic);
-        Ui::TestoACapo(nomi[i], ic.x + ic.width + 8 * s, b.y + 8 * s, b.width - ic.width - 20 * s, sel ? WHITE : Ui::TestoChiaro(), Ui::TP());
+        {   // ogni riga su una sola linea, accorciata con "..." se non ci sta: niente testo sovrapposto
+            float lw = b.width - ic.width - 20 * s, ty = b.y + 8 * s;
+            std::string resto = nomi[i];
+            while (true) {
+                size_t a = resto.find('\n');
+                std::string riga = resto.substr(0, a);
+                if (Ui::Larghezza(riga, Ui::TP()) > lw) {
+                    while (!riga.empty() && Ui::Larghezza(riga + "...", Ui::TP()) > lw) {
+                        riga.pop_back();
+                        while (!riga.empty() && ((unsigned char)riga.back() & 0xC0) == 0x80) riga.pop_back();
+                        if (!riga.empty() && ((unsigned char)riga.back() & 0xC0) == 0xC0) riga.pop_back();
+                    }
+                    riga += "...";
+                }
+                Ui::Testo(riga, ic.x + ic.width + 8 * s, ty, sel ? WHITE : Ui::TestoChiaro(), Ui::TP());
+                ty += Ui::TP() * 1.25f;
+                if (a == std::string::npos || ty > b.y + b.height - Ui::TP()) break;
+                resto = resto.substr(a + 1);
+            }
+        }
         if (sopra && IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !sel) { scelto = i; scorriProprieta = 0; gAudio.Suona(Effetto::Menu, 0.3f); }
     }
     Ui::FineRitaglio();
