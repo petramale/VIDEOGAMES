@@ -90,6 +90,7 @@ bool Gioco::EntraMappa(int indice, Vector2 arrivo, std::string& errore) {
     if (indice < 0 || indice >= (int)mondo.mappe.size()) { errore = "mappa inesistente"; return false; }
     const Mappa& m = mondo.mappe[indice];
     if (!livello.DaMappa(m, errore)) return false;
+    if (conLibreria && !ripristinando) RicordaMappa();   // progressi di scena della mappa che si lascia
     mappaAttuale = indice;
     mappaVerso = -1; mappaDopoVittoria = -1; tTransizione = 0;
     vistaAlto = m.vista == Vista::Alto || modello == Modello::Labirinto || modello == Modello::Puzzle;
@@ -105,7 +106,7 @@ bool Gioco::EntraMappa(int indice, Vector2 arrivo, std::string& errore) {
     testi = m.testi;
     oggetti = livello.Oggetti();
     entita.clear(); appoggio = -1; dialogo = -1; pioggia = 0; buio = 0; acqua = false; energiaNotificata.clear();
-    if (conLibreria) EntitaDellaMappa(m);
+    if (conLibreria) { EntitaDellaMappa(m); DestinoMappa(indice); ApplicaStatoMappa(indice); }
     particelle.Svuota();
     proiettili.clear();
     storiaPuzzle.clear(); storiaEroe.clear();
@@ -140,6 +141,7 @@ bool Gioco::EntraMappa(int indice, Vector2 arrivo, std::string& errore) {
     }
     AggiornaTelecamera(1, true);
     if (conLibreria) Evento("inizio", "gioco", m.nome, -1);
+    autosalvataggi++;
     return true;
 }
 
@@ -185,6 +187,7 @@ void Gioco::MuoviConCollisioni(Vector2& pos, Vector2& vel, float w, float hgt, f
 void Gioco::Ferisci(float spintaX) {
     if (eroe.lampeggio > 0 || vinto || finito) return;
     energia--;
+    pieta = std::min(0.5f, pieta + 0.06f);   // l'eroe soffre: le creature allentano un po' (difficolta' dinamica)
     gAudio.Suona(Effetto::Colpo);
     if (conLibreria) Evento("ferito", "eroe", "", -1);
     scossa = 0.35f;
@@ -194,6 +197,7 @@ void Gioco::Ferisci(float spintaX) {
     if (energia <= 0) {
         // Finita l'energia si perde una vita e si riparte dall'ultimo punto di controllo.
         vite--;
+        pieta = std::min(0.5f, pieta + 0.2f);
         if (vite <= 0) { finito = true; tFine = 0; gAudio.Suona(Effetto::Esplosione); return; }
         energia = energiaMax;
         particelle.Esplosione({ eroe.pos.x, eroe.pos.y - 10 }, Hex(0xff4060));
@@ -879,6 +883,7 @@ void Gioco::Disegna() {
     camX = cx; camY = cy;
     for (const auto& o : oggetti) if (o.attivo) DisegnaOggettoConInfo(o);
     if (conLibreria) DisegnaEntita(cx, cy, false);
+    if (conLibreria) DisegnaPensieri(cx, cy);
 
     Vector2 p = { std::round(eroe.pos.x - cx), std::round(eroe.pos.y - cy) };
     if (eroeDef >= 0) DisegnaEroeLibreria(p);
@@ -925,6 +930,7 @@ void Gioco::Disegna() {
     if (pioggia) DisegnaPioggia();
     if (mostraHud) DisegnaHud();
     if (conLibreria) DisegnaExtraHud();
+    if (conLibreria) DisegnaPensieri(0, 0, true);
     // Dissolvenza nel passaggio da una mappa all'altra.
     float buio = mappaVerso >= 0 ? Limita(tTransizione / 0.35f, 0, 1) : Limita(-tTransizione / 0.35f, 0, 1);
     if (buio > 0) DrawRectangle(0, 0, VW, VH, ConAlfa(BLACK, buio));

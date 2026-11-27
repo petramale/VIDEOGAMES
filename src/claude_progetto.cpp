@@ -124,10 +124,14 @@ std::string PromptProgetto() {
     std::string eventi, azioni;
     for (size_t i = 0; i < TipiEvento().size(); i++) eventi += (i ? ", " : "") + TipiEvento()[i] + " (" + NomiEvento()[i] + ")";
     for (size_t i = 0; i < TipiAzione().size(); i++) azioni += (i ? ", " : "") + TipiAzione()[i] + " (" + NomiAzione()[i] + ")";
+    std::string modelli, pesi, eventiPartita;
+    for (size_t i = 0; i < ModelliProfilo().size(); i++) modelli += (i ? ", " : "") + ModelliProfilo()[i].nome + " (" + ModelliProfilo()[i].descrizione + ")";
+    for (int i = 0; i < NUM_AZIONI_MENTE; i++) pesi += std::string(i ? "," : "") + "\"" + ChiaveAzioneMente((AzioneMente)i) + "\":1";
+    for (size_t i = 0; i < EventiPartita().size(); i++) eventiPartita += std::string(i ? ", " : "") + EventiPartita()[i].chiave + " (" + EventiPartita()[i].descrizione + ")";
     return PromptMondo() +
         "\n\nIL GIOCO COMPLETO E LA SUA LIBRERIA\n"
         "Oltre al mondo ricevi la LIBRERIA del gioco (personaggi, oggetti, scenari, caselle, brani, effetti), le REGOLE della logica, le variabili "
-        "e la SEZIONE dello studio in cui si trova l'utente (mondi, personaggi, oggetti, scenari, audio, logica, librerie, comandi) con l'elemento aperto: "
+        "e la SEZIONE dello studio in cui si trova l'utente (mondi, personaggi, oggetti, scenari, audio, logica, librerie, comandi, comportamenti) con l'elemento aperto: "
         "rispondi pensando a quella sezione. Nelle mappe gli oggetti possono avere come tipo il NOME di un personaggio o di un oggetto della libreria "
         "(es. {\"tipo\":\"Fiammaros\",\"cx\":30,\"cy\":10}): e' cosi' che si mettono nel mondo i personaggi creati. L'eroe del gioco e' il personaggio indicato in \"eroe\".\n\n"
         "AZIONI SULLA LIBRERIA (crea se il nome non c'e', altrimenti modifica solo i campi mandati)\n"
@@ -161,6 +165,21 @@ std::string PromptProgetto() {
         "- {\"tipo\":\"usa\",\"mappa\":N,\"scenario\":\"nome\",\"brano\":\"nome\"}: scenario e musica della libreria per la mappa N.\n"
         "- {\"tipo\":\"elimina\",\"categoria\":\"personaggi|oggetti|scenari|caselle|brani|effetti\",\"nome\":\"...\"}\n"
         "- {\"tipo\":\"raccolta\",\"nome\":\"...\"}: aggiunge alla libreria una raccolta pronta fra: " + raccolte + ".\n\n"
+        "COMPORTAMENTI (la mente delle creature, sezione Comportamenti)\n"
+        "Ogni personaggio non giocante ha una mente: emozioni (minaccia, paura, fiducia verso l'eroe), una memoria degli ultimi fatti e un carattere. "
+        "Dieci volte al secondo da' un punteggio a ogni azione e sceglie la migliore; la specie impara come la sconfigge il giocatore (con limiti fissi). "
+        "Un PROFILO decide il carattere; senza profilo il personaggio usa quello istintivo del suo tipo. Modelli pronti: " + modelli + ".\n"
+        "- {\"tipo\":\"profilo\",\"profilo\":{\"nome\":\"Lupo di branco\",\"descrizione\":\"...\",\"carattere\":{\"coraggio\":0.6,\"aggressivita\":0.6,\"prudenza\":0.4,"
+        "\"socievolezza\":0.9,\"rancore\":0.5,\"curiosita\":0.5,\"imprevedibilita\":0.3},\"azioni\":{" + pesi + "},\"apprendimento\":0.4,\"variabilita\":0.3,"
+        "\"fuga\":0.3,\"durataMinima\":0.6,\"chiamaAiuto\":true,\"imparaSpecie\":true,\"ricordaPartite\":false,"
+        "\"frasi\":{\"amico\":\"...\",\"neutra\":\"...\",\"ostile\":\"...\",\"paura\":\"...\"}},\"modello\":\"facoltativo: nome del modello da cui partire\"}: "
+        "crea o modifica un profilo (solo i campi mandati). Tratti da 0 a 1; pesi delle azioni da 0 (mai) a 3 (preferita), 1 = normale. Le frasi valgono per chi parla.\n"
+        "- {\"tipo\":\"assegnaProfilo\",\"personaggio\":\"nome\",\"profilo\":\"nome del profilo o del modello (\\\"\\\" = istintivo)\"}\n"
+        "- {\"tipo\":\"indole\",\"oggetto\":\"nome\",\"indole\":{\"attiva\":true,\"usura\":0.25,\"ricarica\":20,\"adattamento\":0.5,\"notturno\":false,\"risveglio\":1.5}}: "
+        "l'oggetto cambia durante la partita (usura per uso, secondi per tornare come nuovo, -1..1 si indebolisce/rinforza, pericolo attivo solo al buio, secondi prima che un pericolo si svegli).\n"
+        "- {\"tipo\":\"varieta\",\"varieta\":{\"mente\":true,\"livello\":2,\"carattere\":true,\"veterani\":true,\"ricolloca\":true,\"meteo\":true,\"eventi\":true,"
+        "\"relazioni\":true,\"semeFisso\":0,\"eventiVietati\":[\"calma\"],\"variabiliCasuali\":[{\"nome\":\"tesoro\",\"minimo\":1,\"massimo\":5,\"intero\":true}]}}: "
+        "come cambia ogni partita (livello 0-3, seme 0 = nuovo ogni volta). Eventi: " + eventiPartita + ".\n\n"
         "I DISEGNI (pixel art)\n"
         "\"disegno\":{\"palette\":{\"a\":\"#2a1a0a\",\"b\":\"#d8344a\",...},\"animazioni\":[{\"nome\":\"fermo\",\"fps\":6,\"fotogrammi\":[[\"riga\",\"riga\",...],...]}]}. "
         "Ogni fotogramma e' un elenco di righe tutte lunghe uguali; '.' e' trasparente, ogni altro carattere e' un colore della palette. "
@@ -216,6 +235,10 @@ std::string StatoProgettoPerClaude(const ProgettoGioco& p, int mappaAperta, cons
     j["regole"] = re;
     j["variabili"] = p.variabili;
     j["suoniEventi"] = p.suoniEventi;
+    json prof = json::array();
+    for (auto& x : p.profili) prof.push_back(ProfiloJson(x));
+    j["profili"] = prof;
+    j["varieta"] = VarietaJson(p.varieta);
     return "Libreria, regole e sezione aperta:\n" + j.dump() + "\n\n" + StatoMondoPerClaude(p.mondo, mappaAperta);
 }
 
@@ -366,6 +389,47 @@ EsitoProgetto ApplicaRispostaProgetto(ProgettoGioco& p, int mappaAperta, const s
                 else if (cat == "effetti") Togli(copia.effetti);
                 if (prima == dopo) { e.scartate.push_back("elimina: non trovo " + nome); continue; }
                 e.fatte.push_back(nome + " eliminato");
+            } else if (tipo == "profilo" && a.contains("profilo") && a["profilo"].is_object()) {
+                std::string nome = Testo(a["profilo"], "nome");
+                ProfiloComportamento* c = Trova(copia.profili, nome);
+                json base = c ? ProfiloJson(*c) : json::object();
+                std::string mod = Testo(a, "modello");
+                if (!c) for (auto& m : ModelliProfilo()) if (Uguale(m.nome, mod.empty() ? nome : mod)) base = ProfiloJson(m);
+                base.erase("autore");
+                base.merge_patch(a["profilo"]);
+                ProfiloComportamento n;
+                if (!ProfiloDaJson(base, n, errore)) { e.scartate.push_back("profilo " + nome + ": " + errore); continue; }
+                n.autore = c ? c->autore : "Claude";
+                if (c) { *c = n; e.fatte.push_back("profilo " + n.nome + " modificato"); }
+                else { copia.profili.push_back(n); e.fatte.push_back("nuovo profilo di comportamento " + n.nome); }
+                e.sezione = "comportamenti"; e.nome = n.nome;
+            } else if (tipo == "assegnaProfilo") {
+                std::string pn = Testo(a, "personaggio"), pr = Testo(a, "profilo");
+                PersonaggioDef* c = Trova(copia.personaggi, pn);
+                if (!c) { e.scartate.push_back("assegnaProfilo: non c'e' il personaggio " + pn); continue; }
+                std::string vero;
+                if (const ProfiloComportamento* x = Trova(copia.profili, pr)) vero = x->nome;
+                else for (auto& m : ModelliProfilo()) if (Uguale(m.nome, pr)) vero = m.nome;
+                if (!pr.empty() && vero.empty()) { e.scartate.push_back("assegnaProfilo: non c'e' il profilo " + pr); continue; }
+                c->profilo = vero;
+                e.fatte.push_back(c->nome + (vero.empty() ? " torna istintivo" : " ora ha il carattere " + vero));
+                if (e.sezione.empty()) e.sezione = "comportamenti";
+            } else if (tipo == "indole" && a.contains("indole")) {
+                std::string on = Testo(a, "oggetto");
+                OggettoDef* c = Trova(copia.oggetti, on);
+                if (!c) { e.scartate.push_back("indole: non c'e' l'oggetto " + on); continue; }
+                json base = IndoleJson(c->indole);
+                base["attiva"] = true;
+                base.merge_patch(a["indole"]);
+                IndoleDaJson(base, c->indole);
+                e.fatte.push_back("indole di " + c->nome);
+                if (e.sezione.empty()) e.sezione = "comportamenti";
+            } else if (tipo == "varieta" && a.contains("varieta")) {
+                json base = VarietaJson(copia.varieta);
+                base.merge_patch(a["varieta"]);
+                VarietaDaJson(base, copia.varieta);
+                e.fatte.push_back("varieta' della partita");
+                if (e.sezione.empty()) e.sezione = "comportamenti";
             } else if (tipo == "raccolta") {
                 std::string nome = Testo(a, "nome");
                 int i = -1;

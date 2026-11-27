@@ -5,6 +5,7 @@
 #pragma once
 #include "comune.h"
 #include "mondo.h"
+#include "mente.h"
 #include <map>
 
 enum class StileGrafico { PixelFine, Disegnato };
@@ -87,6 +88,7 @@ struct PersonaggioDef {
     Disegno disegno;
     Comportamento comportamento;
     std::map<std::string, std::string> suoni;   // evento -> effetto ("salto", "colpito", "attacco", "sconfitto")
+    std::string profilo;      // profilo della sezione Comportamenti (vuoto = "Istintivo" ricavato dal tipo)
 };
 
 enum class FunzioneOggetto { Decorazione, Raccogli, Cura, Chiave, Porta, Molla, Cassa, Interruttore, PiattaformaMobile,
@@ -107,6 +109,7 @@ struct OggettoDef {
     float distanza = 64;          // piattaforme mobili: quanto si spostano
     std::string suono;            // effetto quando si attiva
     std::string variabile;        // raccogli: variabile da aumentare (oltre ai punti)
+    IndoleOggetto indole;         // usura, ricarica, adattamento... (sezione Comportamenti)
 };
 
 // --- Scenari e caselle ----------------------------------------------------------------
@@ -206,6 +209,8 @@ struct ProgettoGioco {
     std::map<std::string, float> variabili;   // valori iniziali
     std::map<std::string, std::string> suoniEventi;   // evento del gioco -> effetto ("salto", "moneta"...)
     std::vector<std::pair<std::string, std::string>> immagini;   // immagini importate (nome, dati PNG/JPG)
+    std::vector<ProfiloComportamento> profili;  // sezione Comportamenti
+    VarietaPartita varieta;                     // ogni partita e' diversa
 
     std::string Json(bool compatto = false) const;
     bool DaJson(const std::string& testo, std::string& errore);
@@ -224,7 +229,16 @@ struct ProgettoGioco {
     const Brano* TrovaBrano(const std::string& nome) const;
     const EffettoSuono* TrovaEffetto(const std::string& nome) const;
     std::string NomeLibero(const std::string& base) const;   // "Drago", "Drago 2"...
+    const ProfiloComportamento* Profilo(const std::string& nome) const;
+    ProfiloComportamento* Profilo(const std::string& nome);
+    // Il profilo usato da un personaggio: il suo, oppure quello istintivo ricavato dal tipo.
+    ProfiloComportamento ProfiloDi(const PersonaggioDef& p) const;
 };
+
+ProfiloComportamento ProfiloIstintivo(TipoComportamento t);
+// JSON dei profili e della varieta' (anche per Claude e per esportare).
+std::string ProfiloInJson(const ProfiloComportamento& p);
+bool ProfiloDaTesto(const std::string& testo, ProfiloComportamento& p, std::string& errore);
 
 // Immagine <-> PNG in base64 (per il JSON).
 std::string FotogrammaInBase64(const Fotogramma& f);

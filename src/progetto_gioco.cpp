@@ -2,6 +2,7 @@
 #include "raccolte.h"
 #include "sfondo.h"
 #include "json.hpp"
+#include "progetto_json.h"
 #include <algorithm>
 #include <cctype>
 
@@ -77,19 +78,21 @@ const char* ChiaveFunzione(FunzioneOggetto f) {
 
 const std::vector<std::string>& TipiEvento() {
     static const std::vector<std::string> v = { "inizio", "tocca", "raccoglie", "colpisce", "sconfitto", "energia", "vicino",
-                                                "ferito", "salta", "tasto", "clic", "joypad", "ogni", "variabile" };
+                                                "ferito", "salta", "tasto", "clic", "joypad", "ogni", "variabile",
+                                                "diventa_amico", "chiama_aiuto", "fugge" };
     return v;
 }
 const std::vector<std::string>& NomiEvento() {
     static const std::vector<std::string> v = { "inizia la mappa", "tocca", "raccoglie", "colpisce", "viene sconfitto",
                                                 "ha energia sotto", "si avvicina a", "viene ferito", "salta", "tasto premuto",
-                                                "clic del mouse", "pulsante del joypad", "ogni tot secondi", "variabile cambia" };
+                                                "clic del mouse", "pulsante del joypad", "ogni tot secondi", "variabile cambia",
+                                                "diventa amico dell'eroe", "chiama aiuto", "scappa" };
     return v;
 }
 const std::vector<std::string>& TipiAzione() {
     static const std::vector<std::string> v = { "suona", "musica", "ferma_musica", "messaggio", "aumenta", "imposta", "punti", "cuori",
                                                 "energia", "vai_mappa", "crea", "togli", "anima", "velocita", "salta", "spara",
-                                                "colore", "apri", "scuoti", "spingi", "vittoria", "game_over" };
+                                                "colore", "apri", "scuoti", "spingi", "vittoria", "game_over", "fiducia", "minaccia" };
     return v;
 }
 const std::vector<std::string>& NomiAzione() {
@@ -97,7 +100,8 @@ const std::vector<std::string>& NomiAzione() {
                                                 "aumenta la variabile", "imposta la variabile", "dai punti", "cuori all'eroe (+/-)",
                                                 "energia (+/-)", "vai alla mappa", "crea", "togli di mezzo", "cambia animazione",
                                                 "velocita' x", "fai saltare", "spara", "colora", "apri le porte", "scuoti lo schermo",
-                                                "spingi indietro l'eroe", "vittoria", "game over" };
+                                                "spingi indietro l'eroe", "vittoria", "game over",
+                                                "fiducia verso l'eroe (+/-)", "spavento (+/-)" };
     return v;
 }
 
@@ -420,6 +424,7 @@ json PersonaggioJson(const PersonaggioDef& p) {
     json j = { { "nome", p.nome }, { "comportamento", jc }, { "disegno", DisegnoJson(p.disegno) } };
     if (!p.autore.empty()) j["autore"] = p.autore;
     if (!p.suoni.empty()) j["suoni"] = p.suoni;
+    if (!p.profilo.empty()) j["profilo"] = p.profilo;
     return j;
 }
 
@@ -440,6 +445,7 @@ bool PersonaggioDaJson(const json& j, PersonaggioDef& p, std::string& errore) {
     }
     if (j.contains("suoni") && j["suoni"].is_object())
         for (auto it = j["suoni"].begin(); it != j["suoni"].end(); ++it) if (it.value().is_string()) p.suoni[it.key()] = it.value().get<std::string>();
+    Leggi(j, "profilo", p.profilo);
     if (j.contains("disegno")) return DisegnoDaJson(j["disegno"], p.disegno, errore);
     errore = "il personaggio \"" + p.nome + "\" non ha il disegno";
     return false;
@@ -452,6 +458,7 @@ json OggettoJson(const OggettoDef& o) {
     if (!o.richiede.empty()) j["richiede"] = o.richiede;
     if (!o.suono.empty()) j["suono"] = o.suono;
     if (!o.variabile.empty()) j["variabile"] = o.variabile;
+    if (o.indole.attiva) j["indole"] = IndoleJson(o.indole);
     return j;
 }
 
@@ -464,6 +471,7 @@ bool OggettoDaJson(const json& j, OggettoDef& o, std::string& errore) {
     for (int i = 0; i < (int)FunzioneOggetto::Totale; i++) if (f == ChiaveFunzione((FunzioneOggetto)i)) o.funzione = (FunzioneOggetto)i;
     Leggi(j, "valore", o.valore); Leggi(j, "richiede", o.richiede); Leggi(j, "solido", o.solido); Leggi(j, "gravita", o.gravita);
     Leggi(j, "velocita", o.velocita); Leggi(j, "distanza", o.distanza); Leggi(j, "suono", o.suono); Leggi(j, "variabile", o.variabile);
+    if (j.contains("indole")) IndoleDaJson(j["indole"], o.indole);
     if (j.contains("disegno")) return DisegnoDaJson(j["disegno"], o.disegno, errore);
     errore = "l'oggetto \"" + o.nome + "\" non ha il disegno";
     return false;
@@ -633,6 +641,155 @@ bool RegolaDaJson(const json& j, Regola& r, std::string& errore) {
     return true;
 }
 
+// --- Comportamenti: profili, indole degli oggetti, varieta' della partita ------------------------------
+
+json ProfiloJson(const ProfiloComportamento& p) {
+    const Carattere& c = p.car;
+    json car = { { "coraggio", R(c.coraggio) }, { "aggressivita", R(c.aggressivita) }, { "prudenza", R(c.prudenza) },
+                 { "socievolezza", R(c.socievolezza) }, { "rancore", R(c.rancore) }, { "curiosita", R(c.curiosita) },
+                 { "imprevedibilita", R(c.imprevedibilita) } };
+    json pesi = json::object();
+    for (int i = 0; i < NUM_AZIONI_MENTE; i++) pesi[ChiaveAzioneMente((AzioneMente)i)] = R(p.peso[i]);
+    json j = { { "nome", p.nome }, { "carattere", car }, { "azioni", pesi }, { "apprendimento", R(p.apprendimento) },
+               { "variabilita", R(p.variabilita) }, { "fuga", R(p.fuga) }, { "durataMinima", R(p.durataMinima) },
+               { "chiamaAiuto", p.chiamaAiuto }, { "imparaSpecie", p.imparaSpecie }, { "ricordaPartite", p.ricordaPartite } };
+    if (!p.autore.empty()) j["autore"] = p.autore;
+    if (!p.descrizione.empty()) j["descrizione"] = p.descrizione;
+    json fr = json::object();
+    if (!p.fraseAmico.empty()) fr["amico"] = p.fraseAmico;
+    if (!p.fraseNeutra.empty()) fr["neutra"] = p.fraseNeutra;
+    if (!p.fraseOstile.empty()) fr["ostile"] = p.fraseOstile;
+    if (!p.frasePaura.empty()) fr["paura"] = p.frasePaura;
+    if (!fr.empty()) j["frasi"] = fr;
+    return j;
+}
+
+bool ProfiloDaJson(const json& j, ProfiloComportamento& p, std::string& errore) {
+    if (!j.is_object()) { errore = "profilo non valido"; return false; }
+    Leggi(j, "nome", p.nome); Leggi(j, "autore", p.autore); Leggi(j, "descrizione", p.descrizione);
+    if (p.nome.empty()) { errore = "il profilo non ha un nome"; return false; }
+    if (j.contains("carattere")) {
+        const json& c = j["carattere"];
+        Leggi(c, "coraggio", p.car.coraggio); Leggi(c, "aggressivita", p.car.aggressivita); Leggi(c, "prudenza", p.car.prudenza);
+        Leggi(c, "socievolezza", p.car.socievolezza); Leggi(c, "rancore", p.car.rancore); Leggi(c, "curiosita", p.car.curiosita);
+        Leggi(c, "imprevedibilita", p.car.imprevedibilita);
+    }
+    if (j.contains("azioni") && j["azioni"].is_object())
+        for (int i = 0; i < NUM_AZIONI_MENTE; i++) Leggi(j["azioni"], ChiaveAzioneMente((AzioneMente)i), p.peso[i]);
+    Leggi(j, "apprendimento", p.apprendimento); Leggi(j, "variabilita", p.variabilita); Leggi(j, "fuga", p.fuga);
+    Leggi(j, "durataMinima", p.durataMinima); Leggi(j, "chiamaAiuto", p.chiamaAiuto); Leggi(j, "imparaSpecie", p.imparaSpecie);
+    Leggi(j, "ricordaPartite", p.ricordaPartite);
+    if (j.contains("frasi")) {
+        const json& f = j["frasi"];
+        Leggi(f, "amico", p.fraseAmico); Leggi(f, "neutra", p.fraseNeutra); Leggi(f, "ostile", p.fraseOstile); Leggi(f, "paura", p.frasePaura);
+    }
+    // Tutto dentro i limiti: un file scritto a mano non puo' rompere il gioco.
+    float* v[] = { &p.car.coraggio, &p.car.aggressivita, &p.car.prudenza, &p.car.socievolezza, &p.car.rancore, &p.car.curiosita,
+                   &p.car.imprevedibilita, &p.apprendimento, &p.variabilita, &p.fuga };
+    for (float* x : v) *x = std::isfinite(*x) ? Limita(*x, 0, 1) : 0.5f;
+    for (float& x : p.peso) x = std::isfinite(x) ? Limita(x, 0, 3) : 1;
+    p.durataMinima = std::isfinite(p.durataMinima) ? Limita(p.durataMinima, 0.2f, 5) : 0.6f;
+    return true;
+}
+
+std::string ProfiloInJson(const ProfiloComportamento& p) { return ProfiloJson(p).dump(1); }
+
+bool ProfiloDaTesto(const std::string& testo, ProfiloComportamento& p, std::string& errore) {
+    json j = json::parse(testo, nullptr, false);
+    if (j.is_discarded()) { errore = "JSON non valido"; return false; }
+    if (j.contains("profilo")) j = j["profilo"];
+    return ProfiloDaJson(j, p, errore);
+}
+
+json IndoleJson(const IndoleOggetto& i) {
+    return { { "attiva", i.attiva }, { "usura", R(i.usura) }, { "ricarica", R(i.ricarica) }, { "adattamento", R(i.adattamento) },
+             { "notturno", i.notturno }, { "risveglio", R(i.risveglio) } };
+}
+
+void IndoleDaJson(const json& j, IndoleOggetto& i) {
+    if (!j.is_object()) return;
+    i.attiva = true;
+    Leggi(j, "attiva", i.attiva); Leggi(j, "usura", i.usura); Leggi(j, "ricarica", i.ricarica); Leggi(j, "adattamento", i.adattamento);
+    Leggi(j, "notturno", i.notturno); Leggi(j, "risveglio", i.risveglio);
+    i.usura = std::isfinite(i.usura) ? Limita(i.usura, 0, 1) : 0;
+    i.ricarica = std::isfinite(i.ricarica) ? Limita(i.ricarica, 0, 600) : 0;
+    i.adattamento = std::isfinite(i.adattamento) ? Limita(i.adattamento, -1, 1) : 0;
+    i.risveglio = std::isfinite(i.risveglio) ? Limita(i.risveglio, 0, 30) : 0;
+}
+
+json VarietaJson(const VarietaPartita& v) {
+    json j = { { "mente", v.mente }, { "livello", v.livello }, { "carattere", v.carattere }, { "veterani", v.veterani },
+               { "ricolloca", v.ricolloca }, { "meteo", v.meteo }, { "eventi", v.eventi }, { "relazioni", v.relazioni },
+               { "semeFisso", v.semeFisso } };
+    if (!v.eventiVietati.empty()) j["eventiVietati"] = v.eventiVietati;
+    if (!v.variabiliCasuali.empty()) {
+        json a = json::array();
+        for (auto& x : v.variabiliCasuali) a.push_back({ { "nome", x.nome }, { "minimo", R(x.minimo) }, { "massimo", R(x.massimo) }, { "intero", x.intero } });
+        j["variabiliCasuali"] = a;
+    }
+    return j;
+}
+
+void VarietaDaJson(const json& j, VarietaPartita& v) {
+    if (!j.is_object()) return;
+    Leggi(j, "mente", v.mente); Leggi(j, "livello", v.livello); Leggi(j, "carattere", v.carattere); Leggi(j, "veterani", v.veterani);
+    Leggi(j, "ricolloca", v.ricolloca); Leggi(j, "meteo", v.meteo); Leggi(j, "eventi", v.eventi); Leggi(j, "relazioni", v.relazioni);
+    double seme = 0;
+    Leggi(j, "semeFisso", seme);
+    v.semeFisso = (seme >= 0 && seme < 4294967296.0) ? (uint32_t)seme : 0;
+    v.livello = (int)Limita((float)v.livello, 0, 3);
+    if (j.contains("eventiVietati") && j["eventiVietati"].is_array()) {
+        v.eventiVietati.clear();
+        for (auto& e : j["eventiVietati"]) if (e.is_string()) v.eventiVietati.push_back(e.get<std::string>());
+    }
+    if (j.contains("variabiliCasuali") && j["variabiliCasuali"].is_array()) {
+        v.variabiliCasuali.clear();
+        for (auto& e : j["variabiliCasuali"]) {
+            VariabileCasuale x;
+            Leggi(e, "nome", x.nome); Leggi(e, "minimo", x.minimo); Leggi(e, "massimo", x.massimo); Leggi(e, "intero", x.intero);
+            if (x.nome.empty() || !std::isfinite(x.minimo) || !std::isfinite(x.massimo)) continue;
+            if (x.massimo < x.minimo) std::swap(x.minimo, x.massimo);
+            v.variabiliCasuali.push_back(x);
+        }
+    }
+}
+
+ProfiloComportamento ProfiloIstintivo(TipoComportamento t) {
+    // Il comportamento "classico" diventa un carattere: i giochi gia' fatti restano simili, ma vivi.
+    ProfiloComportamento p = ModelliProfilo()[0];
+    p.nome = "";
+    using A = AzioneMente;
+    switch (t) {
+        case TipoComportamento::Fermo: p.car.aggressivita = 0.2f; p.peso[(int)A::Insegui] = 0.2f; p.peso[(int)A::Pattuglia] = 0; p.peso[(int)A::Guardia] = 2; p.peso[(int)A::Cerca] = 0.2f; break;
+        case TipoComportamento::Pattuglia: p.car.aggressivita = 0.35f; p.peso[(int)A::Pattuglia] = 1.4f; break;
+        case TipoComportamento::Insegue: p.car.aggressivita = 0.75f; p.car.coraggio = 0.65f; p.peso[(int)A::Insegui] = 1.4f; break;
+        case TipoComportamento::Vola: p.car.aggressivita = 0.4f; p.peso[(int)A::Pattuglia] = 1.3f; break;
+        case TipoComportamento::Spara: p.car.prudenza = 0.6f; p.peso[(int)A::Attacca] = 1.6f; p.peso[(int)A::Insegui] = 0.3f; break;
+        case TipoComportamento::Boss: p.car.coraggio = 0.95f; p.car.aggressivita = 0.75f; p.apprendimento = 0.6f;
+            p.peso[(int)A::Fuggi] = 0.1f; p.peso[(int)A::Amico] = 0; p.peso[(int)A::Riposa] = 0.4f; break;
+        case TipoComportamento::Parla: p = ModelliProfilo()[5]; p.nome = ""; break;
+        default: break;
+    }
+    return p;
+}
+
+const ProfiloComportamento* ProgettoGioco::Profilo(const std::string& nome) const {
+    for (auto& p : profili) if (p.nome == nome) return &p;
+    return nullptr;
+}
+ProfiloComportamento* ProgettoGioco::Profilo(const std::string& nome) {
+    for (auto& p : profili) if (p.nome == nome) return &p;
+    return nullptr;
+}
+
+ProfiloComportamento ProgettoGioco::ProfiloDi(const PersonaggioDef& p) const {
+    if (!p.profilo.empty()) {
+        if (const ProfiloComportamento* x = Profilo(p.profilo)) return *x;
+        for (auto& m : ModelliProfilo()) if (m.nome == p.profilo) return m;
+    }
+    return ProfiloIstintivo(p.comportamento.tipo);
+}
+
 std::string ProgettoGioco::Json(bool compatto) const {
     json j;
     j["formato"] = "studio-videogiochi/gioco-1";
@@ -662,6 +819,10 @@ std::string ProgettoGioco::Json(bool compatto) const {
     a = json::array();
     for (auto& im : immagini) a.push_back({ { "nome", im.first }, { "dati", Base64(im.second) } });
     j["immagini"] = a;
+    if (!profili.empty()) {
+        a = json::array(); for (auto& p : profili) a.push_back(ProfiloJson(p)); j["comportamenti"] = a;
+    }
+    j["varieta"] = VarietaJson(varieta);
     return compatto ? j.dump() : j.dump(1);
 }
 
@@ -701,6 +862,9 @@ bool ProgettoGioco::DaJson(const std::string& testo, std::string& errore) {
             Leggi(x, "nome", n); Leggi(x, "dati", d);
             if (!n.empty()) p.immagini.push_back({ n, DaBase64(d) });
         }
+    if (auto a = Elenco("comportamenti"))
+        for (auto& x : *a) { ProfiloComportamento d; if (!ProfiloDaJson(x, d, errore)) return false; p.profili.push_back(d); }
+    if (j.contains("varieta")) VarietaDaJson(j["varieta"], p.varieta);
     // Il mondo si controlla conoscendo i nomi della libreria.
     std::vector<std::string> nomi;
     for (auto& x : p.personaggi) nomi.push_back(x.nome);

@@ -97,6 +97,8 @@ int ProvaLivelliDaRigaDiComando(int argc, char** argv) {
     for (size_t m = 0; m < p.mondo.mappe.size(); m++) {
         ProgettoGioco q = p; q.mondo.mappaIniziale = (int)m;
         Gioco g;
+        // Con un seme (terzo argomento) la partita ha le sue variazioni, come nel gioco vero.
+        if (argc > 3) g.semePartita = Mescola64(std::strtoull(argv[3], nullptr, 10) + m);
         if (!g.CaricaProgetto(q, errore)) { std::fprintf(stderr, "mappa %d: %s\n", (int)m, errore.c_str()); problemi++; continue; }
         const Mappa& mp = q.mondo.mappe[m];
         float massimo = 0, fermoDa = 0, ultimoX = g.eroe.pos.x;

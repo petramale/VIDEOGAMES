@@ -280,6 +280,7 @@ void Officina::AzioneSezione(const std::string& c) {
     } else {
         // Musica ed effetti (officina_audio.cpp); regole, librerie e comandi (officina_logica.cpp).
         if (!c.empty() && (c[0] == 'b' || c[0] == 'e')) AzioneAudio(c);
+        else if (c.rfind("m:", 0) == 0) AzioneComportamenti(c);
         else AzioneLogica(c);
     }
 }
@@ -340,6 +341,41 @@ void Officina::Personaggi(Rectangle r, float dt) {
     int t = (int)c.tipo;
     q = col.Riga(30);
     if (col.Vede(q) && Ui::Scelta(q, "Tipo", t, tipi)) { c.tipo = (TipoComportamento)t; cambiato = true; }
+    if (c.tipo != TipoComportamento::Giocatore && p.nome != progetto.eroe) {
+        // La mente: un profilo della sezione Comportamenti o un modello pronto (vuoto = istintivo dal tipo).
+        std::vector<std::string> prof{ "Istintivo (dal tipo)" };
+        for (auto& x : progetto.profili) prof.push_back(x.nome);
+        for (auto& x : ModelliProfilo()) if (!progetto.Profilo(x.nome) && x.nome != "Istintivo") prof.push_back(x.nome + " (modello)");
+        int k = 0;
+        for (int i = 1; i < (int)prof.size(); i++) if (prof[i] == p.profilo || prof[i] == p.profilo + " (modello)") k = i;
+        q = col.Riga(30);
+        if (col.Vede(q) && Ui::Scelta(q, "Carattere", k, prof)) {
+            std::string n = k == 0 ? "" : prof[k];
+            if (n.size() > 10 && n.compare(n.size() - 10, 10, " (modello)") == 0) n = n.substr(0, n.size() - 10);
+            p.profilo = n;
+            cambiato = true;
+        }
+        q = col.Riga(30);
+        if (col.Vede(q) && Ui::Pulsante(q, "Modifica il carattere in Comportamenti")) {
+            if (!p.profilo.empty() && !progetto.Profilo(p.profilo)) {
+                // Un modello: se ne fa una copia nel gioco per poterlo cambiare.
+                for (auto& x : ModelliProfilo()) if (x.nome == p.profilo) { Ricorda(); progetto.profili.push_back(x); progetto.profili.back().autore = ""; }
+            }
+            if (p.profilo.empty()) {
+                Ricorda();
+                ProfiloComportamento np = progetto.ProfiloDi(p);
+                np.nome = "Carattere di " + p.nome;
+                while (progetto.Profilo(np.nome)) np.nome += "+";
+                np.autore = "";
+                progetto.profili.push_back(np);
+                p.profilo = np.nome;
+            }
+            for (int i = 0; i < (int)progetto.profili.size(); i++) if (progetto.profili[i].nome == p.profilo) selProfilo = i;
+            schedaComp = 0;
+            modificato = true;
+            Vai(Sezione::Comportamenti);
+        }
+    }
     auto Num = [&](const char* id, const char* et, float& v, float lo, float hi, float passo, const char* f = "%.0f") {
         Rectangle rr = col.Riga(28);
         if (col.Vede(rr) && Ui::Numero(id, rr, et, v, lo, hi, passo, f)) cambiato = true;

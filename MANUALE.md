@@ -20,8 +20,8 @@ La chiave resta solo nel file `claude_chiave.txt` accanto allo studio e non fini
 **Musica dello studio**: è spenta di serie. La nota in alto a destra, il tasto F7 o il menu Gioco → Musica dello studio
 la accendono o la spengono. Gli effetti sonori restano attivi, e la musica suona comunque quando provi il gioco (F5)
 o ascolti un brano nella sezione Audio. I giochi creati hanno la loro musica, regolabile dal menu Opzioni del gioco.
-- **Schede delle sezioni**: Home, Mondi, Personaggi, Oggetti, Scenari, Audio, Logica, Librerie, Comandi
-  (anche con **Alt+1 … Alt+8**). A destra **Prova F5** e **Crea .exe**.
+- **Schede delle sezioni**: Home, Mondi, Personaggi, Oggetti, Scenari, Audio, Logica, Librerie, Comandi, Comportamenti
+  (anche con **Alt+1 … Alt+9**). A destra **Prova F5** e **Crea .exe**.
 - **Chat di Claude** a destra (F2 la apre o la chiude, F3 porta il cursore nella chat).
 - **Aiuto sui pulsanti**: fermati con il mouse su un pulsante, una scelta, un campo o una casella della tavolozza
   e dopo un attimo compare un riquadro che spiega a cosa serve. Vale in tutte le sezioni. Se il nome di una scelta
@@ -141,10 +141,75 @@ clic sulla casella e premi il nuovo tasto. Mouse sì/no, zona morta delle levett
 Le regole con evento "tasto premuto" o "pulsante del joypad" compaiono qui come comandi extra.
 I comandi sono salvati in `comandi.cfg` e valgono anche per i giochi creati.
 
-## 11. Claude in ogni sezione
+## 11. Comportamenti: la mente delle creature
+
+La sezione **Comportamenti** (**Alt+9**) decide come pensano nemici, personaggi e oggetti. Non serve toccarla:
+ogni personaggio ha già una mente **istintiva** ricavata dal suo tipo. Qui la rendi tua.
+
+**Come pensa una creatura.** Dieci volte al secondo guarda cosa ha intorno (vede l'eroe? è ferita? ci sono compagni,
+una cura, un proiettile in arrivo?), sente delle **emozioni** (minaccia, paura, fiducia verso l'eroe, stanchezza)
+e ricorda gli **ultimi fatti** (dove ha visto l'eroe, chi l'ha colpita, chi l'ha risparmiata). Poi dà un punteggio a
+13 azioni (pattuglia, insegui, attacca, aggira, cerca, fuggi, curati, chiama aiuto, schiva, guardia, riposa, amico,
+rivale) e sceglie la migliore. Non cambia idea a scatti: resta sull'azione in corso per un attimo.
+Le creature della **stessa specie imparano insieme** come le sconfiggi: se le schiacci saltando impareranno a
+schivare i salti, se spari a tenersi a distanza. L'apprendimento ha un limite fisso: il gioco resta sempre vincibile,
+e se l'eroe è in difficoltà le creature allentano un po' (*pietà*).
+
+A sinistra ci sono i **profili** (+ Nuovo, Duplica, Elimina, oppure **Crea dal modello**: Istintivo, Lupo di branco,
+Guardiano rancoroso, Codardo furbo, Cacciatore paziente, Abitante cordiale…). Al centro le schede:
+
+| Scheda | Cosa si sceglie |
+| --- | --- |
+| **Carattere** | coraggio, aggressività, prudenza, socievolezza, rancore, curiosità, imprevedibilità (da 0 a 1); quanto impara, quanto cambia da una partita all'altra, sotto quale energia pensa a fuggire |
+| **Azioni** | il peso di ogni azione: 0 = mai, 1 = normale, fino a 3 = la preferita |
+| **Reazioni** | chiama aiuto, impara con la specie, **ricorda nella partita dopo**; le frasi degli abitanti secondo l'umore (amico, neutrale, ostile, impaurito) |
+| **Chi lo usa** | clic su un personaggio per dargli il profilo; "Dallo a tutti i nemici" |
+| **Oggetti** | l'**indole** degli oggetti: usura (una molla si rompe dopo qualche salto), ricarica (torna come nuova, anche monete e cure ricrescono), si rinforza o si indebolisce con l'uso, pericoli notturni o che si svegliano quando ti avvicini |
+| **Partita unica** | come cambia ogni partita (vedi sotto) |
+
+A destra il **simulatore**: cambi la situazione (distanza, energia, compagni, paura…) e vedi subito quale azione
+sceglierebbe la creatura e con che punteggio, con gli stessi calcoli del gioco. **Prova con i pensieri** avvia il
+gioco mostrando sopra ogni creatura cosa sta pensando (nella prova e nei giochi creati si accendono e spengono con **F9**).
+Anche dalla sezione **Personaggi** puoi scegliere il **Carattere** di un personaggio e aprirlo qui.
+
+Le regole della **Logica** conoscono la mente: eventi *diventa amico*, *chiama aiuto*, *fugge*; azioni *fiducia* e *minaccia*
+(da -1 a 1) per cambiare l'umore di una creatura.
+
+Esempi per Claude in questa sezione:
+- *"Crea un profilo per lupi che cacciano in branco e dallo ai lupi"*
+- *"Rendi il mercante diffidente: si fida solo se lo aiuti"*
+- *"Fai che le molle si consumino dopo tre salti e tornino dopo 20 secondi"*
+
+### Ogni partita è diversa
+
+Ogni partita parte da un **seme** e da lì ricava tutto, sempre in modo coerente: le mappe restano quelle che hai
+disegnato, cambia come le vivi. Nella scheda **Partita unica** scegli quanta varietà (spenta, leggera, media, forte) e cosa può cambiare:
+carattere delle creature, **veterani** più forti o creature timide, monete e cure che si scambiano di posto,
+ora del giorno e pioggia, specie **alleate o rivali** (si attaccano fra loro), fiducia iniziale degli abitanti, e un
+**evento speciale** per partita: *Luna rossa*, *Nebbia*, *Giorno di festa*, *Stagione della caccia*, *Giornata calma*,
+*Tesoro nascosto* (puoi vietare quelli che non vuoi). Le **variabili a caso** ricevono un valore fra minimo e massimo
+a inizio partita e le regole le possono usare. Con un **seme fisso** ogni partita è identica (utile per provare un livello).
+
+### Salvare e caricare nei giochi creati
+
+I giochi creati salvano la partita **completa**: mappa ed eroe, energia, punti, inventario, variabili, porte aperte e oggetti
+raccolti in ogni mappa, ogni creatura con le sue emozioni e i suoi ricordi, ciò che le specie hanno imparato, il seme
+e l'evento della partita. Caricando, la partita riprende esattamente da dove era.
+
+- Menu principale: **Continua** (il salvataggio più recente) e **Carica partita**.
+- Pausa (**Esc**): **Salva partita** e **Carica partita**, con **tre spazi** che mostrano mappa, punti, tempo e data.
+- **Salvataggio automatico** a ogni cambio di mappa, a ogni punto di controllo e quando chiudi la finestra.
+- I file sono accanto all'exe (`<Gioco>.slot1.sav` … `slot3`, `<Gioco>.auto.sav`); se la cartella non è scrivibile,
+  nella cartella dell'utente (`%APPDATA%\Elvantis`). Le specie che "ricordano nella partita dopo" usano `<Gioco>.memoria`.
+- **Sicurezza**: ogni salvataggio ha un codice di controllo; si scrive prima un file temporaneo e il precedente resta come
+  copia `.bak`. Un file rovinato o troncato non si carica e si usa la copia. Un salvataggio di una versione più nuova del
+  gioco non si carica; uno vecchio viene aggiornato. Se hai cambiato il gioco dopo aver salvato, la partita si carica lo stesso
+  e un avviso dice cosa è stato sistemato.
+
+## 12. Claude in ogni sezione
 
 Claude vede l'intero gioco, sa in quale sezione sei e cosa hai selezionato. Puoi chiedere di creare o cambiare
-personaggi, oggetti, caselle, scenari, brani, effetti, regole, variabili, mappe; di scegliere l'eroe; di aggiungere una raccolta.
+personaggi, oggetti, caselle, scenari, brani, effetti, regole, variabili, mappe, profili di comportamento, indole degli oggetti, varietà della partita; di scegliere l'eroe; di aggiungere una raccolta.
 Ogni risposta viene **controllata** prima di entrare nel gioco: le parti sbagliate vengono scartate e mostrate,
 il resto si applica e si annulla con Ctrl+Z. Dopo la risposta l'officina ti porta a ciò che è stato creato.
 
@@ -154,14 +219,15 @@ Esempi:
 - *"Quando l'eroe raccoglie 5 chiavi apri la porta del castello e suona una fanfara"*
 - *"Componi una musica misteriosa per la grotta"*
 
-## 12. Creare l'eseguibile
+## 13. Creare l'eseguibile
 
 **Crea .exe** (o Ctrl+E) controlla il gioco e crea `<Titolo>.exe` accanto allo studio. Il gioco creato parte con:
 
 1. intro con il logo Elvantis, "Mario Petramale presenta", il titolo e la musica;
 2. "Premi un tasto";
 3. menu: **1 giocatore**, **2 giocatori (a turni)**, **Opzioni** (musica, effetti, audio, schermo intero), **Crediti**, **Esci**;
-4. il gioco; **Esc** apre la pausa (Riprendi, Ricomincia, Musica, Effetti sonori, Menu principale).
+4. il gioco; **Esc** apre la pausa (Riprendi, Salva partita, Carica partita, Ricomincia, Musica, Effetti sonori, Menu principale).
+   Nel menu c'è anche **Continua** quando esiste un salvataggio (vedi sezione 11).
 
 Nel gioco creato musica ed effetti sonori si spengono **separatamente**: **F7** la musica, **F6** gli effetti, **F8** tutto
 l'audio, oppure con i tre pulsanti in basso a destra, il menu Opzioni o la pausa. La scelta resta salvata accanto al gioco.
@@ -175,7 +241,7 @@ e gli avvisi delle licenze, e di non estrarre il motore o le risorse incluse. Ne
 mappe che crei sono tuoi; immagini e suoni importati devono essere tuoi o usabili liberamente.
 La licenza completa dello studio è in `LICENSE.txt`, gli avvisi delle librerie nella cartella `licenses`.
 
-## 13. I tre grandi giochi di piattaforme
+## 14. I tre grandi giochi di piattaforme
 
 Nel menu **Gioco → Apri** ci sono tre giochi completi, in fondo all'elenco (**Grandi giochi di piattaforme**).
 Si aprono come qualsiasi altro gioco: si provano con **F5**, si cambiano in tutte le sezioni, si salvano con
@@ -205,7 +271,7 @@ Novità del motore usate da questi giochi, disponibili anche nei tuoi:
 Gli stessi giochi si possono creare anche da riga di comando:
 `StudioVideogiochi --crea-platform A|B|C file.gioco [Gioco.exe]` (A Lumina, B Nora e Bullone, C Nilo).
 
-## 14. Tasti utili
+## 15. Tasti utili
 
 | Tasto | Dove | Cosa fa |
 | --- | --- | --- |
@@ -216,14 +282,15 @@ Gli stessi giochi si possono creare anche da riga di comando:
 | F7 / F6 | prova del gioco e giochi creati | musica / effetti sonori del gioco, separati |
 | F8 | ovunque | audio acceso/spento |
 | F11 | ovunque | schermo intero |
-| Alt+1…8 | officina | cambia sezione |
+| Alt+1…9 | officina | cambia sezione |
+| F9 | prova del gioco e giochi creati | mostra/nasconde i pensieri delle creature |
 | Ctrl+S, Ctrl+O, Ctrl+N, Ctrl+E | officina | salva, apri, nuovo, crea .exe |
 | Ctrl+Z, Ctrl+Y | officina | annulla, ripeti |
 | Canc / Backspace | Mondi | cancella l'oggetto o i blocchi selezionati |
 | Ctrl+C, Ctrl+V | Mondi | copia e incolla l'oggetto o i blocchi selezionati |
 | Esc | Mondi | toglie la selezione |
 
-## 15. File e cartelle
+## 16. File e cartelle
 
 | Percorso | Contenuto |
 | --- | --- |

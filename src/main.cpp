@@ -23,11 +23,13 @@
 #include "progetto_gioco.h"
 #include "raccolte.h"
 #include "risorse_dati.h"
+#include "salvataggio.h"
 #include "licenze_dati.h"
 #include "sistema.h"
 #include "ui.h"
 #include <cmath>
 #include <cstring>
+#include <ctime>
 #include <fstream>
 #include <iterator>
 
@@ -217,8 +219,13 @@ int GiocaPacchetto(const DatiGioco& dati) {
         if (conProgetto) for (auto& im : progetto.immagini) AggiungiFileImmagine(im.first, im.second);
     } else ImpostaFileImmagini(dati.file);
     int turno = 0;
-    auto Carica = [&](Gioco& g) {
+    int giocatori = 1;
+    int punti[2] = { 0, 0 };
+    uint64_t semeCorrente = 0;   // il seme della partita in corso (0 = la vetrina dei menu)
+    const uint64_t impronta = ImprontaTesto(dati.livello);
+    auto Carica = [&](Gioco& g, uint64_t seme) {
         g = Gioco{};
+        g.semePartita = seme;
         g.titolo = dati.titolo;
         g.crediti = std::string("Creato con Studio Videogiochi di ") + SVILUPPATORE;
         std::string e;
@@ -231,15 +238,63 @@ int GiocaPacchetto(const DatiGioco& dati) {
         return ok;
     };
     Gioco gioco, vetrina;
-    bool ok = (EProgetto(dati.livello) ? conProgetto : true) && Carica(gioco);
-    if (ok) { Carica(vetrina); vetrina.mostraHud = false; vetrina.mostraEsito = false; }
+    bool ok = (EProgetto(dati.livello) ? conProgetto : true) && Carica(gioco, 0);
+    if (ok) { Carica(vetrina, 0); vetrina.mostraHud = false; vetrina.mostraEsito = false; }
+
+    // --- Salvataggi: tre slot e uno automatico accanto all'exe (o nella cartella dell'utente) ---
+    std::string baseSalvataggi = FileAccanto("");
+    {
+        std::string prova = baseSalvataggi + ".prova", e;
+        if (!ScriviAtomico(prova, "ok", e)) {
+            const char* ad = getenv("APPDATA");
+            if (!ad) ad = getenv("HOME");
+            if (ad) {
+                std::string dir = std::string(ad) + "/Elvantis";
+                MakeDirectory(dir.c_str());
+                baseSalvataggi = dir + "/" + GetFileNameWithoutExt(PercorsoEseguibile().c_str());
+            }
+        } else { std::remove(prova.c_str()); std::remove((prova + ".bak").c_str()); }
+    }
+    auto PercorsoSlot = [&](int n) { return baseSalvataggi + (n == 0 ? std::string(".auto.sav") : ".slot" + std::to_string(n) + ".sav"); };
+    const std::string fileMemoria = baseSalvataggi + ".memoria";
+    bool ricordaPartite = false;
+    if (conProgetto) for (auto& pr : progetto.profili) if (pr.ricordaPartite) ricordaPartite = true;
+    std::vector<InfoSalvataggio> infoSlot(4);
+    auto AggiornaSlot = [&]() { for (int n = 0; n < 4; n++) infoSlot[n] = InfoDiSalvataggio(PercorsoSlot(n)); };
+    AggiornaSlot();
+    std::string avvisoMenu;
+    float tAvvisoMenu = 0;
+    auto Avvisa = [&](const std::string& t) { avvisoMenu = t; tAvvisoMenu = 4.5f; };
+    int ultimoAuto = 0;
+    auto SalvaMemoria = [&]() {
+        if (!ricordaPartite || !conProgetto) return;
+        std::string e;
+        ScriviAtomico(fileMemoria, gioco.SapereJson(), e);
+    };
+    auto CaricaMemoria = [&](Gioco& g) {
+        if (!ricordaPartite) return;
+        std::ifstream in(fileMemoria, std::ios::binary);
+        if (in) g.SapereDaJson(std::string(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()));
+    };
+    auto Salva = [&](int slot) -> bool {
+        MetaSalvataggio m;
+        m.titolo = dati.titolo; m.impronta = impronta; m.punteggio = gioco.punteggio; m.tempo = gioco.tempo;
+        int ma = gioco.MappaAttuale();
+        if (ma >= 0 && ma < (int)gioco.MondoAttuale().mappe.size()) m.mappa = gioco.MondoAttuale().mappe[ma].nome;
+        m.giocatori = giocatori; m.turno = turno; m.punti[0] = punti[0]; m.punti[1] = punti[1];
+        std::string e;
+        bool fatto = ScriviAtomico(PercorsoSlot(slot), ImbustaSalvataggio(ComponiSalvataggio(gioco.StatoJson(), m)), e);
+        if (!fatto) Avvisa("Salvataggio non riuscito: " + e);
+        SalvaMemoria();
+        AggiornaSlot();
+        return fatto;
+    };
     RenderTexture2D rt{}, rtVetrina{};
 
-    enum class Fase { Menu, Opzioni, Crediti, Licenze, Gioca, Pausa, Cambio, Risultati };
-    Fase fase = Fase::Menu;
-    MenuGioco menu, menuOpzioni, menuPausa;
-    int giocatori = 1;
-    int punti[2] = { 0, 0 };
+    enum class Fase { Menu, Opzioni, Crediti, Licenze, Gioca, Pausa, Cambio, Risultati, Slot };
+    Fase fase = Fase::Menu, faseDopoSlot = Fase::Menu;
+    bool slotPerSalvare = false;
+    MenuGioco menu, menuOpzioni, menuPausa, menuSlot;
     float tFase = 0, tFine = 0, tempo = 0;
     float scorriLicenze = 0;
 
@@ -252,12 +307,66 @@ int GiocaPacchetto(const DatiGioco& dati) {
         gAudio.FermaBranoPersonale();
         if (!gAudio.MusicaDaFile()) gAudio.ScegliBrano(BRANO_INTRO);
     };
+    auto NuovoSeme = [&]() -> uint64_t {
+        // Ogni partita ha il suo seme (salvo un seme fisso scelto nello studio per le prove).
+        if (conProgetto && progetto.varieta.semeFisso) return progetto.varieta.semeFisso;
+        uint64_t x = Mescola64((uint64_t)std::time(nullptr) ^ ((uint64_t)(GetTime() * 1e6) << 20) ^ (uint64_t)GetRandomValue(0, 1 << 30));
+        return x ? x : 1;
+    };
     auto Inizia = [&](int n) {
         giocatori = n; turno = 0; punti[0] = punti[1] = 0;
-        Carica(gioco);
+        semeCorrente = NuovoSeme();
+        Carica(gioco, semeCorrente);
+        CaricaMemoria(gioco);
+        ultimoAuto = gioco.autosalvataggi;
         fase = n == 2 ? Fase::Cambio : Fase::Gioca;
         tFase = tFine = 0;
         if (n == 1) MusicaGioco();
+    };
+    auto CaricaSlot = [&](int n) -> bool {
+        std::string j;
+        InfoSalvataggio info;
+        if (!LeggiSalvataggio(PercorsoSlot(n), j, info)) { Avvisa(info.esiste ? "Salvataggio non valido: " + info.errore : "Lo spazio e' vuoto"); return false; }
+        if (!conProgetto) { Avvisa("Questo gioco non supporta i salvataggi"); return false; }
+        MetaSalvataggio m = MetaDi(j);
+        Gioco g;
+        std::string e, avviso;
+        CaricaMemoria(g);
+        if (!g.Ripristina(m.giocatori == 2 && m.turno == 1 && !progetto.eroe2.empty() ? [&]() { ProgettoGioco p2 = progetto; p2.eroe = progetto.eroe2; return p2; }() : progetto, j, e, avviso)) {
+            Avvisa("Non riesco a caricare: " + e);
+            return false;
+        }
+        g.titolo = dati.titolo;
+        g.crediti = std::string("Creato con Studio Videogiochi di ") + SVILUPPATORE;
+        gioco = g;
+        gioco.RicollegaRisorse();   // la copia non deve usare i disegni di 'g', che sta per sparire
+        giocatori = m.giocatori; turno = m.turno; punti[0] = m.punti[0]; punti[1] = m.punti[1];
+        semeCorrente = gioco.semePartita;
+        ultimoAuto = gioco.autosalvataggi;
+        std::string nota;
+        if (info.daRiserva) nota = "Il file era rovinato: caricata la copia di riserva. ";
+        if (info.impronta && info.impronta != impronta) nota += "Il gioco e' cambiato dopo questo salvataggio. ";
+        if (!avviso.empty()) nota += avviso;
+        if (!nota.empty()) Avvisa(nota);
+        fase = Fase::Gioca; tFase = tFine = 0;
+        MusicaGioco();
+        return true;
+    };
+    auto ApriSlot = [&](bool salvare, Fase ritorno) {
+        AggiornaSlot();
+        slotPerSalvare = salvare; faseDopoSlot = ritorno; fase = Fase::Slot; tFase = 0; menuSlot.scelta = 0;
+    };
+    // "Continua": il salvataggio valido piu' recente (anche quello automatico).
+    auto UltimoSlot = [&]() -> int {
+        int migliore = -1;
+        long t = -1;
+        for (int n = 0; n < 4; n++) {
+            if (!infoSlot[n].valido) continue;
+            std::string p = PercorsoSlot(n);
+            long m = FileExists(p.c_str()) ? GetFileModTime(p.c_str()) : 0;
+            if (m > t) { t = m; migliore = n; }
+        }
+        return migliore;
     };
 
     bool aperta = Intro(dati.titolo, "", true, 3.2f);
@@ -291,11 +400,16 @@ int GiocaPacchetto(const DatiGioco& dati) {
             else {
                 gioco.Aggiorna(dt, Comandi::DaPeriferiche());
                 MusicaGioco();
+                // Salvataggio automatico a ogni cambio di mappa e a ogni punto di controllo.
+                if (conProgetto && gioco.autosalvataggi != ultimoAuto && !gioco.finito && !gioco.vinto) {
+                    ultimoAuto = gioco.autosalvataggi;
+                    Salva(0);
+                }
                 if (gioco.finito) tFine += dt;
                 if (gioco.finito && tFine > 2.2f && (GetKeyPressed() != 0 || gInput.Premuto(Azione::Conferma) || tFine > 8)) {
                     punti[turno] = gioco.punteggio;
-                    if (giocatori == 2 && turno == 0) { turno = 1; Carica(gioco); fase = Fase::Cambio; MusicaMenu(); }
-                    else { fase = Fase::Risultati; MusicaMenu(); }
+                    if (giocatori == 2 && turno == 0) { turno = 1; Carica(gioco, semeCorrente); CaricaMemoria(gioco); ultimoAuto = gioco.autosalvataggi; fase = Fase::Cambio; MusicaMenu(); }
+                    else { fase = Fase::Risultati; MusicaMenu(); SalvaMemoria(); }
                     tFase = tFine = 0;
                 }
             }
@@ -304,7 +418,8 @@ int GiocaPacchetto(const DatiGioco& dati) {
         // Lo sfondo: il gioco vero (in partita) o la "vetrina" che si muove da sola (nei menu).
         bool inPartita = fase == Fase::Gioca || fase == Fase::Pausa;
         if (inPartita) gioco.DisegnaHD(rt, scalaHD);
-        else { vetrina.Aggiorna(dt * 0.5f, Comandi{}); vetrina.DisegnaHD(rtVetrina, scalaHD); }
+        else { vetrina.Aggiorna(dt * 0.5f, Comandi{}); vetrina.messaggio.clear();   // i messaggi delle regole coprirebbero il menu
+               vetrina.DisegnaHD(rtVetrina, scalaHD); }
         RenderTexture2D& vista = inPartita ? rt : rtVetrina;
         DrawTexturePro(vista.texture, { 0, 0, (float)vista.texture.width, -(float)vista.texture.height }, area, { 0, 0 }, 0, WHITE);
         if (!inPartita || fase == Fase::Pausa) DrawRectangle(0, 0, (int)sw, (int)sh, Hex(0x05081c, 175));
@@ -313,12 +428,23 @@ int GiocaPacchetto(const DatiGioco& dati) {
             float lw = std::min(sw * 0.3f, 520.0f);
             DisegnaLogo({ sw / 2 - lw / 2, sh * 0.06f, lw, lw * 0.34f });
             Scritta2(dati.titolo, sw / 2, sh * 0.06f + lw * 0.34f + dim * 0.6f, (int)(dim * 1.25f), WHITE);
-            int v = menu.Frame({ "1 giocatore", "2 giocatori (a turni)", "Opzioni", "Crediti", "Esci" }, sw / 2, sh * 0.44f, dim * 1.7f, dim);
-            if (v == 0) Inizia(1);
-            else if (v == 1) Inizia(2);
-            else if (v == 2) { fase = Fase::Opzioni; menuOpzioni.scelta = 0; }
-            else if (v == 3) { fase = Fase::Crediti; tFase = 0; }
-            else if (v == 4) { EndDrawing(); break; }
+            std::vector<std::string> voci, codici;
+            int ultimo = conProgetto ? UltimoSlot() : -1;
+            if (ultimo >= 0) { voci.push_back("Continua"); codici.push_back("continua"); }
+            voci.push_back("1 giocatore"); codici.push_back("1");
+            voci.push_back("2 giocatori (a turni)"); codici.push_back("2");
+            if (conProgetto) { voci.push_back("Carica partita"); codici.push_back("carica"); }
+            for (const char* x : { "Opzioni", "Crediti", "Esci" }) { voci.push_back(x); codici.push_back(x); }
+            float passo = dim * (voci.size() > 5 ? 1.45f : 1.7f);
+            int v = menu.Frame(voci, sw / 2, sh * 0.40f, passo, dim);
+            std::string cod = v >= 0 ? codici[v] : "";
+            if (cod == "continua") CaricaSlot(ultimo);
+            else if (cod == "1") Inizia(1);
+            else if (cod == "2") Inizia(2);
+            else if (cod == "carica") ApriSlot(false, Fase::Menu);
+            else if (cod == "Opzioni") { fase = Fase::Opzioni; menuOpzioni.scelta = 0; }
+            else if (cod == "Crediti") { fase = Fase::Crediti; tFase = 0; }
+            else if (cod == "Esci") { EndDrawing(); break; }
             Scritta2("Frecce o joypad per scegliere, Invio o A per confermare   F11 schermo intero", sw / 2, sh - dimP * 2.2f, dimP, Hex(0xa8b4e8));
         } else if (fase == Fase::Opzioni) {
             Scritta2("OPZIONI", sw / 2, sh * 0.14f, (int)(dim * 1.3f), Hex(0xffe066));
@@ -395,14 +521,53 @@ int GiocaPacchetto(const DatiGioco& dati) {
                 { fase = Fase::Crediti; tFase = 0; }
         } else if (fase == Fase::Pausa) {
             Scritta2("PAUSA", sw / 2, sh * 0.22f, (int)(dim * 1.4f), Hex(0xffe066));
-            int v = menuPausa.Frame({ "Riprendi", "Ricomincia", std::string("Musica: ") + (gMusicaGioco ? "accesa (F7)" : "spenta (F7)"),
-                                      std::string("Effetti sonori: ") + (gAudio.volumeEffetti > 0 ? "accesi (F6)" : "spenti (F6)"), "Menu principale" },
-                                    sw / 2, sh * 0.36f, dim * 1.6f, dim);
-            if (v == 0 || (indietro && tFase > 0.1f)) fase = Fase::Gioca;
-            else if (v == 1) { Carica(gioco); fase = Fase::Gioca; tFine = 0; }
-            else if (v == 2) CambiaMusicaGioco(opzioni);
-            else if (v == 3) CambiaEffetti(opzioni);
-            else if (v == 4) { fase = Fase::Menu; MusicaMenu(); }
+            std::vector<std::string> voci = { "Riprendi" };
+            if (conProgetto) { voci.push_back("Salva partita"); voci.push_back("Carica partita"); }
+            voci.push_back("Ricomincia");
+            voci.push_back(std::string("Musica: ") + (gMusicaGioco ? "accesa (F7)" : "spenta (F7)"));
+            voci.push_back(std::string("Effetti sonori: ") + (gAudio.volumeEffetti > 0 ? "accesi (F6)" : "spenti (F6)"));
+            voci.push_back("Menu principale");
+            int v = menuPausa.Frame(voci, sw / 2, sh * 0.30f, dim * 1.45f, dim);
+            std::string cod = v >= 0 ? voci[v] : "";
+            if (cod == "Riprendi" || (v < 0 && indietro && tFase > 0.1f)) fase = Fase::Gioca;
+            else if (cod == "Salva partita") ApriSlot(true, Fase::Pausa);
+            else if (cod == "Carica partita") ApriSlot(false, Fase::Pausa);
+            else if (cod == "Ricomincia") { Carica(gioco, semeCorrente); CaricaMemoria(gioco); ultimoAuto = gioco.autosalvataggi; fase = Fase::Gioca; tFine = 0; }
+            else if (cod.rfind("Musica", 0) == 0) CambiaMusicaGioco(opzioni);
+            else if (cod.rfind("Effetti", 0) == 0) CambiaEffetti(opzioni);
+            else if (cod == "Menu principale") { fase = Fase::Menu; MusicaMenu(); SalvaMemoria(); }
+        } else if (fase == Fase::Slot) {
+            Scritta2(slotPerSalvare ? "SALVA LA PARTITA" : "CARICA UNA PARTITA", sw / 2, sh * 0.12f, (int)(dim * 1.3f), Hex(0xffe066));
+            std::vector<std::string> voci;
+            std::vector<int> numeri;
+            for (int n = slotPerSalvare ? 1 : 0; n < 4; n++) {
+                const InfoSalvataggio& in = infoSlot[n];
+                std::string nome = n == 0 ? "Automatico" : "Spazio " + std::to_string(n);
+                std::string riga;
+                if (in.valido) {
+                    int min = (int)(in.tempo / 60), sec = (int)in.tempo % 60;
+                    riga = nome + ":  " + (in.mappa.empty() ? "" : in.mappa + ",  ") + std::to_string(in.punteggio) + " punti,  " +
+                           std::to_string(min) + ":" + (sec < 10 ? "0" : "") + std::to_string(sec) + "   " + in.data;
+                    if (in.daRiserva) riga += "  (riserva)";
+                } else if (in.esiste) riga = nome + ":  danneggiato (" + in.errore + ")";
+                else riga = nome + ":  vuoto";
+                voci.push_back(riga);
+                numeri.push_back(n);
+            }
+            voci.push_back("Indietro");
+            numeri.push_back(-1);
+            int dimS = std::max(16, (int)(dim * 0.72f));
+            int v = menuSlot.Frame(voci, sw / 2, sh * 0.3f, dimS * 2.0f, dimS);
+            if (v >= 0) {
+                int n = numeri[v];
+                if (n < 0) fase = faseDopoSlot;
+                else if (slotPerSalvare) { if (Salva(n)) { Avvisa("Partita salvata nello spazio " + std::to_string(n)); fase = Fase::Gioca; } }
+                else if (infoSlot[n].valido || infoSlot[n].esiste) CaricaSlot(n);
+                else Avvisa("Lo spazio e' vuoto");
+            } else if (indietro && tFase > 0.1f) fase = faseDopoSlot;
+            Scritta2(slotPerSalvare ? "Si salva tutto: mappa, eroe, creature con i loro ricordi, oggetti, seme della partita"
+                                    : "Il salvataggio automatico si aggiorna a ogni cambio di mappa e a ogni punto di controllo",
+                     sw / 2, sh - dimP * 2.4f, dimP, Hex(0xa8b4e8));
         } else if (fase == Fase::Cambio) {
             Scritta2(turno == 0 ? "GIOCATORE 1" : "GIOCATORE 2", sw / 2, sh * 0.36f, (int)(dim * 1.6f), turno == 0 ? Hex(0x7ad0ff) : Hex(0xff8a7a));
             if (turno == 1) Scritta2("Il giocatore 1 ha fatto " + std::to_string(punti[0]) + " punti", sw / 2, sh * 0.5f, dim, WHITE);
@@ -422,6 +587,14 @@ int GiocaPacchetto(const DatiGioco& dati) {
             Scritta2("Premi un tasto per tornare al menu", sw / 2, sh * 0.8f, dimP + 2, Hex(0xa8b4e8));
             if (tFase > 0.8f && (GetKeyPressed() != 0 || gInput.Premuto(Azione::Conferma) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT))) fase = Fase::Menu;
         }
+        if (tAvvisoMenu > 0) {
+            tAvvisoMenu -= dt;
+            float a = std::min(1.0f, tAvvisoMenu);
+            int w = Ui::LarghezzaForte(avvisoMenu, dimP) + dimP * 2;
+            Rectangle r = { sw / 2 - w / 2.0f, sh * 0.9f - dimP, (float)w, dimP * 2.2f };
+            DrawRectangleRounded(r, 0.4f, 8, ConAlfa(Hex(0x101a40), 0.9f * a));
+            Scritta2(avvisoMenu, sw / 2, r.y + dimP * 0.55f, dimP, ConAlfa(Hex(0xffe066), a));
+        }
         if (fase == Fase::Gioca && giocatori == 2) Scritta2(turno == 0 ? "G1" : "G2", area.x + dimP * 1.5f, area.y + area.height - dimP * 1.8f, dimP, turno == 0 ? Hex(0x7ad0ff) : Hex(0xff8a7a));
         Rectangle pa = AngoloAudio(area, true);   // in basso a destra: non copre il punteggio
         PulsanteAudio(pa, opzioni);
@@ -429,6 +602,9 @@ int GiocaPacchetto(const DatiGioco& dati) {
         gAudio.MusicaAttiva(gMusicaGioco);
         EndDrawing();
     }
+    // Chiudendo la finestra a meta' partita si salva da soli (spazio automatico).
+    if (ok && conProgetto && (fase == Fase::Gioca || fase == Fase::Pausa) && !gioco.finito && !gioco.vinto) Salva(0);
+    SalvaMemoria();
     if (rt.id) UnloadRenderTexture(rt);
     if (rtVetrina.id) UnloadRenderTexture(rtVetrina);
     if (gLogo.id) UnloadTexture(gLogo);
@@ -737,6 +913,7 @@ int main(int argc, char** argv) {
     if (argc > 2 && std::string(argv[1]) == "--prova-livelli") { extern int ProvaLivelliDaRigaDiComando(int, char**); return ProvaLivelliDaRigaDiComando(argc, argv); }
     if (argc > 3 && std::string(argv[1]) == "--foto-gioco") { extern int FotoGiocoDaRigaDiComando(int, char**); return FotoGiocoDaRigaDiComando(argc, argv); }
     if (argc > 1 && std::string(argv[1]) == "--crea") return CreaDaRigaDiComando(argc, argv);
+    if (argc > 1 && std::string(argv[1]) == "--verifica-salvataggi") { extern int VerificaSalvataggi(); return VerificaSalvataggi() ? 1 : 0; }
     if (argc > 1 && std::string(argv[1]) == "--verifica-mondi") { int e = VerificaMondi(); e += VerificaProgetti(); return e ? 1 : 0; }
     if (argc > 2 && std::string(argv[1]) == "--esporta-mondi") {
         MakeDirectory(argv[2]);

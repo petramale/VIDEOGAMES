@@ -283,6 +283,7 @@ void Officina::Logica(Rectangle r, float dt) {
         else if (t == "messaggio" || t == "anima") { if (Ui::Campo("rg_t" + std::to_string(i), t1, a.testo, 200)) cambiato = true; }
         else if (t == "aumenta" || t == "imposta") { SceltaTesto(tTesto, variabili, ""); Num(tNum, "", -99999, 99999, 1); }
         else if (t == "punti" || t == "cuori" || t == "energia" || t == "velocita" || t == "salta" || t == "scuoti" || t == "spingi") Num(t1, "", -99999, 99999, t == "scuoti" ? 0.1f : 1);
+        else if (t == "fiducia" || t == "minaccia") Num(t1, "", -1, 1, 0.1f);
         else if (t == "vai_mappa") SceltaTesto(t1, mappe, "");
         else if (t == "crea") { SceltaTesto(tTesto, nomi, ""); Num(tNum, "", 1, 20, 1); }
         else if (t == "spara") { SceltaTesto(tTesto, proiettili, "(palla di fuoco)"); Num(tNum, "", 1, 12, 1); }

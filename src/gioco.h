@@ -87,6 +87,28 @@ public:
     int MappaAttuale() const { return mappaAttuale; }
     Telecamera telecamera;          // della mappa attuale (si puo' cambiare al volo)
     int GemmeTotali() const { return gemmeTotali; }
+
+    // --- Pilastri 1-3: mente, destino della partita, salvataggio (mente.h, destino in gioco_mente.cpp, salvataggio.cpp) ---
+    uint64_t semePartita = 0;       // 0 = niente variazioni (vetrina, prove); va scelto prima di CaricaProgetto
+    std::string eventoPartita;      // chiave dell'evento speciale ("" = nessuno)
+    bool mostraPensieri = false;    // F9: i pensieri delle creature sopra la testa
+    int autosalvataggi = 0;         // cresce quando conviene salvare da soli (cambio mappa, punto di controllo)
+    std::map<std::string, Sapere> sapere;   // quello che ogni specie ha imparato (chiave: nome del personaggio)
+    float pieta = 0;                // l'eroe e' in difficolta': le creature allentano (0..0.5)
+    // Lo stato completo della partita in JSON (senza busta: vedi salvataggio.h).
+    std::string StatoJson() const;
+    // Ricarica il progetto con il seme salvato, rientra nella mappa e sovrappone lo stato. 'avviso' spiega le correzioni.
+    bool Ripristina(const ProgettoGioco& p, const std::string& statoJson, std::string& errore, std::string& avviso);
+    std::string SapereJson() const;                 // memoria fra le partite
+    void SapereDaJson(const std::string& testo);
+    std::string NomeEventoPartita() const;
+    int NumeroEntita() const { return (int)entita.size(); }
+    // Per le prove: riassunto (azione e umore) delle creature della mappa.
+    std::vector<std::string> PensieriCreature() const;
+    // Per le prove: firma dello stato (posizioni, energie, menti) per confrontare due partite.
+    std::string Firma() const;
+    // Dopo aver copiato un Gioco in un altro: le caselle puntano ai disegni della libreria della copia.
+    void RicollegaRisorse();
     bool UscitaAperta() const { return modello != Modello::Labirinto || gemme >= gemmeTotali; }
 
 private:
@@ -125,6 +147,18 @@ private:
         float t = 0, tAnim = 0, timer = 0, lampeggio = 0, morte = 0, velMolt = 1, spinta = 0;
         std::string anim;           // animazione chiesta (vuoto = automatica)
         Color tinta = WHITE;
+        // Identita' stabile per il salvataggio: indice nell'elenco della mappa, o 1000000+n se creata durante il gioco.
+        int uid = -1;
+        Mente mente;
+        int energiaMax = 1, veterano = 0;   // veterano: 1 piu' forte, -1 timido
+        float puntiMolt = 1, valoreMolt = 1;
+        bool bloccato = false, amicoAnnunciato = false;
+        int bersaglioCura = -1, bersaglioRivale = -1;   // si ricalcolano a ogni pensiero (non si salvano)
+        float tGrido = 0, tContatto = 0;
+        // Indole degli oggetti
+        float carica = 1, forza = 1, tRicarica = 0, tSveglio = 0;
+        int usi = 0;
+        bool rotto = false;
     };
     ProgettoGioco lib;
     bool conLibreria = false;
@@ -164,6 +198,33 @@ private:
     void AggiornaRegole(float dt);
     void SolidiEntita(Vector2& pos, Vector2& vel, float w, float hgt, float piediPrima, bool& aTerra, int ignora);
     void SuonaLibreria(const std::string& effetto, float volume = 1);
+
+    // --- Mente e destino (gioco_mente.cpp) ---
+    struct StatoMappa { std::set<int> tolti, aperti, accesi, base; };
+    std::map<int, StatoMappa> mappeStato;          // progressi di scena delle mappe lasciate
+    std::map<std::pair<int, int>, int> relazioni;  // fra specie (indici dei personaggi): 1 alleate, -1 rivali
+    std::map<int, float> fiduciaIniziale;           // abitanti: fiducia iniziale in questa partita
+    std::vector<ProfiloComportamento> profiliDef;   // il profilo di ogni personaggio della libreria
+    Generatore rng;                                        // il generatore della partita (decisioni)
+    int contatoreCreati = 0, profonditaEventi = 0, causaColpo = 0;
+    bool ripristinando = false, eroeATerraPrima = true;
+    float vistaMolt = 1, velocitaMolt = 1, puntiPartitaMolt = 1;
+    void PreparaDestino();
+    void DestinoMappa(int indice);
+    void RicordaMappa();
+    void ApplicaStatoMappa(int indice);
+    void AggiornaConMente(Entita& e, int i, float dt, Rectangle eroeBox);
+    void MovimentoClassico(Entita& e, int i, float dt, TipoComportamento tipo);
+    void FinePersonaggio(Entita& e, int i, float dt, Rectangle eroeBox);
+    Contesto ContestoDi(const Entita& e, int i, float dist, float vista, bool vede);
+    void ChiamaAiuto(int i);
+    void DannoFraCreature(int i, int danno);
+    void ReazioneColpo(int i);
+    void ImparaMorte(int i);
+    void AggiornaIndole(Entita& e, int i, float dt);
+    int Relazione(int defA, int defB) const;
+    bool Ostile(const Entita& e) const;
+    void DisegnaPensieri(float cx, float cy, bool barra = false) const;
 
     Livello livello;
     Mondo mondo;

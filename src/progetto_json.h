@@ -20,3 +20,10 @@ nlohmann::json EffettoJson(const EffettoSuono& e);
 bool EffettoDaJson(const nlohmann::json& j, EffettoSuono& e, std::string& errore);
 nlohmann::json RegolaJson(const Regola& r);
 bool RegolaDaJson(const nlohmann::json& j, Regola& r, std::string& errore);
+nlohmann::json ProfiloJson(const ProfiloComportamento& p);
+// Legge un profilo; i campi che mancano restano quelli di 'p' (si puo' usare per modificare).
+bool ProfiloDaJson(const nlohmann::json& j, ProfiloComportamento& p, std::string& errore);
+nlohmann::json IndoleJson(const IndoleOggetto& i);
+void IndoleDaJson(const nlohmann::json& j, IndoleOggetto& i);
+nlohmann::json VarietaJson(const VarietaPartita& v);
+void VarietaDaJson(const nlohmann::json& j, VarietaPartita& v);

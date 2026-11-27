@@ -76,7 +76,13 @@ bool Gioco::CaricaProgetto(const ProgettoGioco& p, std::string& errore) {
         auto it = lib.suoniEventi.find(e.first);
         if (it != lib.suoniEventi.end() && !it->second.empty()) gAudio.SostituisciEffetto(e.second, lib.TrovaEffetto(it->second));
     }
-    return CaricaMondo(lib.mondo, errore);
+    PreparaDestino();   // seme della partita: evento, relazioni, variabili casuali (prima di entrare nella mappa)
+    if (!CaricaMondo(lib.mondo, errore)) return false;
+    if (!eventoPartita.empty() && !ripristinando) {
+        for (auto& ev : EventiPartita())
+            if (eventoPartita == ev.chiave) { messaggio = std::string("Questa partita: ") + ev.nome + ". " + ev.descrizione; tMessaggio = 5; }
+    }
+    return true;
 }
 
 // Dopo CaricaMondo: eroe della libreria, misure dei disegni, caselle.
@@ -98,14 +104,22 @@ void Gioco::PreparaLibreria() {
     livello.caselleLibreria = lib.CaselleScenario("");
     timerRegole.assign(lib.regole.size(), 0.0f);
     condizioniRegole.assign(lib.regole.size(), false);
+    profiliDef.clear();
+    for (auto& p : lib.personaggi) profiliDef.push_back(lib.ProfiloDi(p));
 }
 
 void Gioco::EntitaDellaMappa(const Mappa& m) {
-    for (auto& om : m.oggetti) {
+    for (size_t k = 0; k < m.oggetti.size(); k++) {
+        const OggettoMappa& om = m.oggetti[k];
         TipoOggetto t;
         if (TipoDaNome(om.tipo, t)) continue;
         int i = CreaEntita(om.tipo, { om.x, om.y });
-        if (i >= 0) { entita[i].mappaPorta = om.mappa; entita[i].destPorta = { om.destX, om.destY }; if (om.numero > 0) entita[i].energia = om.numero; }
+        if (i >= 0) {
+            contatoreCreati--;                 // non e' "creata durante il gioco": il suo id e' il posto nella mappa
+            entita[i].uid = (int)k;
+            entita[i].mappaPorta = om.mappa; entita[i].destPorta = { om.destX, om.destY };
+            if (om.numero > 0) entita[i].energia = entita[i].energiaMax = om.numero;
+        }
     }
     // Caselle: quelle dello scenario della mappa (terreni diversi per ogni mondo), poi quelle comuni
     livello.caselleLibreria = lib.CaselleScenario(m.scenarioLibreria);
@@ -136,7 +150,20 @@ int Gioco::CreaEntita(const std::string& nome, Vector2 pos) {
         if (Uguale(lib.oggetti[i].nome, nome)) { e.personaggio = false; e.def = (int)i; trovato = true; e.nome = lib.oggetti[i].nome; }
     if (!trovato) return -1;
     if (e.personaggio && (int)e.def == eroeDef) return -1;   // l'eroe non si mette due volte
-    e.timer = Casuale(0.5f, 1.5f);
+    if (entita.size() >= 400) return -1;                     // tetto: niente valanghe di entita' create dalle regole
+    e.timer = rng.Float(0.5f, 1.5f);
+    e.uid = 1000000 + contatoreCreati++;
+    e.energiaMax = std::max(1, e.energia);
+    if (e.personaggio) {
+        const Comportamento& c = lib.personaggi[e.def].comportamento;
+        e.mente.attiva = lib.varieta.mente && c.tipo != TipoComportamento::Giocatore && e.def < (int)profiliDef.size();
+        if (e.mente.attiva) {
+            e.mente.car = profiliDef[e.def].car;
+            if (c.tipo == TipoComportamento::Parla) { auto it = fiduciaIniziale.find(e.def); e.mente.fiduciaBase = it != fiduciaIniziale.end() ? it->second : 0.1f; }
+            e.mente.fiducia = e.mente.fiduciaBase;
+            e.mente.tPensa = (entita.size() % 10) * 0.01f;
+        }
+    }
     entita.push_back(e);
     return (int)entita.size() - 1;
 }
@@ -162,7 +189,7 @@ void Gioco::SolidiEntita(Vector2& pos, Vector2& vel, float w, float hgt, float p
     appoggio = -1;
     for (size_t i = 0; i < entita.size(); i++) {
         Entita& e = entita[i];
-        if ((int)i == ignora || !e.attivo || e.personaggio || e.morte > 0) continue;
+        if ((int)i == ignora || !e.attivo || e.personaggio || e.morte > 0 || e.rotto) continue;
         const OggettoDef& d = lib.oggetti[e.def];
         bool solido = (d.solido && !(d.funzione == FunzioneOggetto::Porta && e.aperta)) || d.funzione == FunzioneOggetto::PiattaformaMobile;
         if (!solido) continue;
@@ -232,19 +259,23 @@ void Gioco::ColpisciEntita(int i, int danno) {
     if (!e.attivo || e.morte > 0 || e.lampeggio > 0) return;
     e.energia -= danno;
     e.lampeggio = 0.5f;
+    ReazioneColpo(i);
     Evento("colpisce", "eroe", e.nome, i);
-    const PersonaggioDef& p = lib.personaggi[e.def];
+    if (i >= (int)entita.size()) return;
+    Entita& e2 = entita[i];   // le regole possono aver creato entita' (e spostato il vettore)
+    const PersonaggioDef& p = lib.personaggi[e2.def];
     auto it = p.suoni.find("colpito");
     if (it != p.suoni.end()) SuonaLibreria(it->second); else gAudio.Suona(Effetto::Colpo, 0.7f);
     scossa = std::max(scossa, 0.15f);
-    if (e.energia <= 0) {
-        e.morte = 0.01f;
-        punteggio += p.comportamento.punti;
+    if (e2.energia <= 0) {
+        e2.morte = 0.01f;
+        punteggio += (int)(p.comportamento.punti * e2.puntiMolt * puntiPartitaMolt);
+        ImparaMorte(i);
         auto s = p.suoni.find("sconfitto");
         if (s != p.suoni.end()) SuonaLibreria(s->second); else gAudio.Suona(Effetto::Esplosione, 0.6f);
-        Rectangle b = BoxEntita(e);
+        Rectangle b = BoxEntita(e2);
         particelle.Esplosione({ b.x + b.width / 2, b.y + b.height / 2 }, Hex(0xffd23f));
-        Evento("sconfitto", e.nome, "", i);
+        Evento("sconfitto", e2.nome, "", i);
     }
 }
 
@@ -252,9 +283,17 @@ bool Gioco::ProiettileSuEntita(Proiettile& p) {
     for (size_t i = 0; i < entita.size(); i++) {
         Entita& e = entita[i];
         if (!e.attivo || !e.personaggio || e.morte > 0) continue;
-        if (lib.personaggi[e.def].comportamento.tipo == TipoComportamento::Parla) continue;
+        bool parla = lib.personaggi[e.def].comportamento.tipo == TipoComportamento::Parla;
+        if (parla && !e.mente.attiva) continue;
         if (CheckCollisionPointRec(p.pos, BoxEntita(e))) {
+            if (parla) {   // un abitante non si ferisce, ma se lo ricorda
+                if (e.lampeggio <= 0) { e.lampeggio = 0.4f; ReazioneColpo((int)i); }
+                p.vita = 0;
+                return true;
+            }
+            causaColpo = 2;
             ColpisciEntita((int)i, p.danno);
+            causaColpo = 0;
             p.vita = 0;
             return true;
         }
@@ -265,12 +304,47 @@ bool Gioco::ProiettileSuEntita(Proiettile& p) {
 void Gioco::AggiornaEntita(float dt, const Comandi& c) {
     asseInput = c.asse;
     Rectangle box = eroe.Box();
+    if (IsKeyPressed(KEY_F9)) mostraPensieri = !mostraPensieri;
+    if (pieta > 0) pieta = std::max(0.0f, pieta - dt * 0.004f);
+    // Il giocatore salta vicino alle creature: le specie che lo vedono se lo ricordano.
+    bool aTerra = eroe.aTerra;
+    if (eroeATerraPrima && !aTerra && eroe.vel.y < -60) {
+        std::set<int> viste;
+        for (auto& e : entita)
+            if (e.attivo && e.personaggio && e.mente.attiva && !viste.count(e.def) && std::fabs(e.pos.x - eroe.pos.x) < 120) {
+                viste.insert(e.def);
+                const ProfiloComportamento& pr = profiliDef[e.def];
+                if (pr.imparaSpecie) { Sapere& s = sapere[lib.personaggi[e.def].nome]; s.Impara(s.saltiEroe, 1, pr.apprendimento * 0.3f); }
+            }
+    }
+    eroeATerraPrima = aTerra;
+    // Oggetti con l'indole "ricarica": tornano dopo un po' (monete che ricrescono, molle riparate...).
+    for (auto& e : entita) {
+        if (e.attivo || e.personaggio || e.morte > 0 || e.tRicarica <= 0) continue;
+        const IndoleOggetto& ind = lib.oggetti[e.def].indole;
+        if (!ind.attiva || ind.ricarica <= 0) continue;
+        e.tRicarica -= dt;
+        if (e.tRicarica <= 0) {
+            e.attivo = true; e.pos = e.origine; e.carica = 1; e.rotto = false; e.toccando = true;
+            Rectangle b = BoxEntita(e);
+            particelle.Scintille({ b.x + b.width / 2, b.y + b.height / 2 }, Hex(0xb8f0ff));
+        }
+    }
     // L'eroe della libreria spara il suo proiettile (X o Ctrl; dall'alto anche il tasto di salto).
     if (eroeDef >= 0 && !lib.personaggi[eroeDef].comportamento.proiettile.empty() && !vinto && !finito) {
         tSparo -= dt;
         bool fuoco = IsKeyPressed(KEY_X) || IsKeyPressed(KEY_LEFT_CONTROL) || (vistaAlto && c.saltoPremuto);
         if (gInput.Joypad() >= 0 && IsGamepadButtonPressed(gInput.Joypad(), GAMEPAD_BUTTON_RIGHT_FACE_LEFT)) fuoco = true;
-        if (fuoco && tSparo <= 0) { tSparo = 0.25f; SparaDa(-1, "", 1); }
+        if (fuoco && tSparo <= 0) {
+            tSparo = 0.25f; SparaDa(-1, "", 1);
+            std::set<int> viste;   // le specie vicine imparano che il giocatore spara
+            for (auto& e : entita)
+                if (e.attivo && e.personaggio && e.mente.attiva && !viste.count(e.def) && std::fabs(e.pos.x - eroe.pos.x) < 200) {
+                    viste.insert(e.def);
+                    const ProfiloComportamento& pr = profiliDef[e.def];
+                    if (pr.imparaSpecie) { Sapere& s = sapere[lib.personaggi[e.def].nome]; s.Impara(s.spariEroe, 1, pr.apprendimento * 0.3f); }
+                }
+        }
     }
     dialogo = -1;
     size_t n = entita.size();   // le regole possono crearne altre: si aggiornano dal prossimo fotogramma
@@ -318,16 +392,24 @@ void Gioco::AggiornaEntita(float dt, const Comandi& c) {
 }
 
 void Gioco::AggiornaPersonaggio(Entita& e, int i, float dt, Rectangle eroeBox) {
+    const Comportamento& c = lib.personaggi[e.def].comportamento;
+    if (e.mente.attiva && c.tipo != TipoComportamento::Giocatore) { AggiornaConMente(e, i, dt, eroeBox); return; }
+    MovimentoClassico(e, i, dt, c.tipo);
+    FinePersonaggio(e, i, dt, eroeBox);
+}
+
+// Il comportamento "classico" scelto nella sezione Personaggi. Con la mente accesa serve per pattugliare e per il boss.
+void Gioco::MovimentoClassico(Entita& e, int i, float dt, TipoComportamento tipo) {
     const PersonaggioDef& p = lib.personaggi[e.def];
     const Comportamento& c = p.comportamento;
     Rectangle b0 = BoxEntita(e);
     float w = b0.width, h = b0.height;
-    float v = c.velocita * e.velMolt;
+    float v = c.velocita * e.velMolt * velocitaMolt;
     float dx = eroe.pos.x - e.pos.x, dy = (eroe.pos.y - 10) - (e.pos.y - h / 2);
     float dist = std::sqrt(dx * dx + dy * dy);
     bool gravita = c.gravita && Laterale();
-    bool vede = dist < c.vista;
-    switch (c.tipo) {
+    bool vede = dist < c.vista * vistaMolt;
+    switch (tipo) {
         case TipoComportamento::Pattuglia: case TipoComportamento::Giocatore: {
             if (gravita) {
                 int davanti = (int)std::floor((e.pos.x + e.dir * (w / 2 + 2)) / TILE);
@@ -336,7 +418,7 @@ void Gioco::AggiornaPersonaggio(Entita& e, int i, float dt, Rectangle eroeBox) {
                 bool muro = livello.Solido(davanti, (int)std::floor((e.pos.y - 4) / TILE));
                 if (vuoto || muro) e.dir = -e.dir;
                 e.vel.x = e.dir * v;
-                if (c.salto > 0 && e.aTerra) { e.timer -= dt; if (e.timer <= 0) { e.vel.y = -c.salto; e.timer = Casuale(1.5f, 3); } }
+                if (c.salto > 0 && e.aTerra) { e.timer -= dt; if (e.timer <= 0) { e.vel.y = -c.salto; e.timer = rng.Float(1.5f, 3); } }
             } else {
                 int davanti = (int)std::floor((e.pos.x + e.dir * (w / 2 + 2)) / TILE);
                 if (livello.Solido(davanti, (int)std::floor((e.pos.y - h / 2) / TILE)) || std::fabs(e.pos.x - e.origine.x) > 96) e.dir = e.pos.x < e.origine.x ? 1 : -1;
@@ -357,6 +439,15 @@ void Gioco::AggiornaPersonaggio(Entita& e, int i, float dt, Rectangle eroeBox) {
             break;
         }
         case TipoComportamento::Vola: {
+            if (e.mente.attiva) {
+                // con la mente si vola verso il punto dell'onda, senza "teletrasporti" dopo un inseguimento
+                Vector2 t = { e.origine.x + std::sin(e.t * 0.9f * std::max(5.0f, v) / 35) * 40, e.origine.y + std::sin(e.t * 2.3f) * 14 };
+                float ddx = t.x - e.pos.x, ddy = t.y - e.pos.y, l = std::sqrt(ddx * ddx + ddy * ddy);
+                float vv = std::max(30.0f, v * 1.5f);
+                e.vel = l > 1 ? Vector2{ ddx / l * std::min(vv, l / std::max(dt, 0.001f)), ddy / l * std::min(vv, l / std::max(dt, 0.001f)) } : Vector2{ 0, 0 };
+                if (std::fabs(e.vel.x) > 1) e.dir = e.vel.x > 0 ? 1 : -1;
+                break;
+            }
             e.pos.x = e.origine.x + std::sin(e.t * 0.9f * v / 35) * 40;
             e.pos.y = e.origine.y + std::sin(e.t * 2.3f) * 14;
             e.dir = std::cos(e.t * 0.9f * v / 35) > 0 ? 1 : -1;
@@ -375,7 +466,6 @@ void Gioco::AggiornaPersonaggio(Entita& e, int i, float dt, Rectangle eroeBox) {
             e.dir = dx > 0 ? 1 : -1;
             if (gravita) {
                 e.vel.x = vede ? e.dir * v : 0;
-                if (c.salto > 0 && e.aTerra && vede) { e.timer -= 0; }
             } else if (vede) {
                 // vola sopra l'eroe, un po' di lato, ondeggiando
                 float tx = eroe.pos.x - e.dir * 70, ty = eroe.pos.y - 70 + std::sin(e.t * 1.7f) * 20;
@@ -384,35 +474,69 @@ void Gioco::AggiornaPersonaggio(Entita& e, int i, float dt, Rectangle eroeBox) {
                 e.vel = l > 2 ? Vector2{ ddx / l * v, ddy / l * v } : Vector2{ 0, 0 };
             } else e.vel = { 0, 0 };
             e.timer -= dt;
-            if (vede && e.timer <= 0) { e.timer = c.attaccoOgni; SparaDa(i, "", e.energia * 2 < c.energia ? 3 : 1); }
+            if (vede && e.timer <= 0) {
+                // con la mente: piu' aggressivo = attacca piu' spesso; la pieta' lo rallenta
+                float ogni = c.attaccoOgni;
+                if (e.mente.attiva) ogni *= (1.25f - 0.5f * e.mente.car.aggressivita) * (1 + pieta);
+                e.timer = ogni;
+                SparaDa(i, "", e.energia * 2 < c.energia ? 3 : 1);
+            }
             break;
         }
         case TipoComportamento::Parla: {
             e.vel.x = 0;
             e.dir = dx > 0 ? 1 : -1;
-            if (dist < 36 && !c.dialogo.empty()) dialogo = i;
+            if (dist < 36 && !FraseUmore(e.mente, profiliDef[e.def], c.dialogo).empty()) dialogo = i;
             break;
         }
         default: e.vel.x = 0; break;
     }
+}
+
+// Movimento con le collisioni e contatto con l'eroe (comune a tutti i personaggi).
+void Gioco::FinePersonaggio(Entita& e, int i, float dt, Rectangle eroeBox) {
+    const PersonaggioDef& p = lib.personaggi[e.def];
+    const Comportamento& c = p.comportamento;
+    Rectangle b0 = BoxEntita(e);
+    float w = b0.width, h = b0.height;
+    bool gravita = c.gravita && Laterale();
+    bool volaClassico = c.tipo == TipoComportamento::Vola && !e.mente.attiva;
     if (gravita) {
         e.vel.y = std::min(e.vel.y + fisica.gravita * dt, 420.0f);
         MuoviConCollisioni(e.pos, e.vel, std::max(4.0f, w), std::max(4.0f, h), dt, e.aTerra, true);
         if (e.pos.y > livello.Altezza() * TILE + 60) e.attivo = false;
-    } else if (c.tipo != TipoComportamento::Vola) {
-        e.pos.x += e.vel.x * dt; e.pos.y += e.vel.y * dt;
+    } else if (!volaClassico) {
+        float nx = e.pos.x + e.vel.x * dt, ny = e.pos.y + e.vel.y * dt;
+        if (e.mente.attiva) {
+            // chi pensa non attraversa i muri
+            if (livello.Solido((int)std::floor(nx / TILE), (int)std::floor((e.pos.y - h / 2) / TILE))) { nx = e.pos.x; e.bloccato = true; }
+            if (livello.Solido((int)std::floor(nx / TILE), (int)std::floor((ny - h / 2) / TILE))) { ny = e.pos.y; e.bloccato = true; }
+        }
+        e.pos.x = nx; e.pos.y = ny;
     }
     if (std::fabs(e.vel.x) > 1 && c.tipo != TipoComportamento::Insegue && c.tipo != TipoComportamento::Boss) e.dir = e.vel.x > 0 ? 1 : -1;
     if (c.tipo == TipoComportamento::Parla) return;
+    if (e.tContatto > 0) e.tContatto -= dt;
+    bool amico = e.mente.attiva && e.mente.azione == AzioneMente::Amico;
     // contatto con l'eroe
     Rectangle r = BoxEntita(e);
-    if (Sovrappone(eroeBox, r) && !vinto && !finito) {
+    if (Sovrappone(eroeBox, r) && !vinto && !finito && !amico) {
         bool dallAlto = Laterale() && c.calpestabile && eroe.vel.y > 40 && eroe.pos.y < r.y + r.height * 0.55f;
         if (dallAlto) {
+            causaColpo = 1;
             ColpisciEntita(i, 1);
+            causaColpo = 0;
             eroe.vel.y = -230;
         } else if (c.danno > 0) {
+            bool primaFerito = eroe.lampeggio <= 0;
             Ferisci(eroe.pos.x < e.pos.x ? -150.0f : 150.0f);
+            if (primaFerito && eroe.lampeggio > 0 && i < (int)entita.size() && entita[i].mente.attiva) {
+                Entita& f = entita[i];
+                f.mente.Ricorda(TipoRicordo::HaColpitoEroe, tempo, eroe.pos, 0.6f);
+                f.mente.minaccia = std::max(0.0f, f.mente.minaccia - 0.1f);
+                const ProfiloComportamento& pr = profiliDef[f.def];
+                if (pr.imparaSpecie) { Sapere& s = sapere[p.nome]; s.Impara(s.colpiDati, 1, pr.apprendimento); }
+            }
         }
     }
 }
@@ -428,12 +552,19 @@ void Gioco::AggiornaOggettoLib(Entita& e, int i, float dt, Rectangle box) {
     Rectangle r = BoxEntita(e);
     bool tocca = Sovrappone(box, r);
     if (vinto || finito) return;
+    if (d.indole.attiva) {
+        AggiornaIndole(e, i, dt);
+        if (e.rotto) return;   // rotto o addormentato: non fa niente finche' non torna
+    }
+    // Il tesoro della partita brilla.
+    if (e.valoreMolt > 1 && GetRandomValue(0, 100) < 6) particelle.Scintille({ r.x + r.width / 2, r.y + r.height / 2 }, Hex(0xffe27a));
     switch (d.funzione) {
         case FunzioneOggetto::Raccogli: case FunzioneOggetto::Cura: case FunzioneOggetto::Chiave: {
             if (!tocca) break;
             e.attivo = false;
+            if (d.indole.attiva && d.indole.ricarica > 0) e.tRicarica = d.indole.ricarica;
             if (d.funzione == FunzioneOggetto::Raccogli) {
-                punteggio += d.valore;
+                punteggio += (int)(d.valore * e.valoreMolt * puntiPartitaMolt);
                 std::string v = Minuscolo(d.variabile);
                 if (v == "monete" || (v.empty() && Minuscolo(d.nome).find("monet") != std::string::npos)) monete++;
                 else if (v == "gemme") gemme++;
@@ -469,7 +600,13 @@ void Gioco::AggiornaOggettoLib(Entita& e, int i, float dt, Rectangle box) {
         }
         case FunzioneOggetto::Molla: {
             if (tocca && eroe.vel.y > 0 && eroe.pos.y < r.y + r.height * 0.7f) {
-                eroe.vel.y = -(d.valore > 100 ? (float)d.valore : fisica.molla);
+                eroe.vel.y = -(d.valore > 100 ? (float)d.valore : fisica.molla) * e.forza;
+                if (d.indole.attiva) {   // usura e adattamento della molla
+                    e.usi++;
+                    e.forza = Limita(1 + d.indole.adattamento * 0.08f * e.usi, 0.5f, 1.6f);
+                    e.carica -= d.indole.usura;
+                    if (e.carica <= 0.001f && d.indole.usura > 0) { e.rotto = true; e.tRicarica = d.indole.ricarica; }
+                }
                 saltoTagliato = true;
                 eroe.CambiaStato(StatoEroe::Salto);
                 e.anim = "scatta"; e.tAnim = 0;
@@ -493,6 +630,10 @@ void Gioco::AggiornaOggettoLib(Entita& e, int i, float dt, Rectangle box) {
         }
         case FunzioneOggetto::Interruttore: {
             if (tocca && !e.toccando) {
+                if (d.indole.attiva && d.indole.usura > 0) {
+                    e.carica -= d.indole.usura;
+                    if (e.carica <= 0.001f) { e.rotto = true; e.tRicarica = d.indole.ricarica; }
+                }
                 e.acceso = !e.acceso;
                 e.anim = e.acceso ? "accesa" : "spenta";
                 SuonaLibreria(d.suono);
@@ -507,18 +648,30 @@ void Gioco::AggiornaOggettoLib(Entita& e, int i, float dt, Rectangle box) {
         case FunzioneOggetto::PiattaformaMobile: {
             float x0 = e.pos.x;
             float dist = std::max(8.0f, d.distanza);
-            e.pos.x = e.origine.x + std::sin(e.t * std::max(0.1f, d.velocita) / dist) * dist;
+            if (d.indole.attiva && appoggio == i) {   // si consuma (o accelera) mentre l'eroe ci sta sopra
+                e.carica -= d.indole.usura * dt * 0.5f;
+                e.forza = Limita(e.forza + d.indole.adattamento * dt * 0.05f, 0.4f, 2.0f);
+                if (e.carica <= 0 && d.indole.usura > 0) { e.rotto = true; e.tRicarica = d.indole.ricarica; appoggio = -1; }
+            }
+            e.pos.x = e.origine.x + std::sin(e.t * std::max(0.1f, d.velocita) * e.forza / dist) * dist;
             e.vel.x = dt > 0 ? (e.pos.x - x0) / dt : 0;
             break;
         }
         case FunzioneOggetto::Pericolo:
-            if (tocca) Ferisci(eroe.pos.x < e.pos.x ? -150.0f : 150.0f);
+            if (tocca && eroe.lampeggio <= 0) {
+                Ferisci(eroe.pos.x < e.pos.x ? -150.0f : 150.0f);
+                if (d.indole.attiva && d.indole.usura > 0) {   // un pericolo che si consuma colpendo
+                    e.carica -= d.indole.usura;
+                    if (e.carica <= 0.001f) { e.rotto = true; e.tRicarica = d.indole.ricarica; }
+                }
+            }
             break;
         case FunzioneOggetto::Controllo:
             // punto di controllo: da qui si riparte dopo una caduta o un colpo di troppo
             if (tocca && !e.acceso) {
                 e.acceso = true; e.anim = "accesa"; e.tAnim = 0;
                 checkpoint = { e.pos.x, e.pos.y };
+                autosalvataggi++;   // un buon momento per il salvataggio automatico
                 particelle.Scintille({ r.x + r.width / 2, r.y + r.height * 0.3f }, Hex(0x9ff6ff));
                 if (!d.suono.empty() && lib.TrovaEffetto(d.suono)) SuonaLibreria(d.suono); else gAudio.Suona(Effetto::Gemma, 0.7f);
                 Evento("tocca", "eroe", d.nome, i);
@@ -574,6 +727,9 @@ bool Gioco::Condizione(const Regola& r) const {
 
 void Gioco::Evento(const std::string& tipo, const std::string& chi, const std::string& conChi, int ent) {
     if (!conLibreria) return;
+    // Regole che scatenano eventi che scatenano regole...: al massimo 8 livelli (niente loop infiniti).
+    if (profonditaEventi >= 8) return;
+    struct Guardia { int& p; Guardia(int& x) : p(x) { p++; } ~Guardia() { p--; } } guardia(profonditaEventi);
     for (size_t k = 0; k < lib.regole.size(); k++) {
         const Regola& r = lib.regole[k];
         if (!r.attiva || r.evento != tipo) continue;
@@ -641,7 +797,7 @@ void Gioco::EseguiRegola(const Regola& r, int ent) {
             for (size_t m = 0; m < mondo.mappe.size(); m++) if (Uguale(mondo.mappe[m].nome, a.testo)) { VaiAMappa((int)m, { -1, -1 }); return; }
         } else if (t == "crea") {
             Vector2 dove = { eroe.pos.x + eroe.dir * 40, eroe.pos.y - 30 };
-            if (!bersagli.empty()) { Entita& b = entita[bersagli[0]]; dove = { b.pos.x + Casuale(-20, 20), b.pos.y - 8 }; }
+            if (!bersagli.empty()) { Entita& b = entita[bersagli[0]]; dove = { b.pos.x + rng.Float(-20, 20), b.pos.y - 8 }; }
             int n = std::max(1, (int)a.numero);
             for (int k = 0; k < n && k < 20; k++) CreaEntita(a.testo, { dove.x + k * 14.0f, dove.y });
             bersagli.clear();
@@ -672,6 +828,13 @@ void Gioco::EseguiRegola(const Regola& r, int ent) {
             float verso = (!bersagli.empty() && entita[bersagli[0]].pos.x > eroe.pos.x) ? -1.0f : 1.0f;
             eroe.vel.x = verso * (a.numero > 0 ? a.numero : 200);
             if (Laterale()) eroe.vel.y = -150;
+        } else if (t == "fiducia" || t == "minaccia") {
+            for (int b : bersagli) {
+                Mente& m = entita[b].mente;
+                if (!m.attiva) continue;
+                if (t == "fiducia") { m.fiducia = Limita(m.fiducia + a.numero, -1, 1); if (a.numero > 0) m.Ricorda(TipoRicordo::Aiutato, tempo, eroe.pos, a.numero); }
+                else m.minaccia = Limita(m.minaccia + a.numero, 0, 1);
+            }
         } else if (t == "vittoria") { if (!vinto) { vinto = true; tFine = 0; gAudio.Suona(Effetto::Vittoria); } }
         else if (t == "game_over") { if (!finito) { finito = true; tFine = 0; gAudio.Suona(Effetto::Esplosione); } }
     }
@@ -707,6 +870,8 @@ void Gioco::DisegnaEntita(float cx, float cy, bool decorazioni) const {
         if (e.lampeggio > 0 && std::fmod(e.lampeggio, 0.12f) < 0.06f) tinta = Mescola(tinta, Hex(0xff6060), 0.7f);
         float scala = 1;
         if (e.morte > 0) { tinta = ConAlfa(tinta, 1 - e.morte * 2); scala = 1 + e.morte; }
+        if (e.rotto) tinta = ConAlfa(Mescola(tinta, Hex(0x606070), 0.6f), 0.45f);
+        else if (!e.personaggio && lib.oggetti[e.def].indole.attiva && e.carica < 0.999f) tinta = Mescola(tinta, Hex(0x8a6a50), (1 - e.carica) * 0.5f);
         if (e.personaggio && lib.personaggi[e.def].comportamento.gravita && Laterale())
             DrawEllipse((int)x, (int)y, BoxEntita(e).width * 0.5f, 1.5f, Hex(0x000000, 60));
         bool galleggia = !e.personaggio && (lib.oggetti[e.def].funzione == FunzioneOggetto::Raccogli || lib.oggetti[e.def].funzione == FunzioneOggetto::Cura ||
@@ -872,7 +1037,11 @@ void Gioco::DisegnaExtraHud() const {
     }
     // dialogo di un personaggio che parla, oppure messaggio di una regola
     std::string testo, chi;
-    if (dialogo >= 0 && dialogo < (int)entita.size()) { testo = lib.personaggi[entita[dialogo].def].comportamento.dialogo; chi = entita[dialogo].nome; }
+    if (dialogo >= 0 && dialogo < (int)entita.size()) {
+        const Entita& d = entita[dialogo];
+        testo = FraseUmore(d.mente, profiliDef[d.def], lib.personaggi[d.def].comportamento.dialogo);
+        chi = d.nome;
+    }
     else if (tMessaggio > 0) testo = messaggio;
     if (!testo.empty()) {
         Rectangle r = { 40, VH - 66, VW - 80, 50 };

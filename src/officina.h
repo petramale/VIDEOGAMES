@@ -1,7 +1,8 @@
 // L'officina: il nuovo studio a risoluzione piena.
 //   in alto    il menu di sistema "Gioco" (nuovo, apri, salva gioco, prova, crea .exe, stile...)
 //              e i menu della sezione aperta; a destra lo stato di Claude e l'audio
-//   sotto      le schede delle sezioni: Mondi, Personaggi, Oggetti, Scenari, Audio, Logica, Librerie, Comandi
+//   sotto      le schede delle sezioni: Mondi, Personaggi, Oggetti, Scenari, Audio, Logica, Librerie, Comandi,
+//              Comportamenti (la mente delle creature e la varieta' della partita)
 //   al centro  la sezione (ognuna e' un vero editor: crea, modifica, salva, usa)
 //   a destra   la chat con Claude, presente in ogni sezione: sa dove sei e cosa hai aperto
 // Il gioco intero (mondo + libreria + regole) e' un solo file .gioco nella cartella "giochi".
@@ -17,7 +18,7 @@
 #include <string>
 #include <vector>
 
-enum class Sezione { Home, Mondi, Personaggi, Oggetti, Scenari, Audio, Logica, Librerie, Comandi, Totale };
+enum class Sezione { Home, Mondi, Personaggi, Oggetti, Scenari, Audio, Logica, Librerie, Comandi, Comportamenti, Totale };
 
 class Officina {
 public:
@@ -81,6 +82,7 @@ private:
     void AzioneSezione(const std::string& codice);   // officina_sezioni.cpp
     void AzioneAudio(const std::string& codice);     // officina_audio.cpp
     void AzioneLogica(const std::string& codice);    // officina_logica.cpp
+    void AzioneComportamenti(const std::string& codice);   // officina_comportamenti.cpp
     void FileTrascinati();
 
     // --- Home ---
@@ -115,6 +117,7 @@ private:
     void Logica(Rectangle r, float dt);
     void Librerie(Rectangle r, float dt);
     void Comandi(Rectangle r, float dt);
+    void Comportamenti(Rectangle r, float dt);
     // Elenco di elementi con icona, a sinistra delle sezioni. Restituisce l'azione: 0 niente, 1 nuovo, 2 duplica, 3 elimina.
     int Elenco(Rectangle r, const std::string& titolo, std::vector<std::string> nomi, int& scelto,
                const std::function<void(int, Rectangle)>& icona, bool puoNuovo = true);
@@ -146,6 +149,13 @@ private:
     int rigaComando = 0, colonnaComando = 0;
     bool attesaComando = false;
     float tAttesa = 0;
+
+    // Comportamenti
+    int selProfilo = 0, schedaComp = 0, selOggettoInd = 0, modelloScelto = 0;
+    float scorriComp = 0, scorriSim = 0;
+    Contesto simContesto = [] { Contesto c; c.vede = 1; c.distanza = 0.6f; return c; }();
+    float simMinaccia = 0.4f, simPaura = 0.1f, simFiducia = 0;
+    bool simAbitante = false;
 
     // --- Claude ---
     ChatClaude chat;

@@ -19,7 +19,7 @@ using nlohmann::json;
 
 namespace {
 
-const char* NOMI_SEZIONI[] = { "Home", "Mondi", "Personaggi", "Oggetti", "Scenari", "Audio", "Logica", "Librerie", "Comandi" };
+const char* NOMI_SEZIONI[] = { "Home", "Mondi", "Personaggi", "Oggetti", "Scenari", "Audio", "Logica", "Librerie", "Comandi", "Comportamenti" };
 const char* AIUTO_SEZIONI[] = { "Pagina iniziale: nuovo gioco, apri, salva e tutte le sezioni.",
     "Mondi (Alt+1): disegna le mappe a blocchi, metti oggetti e personaggi, porte, telecamera e scenario di ogni mappa.",
     "Personaggi (Alt+2): disegna e anima i personaggi, scegli l'eroe e il comportamento dei nemici e degli amici.",
@@ -28,8 +28,9 @@ const char* AIUTO_SEZIONI[] = { "Pagina iniziale: nuovo gioco, apri, salva e tut
     "Audio (Alt+5): scrivi la musica, crea gli effetti sonori e scegli quale suono va con ogni evento.",
     "Logica (Alt+6): le regole del gioco: QUANDO succede qualcosa, SE..., ALLORA fai qualcosa.",
     "Librerie (Alt+7): tutto quello che il gioco contiene e le 22 raccolte pronte da aggiungere.",
-    "Comandi (Alt+8): tasti, mouse e joypad, con la prova dal vivo." };
-const char* TASTI_SEZIONI[] = { "", "Alt+1", "Alt+2", "Alt+3", "Alt+4", "Alt+5", "Alt+6", "Alt+7", "Alt+8" };
+    "Comandi (Alt+8): tasti, mouse e joypad, con la prova dal vivo.",
+    "Comportamenti (Alt+9): il carattere e la mente di nemici e personaggi, l'indole degli oggetti, come cambia ogni partita." };
+const char* TASTI_SEZIONI[] = { "", "Alt+1", "Alt+2", "Alt+3", "Alt+4", "Alt+5", "Alt+6", "Alt+7", "Alt+8", "Alt+9" };
 
 bool Ctrl() { return IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL); }
 bool Alt() { return IsKeyDown(KEY_LEFT_ALT) || IsKeyDown(KEY_RIGHT_ALT); }
@@ -64,6 +65,8 @@ void IconaSezione(int i, Rectangle r, Color c) {
                 DrawLineEx({ cx - 4 * u, cy - u }, { cx - 4 * u, cy + 3 * u }, u, c); DrawLineEx({ cx - 4 * u, cy + 3 * u }, { cx + u, cy + 3 * u }, u, c); break;
         case 7: for (int k = 0; k < 3; k++) DrawRectangleRec({ cx - 6 * u + k * 4.5f * u, cy - 6 * u + (k == 1 ? 2 * u : 0), 3 * u, 12 * u - (k == 1 ? 2 * u : 0) }, c); break;
         case 8: DrawRectangleRounded({ cx - 7 * u, cy - 3 * u, 14 * u, 7 * u }, 0.6f, 6, c); DrawCircleV({ cx + 3 * u, cy }, 1.2f * u, Hex(0x0d0f24)); DrawRectangleRec({ cx - 5 * u, cy - 0.5f * u, 4 * u, u }, Hex(0x0d0f24)); break;
+        case 9: DrawCircleV({ cx - 2.5f * u, cy - u }, 4.5f * u, c); DrawCircleV({ cx + 2.5f * u, cy - u }, 4.5f * u, c); DrawRectangleRec({ cx - u, cy + 2 * u, 2 * u, 4 * u }, c);
+                DrawLineEx({ cx, cy - 5 * u }, { cx, cy + 2 * u }, u, Hex(0x0d0f24)); DrawCircleV({ cx - 3 * u, cy - 2 * u }, u, Hex(0x0d0f24)); DrawCircleV({ cx + 3 * u, cy }, u, Hex(0x0d0f24)); break;
     }
 }
 
@@ -276,6 +279,10 @@ void Officina::AvviaProva() {
     SincronizzaMondo();
     std::string errore;
     prova = Gioco{};
+    // Ogni prova e' una partita diversa, come nel gioco vero (salvo un seme fisso scelto in Comportamenti).
+    prova.semePartita = progetto.varieta.semeFisso ? progetto.varieta.semeFisso
+                                                   : Mescola64((uint64_t)GetRandomValue(1, 1 << 30) * 2654435761ull ^ (uint64_t)(GetTime() * 1000));
+    if (!prova.semePartita) prova.semePartita = 1;
     if (!prova.CaricaProgetto(progetto, errore)) { Avvisa("Non si puo' provare: " + errore); return; }
     provando = true;
     tProva = 0;
@@ -305,7 +312,7 @@ void Officina::FrameProva(float dt) {
     DrawTexturePro(rtProva.texture, { 0, 0, (float)rtProva.texture.width, -(float)rtProva.texture.height }, area, { 0, 0 }, 0, WHITE);
     int dim = std::max(12, (int)(sh / 60));
     DrawRectangle(0, (int)(sh - dim * 1.7f), (int)sw, (int)(dim * 1.7f), Hex(0x0b0e22, 200));
-    DrawText("PROVA DEL GIOCO   Esc o F5: torna all'officina   R: ricomincia   F1: collisioni   F7: musica   F6: effetti", 12, (int)(sh - dim * 1.35f), dim, Hex(0xc8d0f0));
+    DrawText("PROVA DEL GIOCO   Esc o F5: torna all'officina   R: ricomincia   F1: collisioni   F9: pensieri delle creature   F7: musica   F6: effetti", 12, (int)(sh - dim * 1.35f), dim, Hex(0xc8d0f0));
     float hb = dim * 1.7f - 4;   // altoparlante, musica ed effetti nella barra in basso, fuori dal gioco
     postoAudio = { sw - hb - 6, sh - hb - 2, hb, hb };
 }
@@ -349,6 +356,7 @@ void Officina::Frame(float dt) {
         case Sezione::Logica: Logica(rCorpo, dt); break;
         case Sezione::Librerie: Librerie(rCorpo, dt); break;
         case Sezione::Comandi: Comandi(rCorpo, dt); break;
+        case Sezione::Comportamenti: Comportamenti(rCorpo, dt); break;
         default: break;
     }
     if (editorMondo.Provando()) return;   // la prova e' partita da un menu dell'editor
@@ -450,6 +458,11 @@ std::vector<Officina::MenuO> Officina::Menu() const {
             break;
         case Sezione::Comandi:
             m.push_back({ "Comandi", { { "Ripristina i comandi predefiniti", "", "k:predefiniti" }, { "Salva i comandi", "", "k:salva" } } });
+            break;
+        case Sezione::Comportamenti:
+            m.push_back({ "Profilo", { { "Nuovo profilo", "", "m:nuovo" }, { "Nuovo dal modello scelto", "", "m:modello" }, { "Duplica", "", "m:duplica" },
+                                       { "Elimina", "", "m:elimina" }, { "Dallo a tutti i nemici", "", "m:tutti" },
+                                       { "Prova con i pensieri delle creature", "", "m:prova" }, { "Esporta il profilo (.json)", "", "esporta" } } });
             break;
         default: break;
     }
@@ -838,7 +851,7 @@ void Officina::Home(Rectangle r) {
                            "Disegna, anima e dai un comportamento ai personaggi", "Oggetti disegnati con la loro funzione nel gioco",
                            "Sfondi a strati, cielo, pioggia e neve, caselle disegnate", "Musica a note, effetti sonori, suoni degli eventi",
                            "Regole: quando succede qualcosa, allora...", "La libreria del gioco e le 22 raccolte pronte",
-                           "Tastiera, mouse e joypad" };
+                           "Tastiera, mouse e joypad", "Carattere e mente delle creature, ogni partita diversa" };
     int col = r.width > 1300 * s ? 4 : 3;
     float gap = 14 * s, cw = (r.width - 80 * s - (col - 1) * gap) / col, ch = 92 * s;
     for (int i = 1; i < (int)Sezione::Totale; i++) {
@@ -881,6 +894,10 @@ std::string Officina::NomeSezione() const {
         case Sezione::Logica: return "logica";
         case Sezione::Librerie: return "librerie";
         case Sezione::Comandi: return "comandi";
+        case Sezione::Comportamenti: {
+            const char* sch[] = { "carattere", "azioni", "reazioni", "chi lo usa", "indole degli oggetti", "partita unica" };
+            return std::string("comportamenti (") + sch[std::max(0, std::min(schedaComp, 5))] + ")";
+        }
         default: return "home";
     }
 }
@@ -894,6 +911,9 @@ std::string Officina::ElementoAperto() const {
             if (schedaAudio == 0) return selBrano < (int)progetto.brani.size() ? progetto.brani[selBrano].nome : "";
             return selEffetto < (int)progetto.effetti.size() ? progetto.effetti[selEffetto].nome : "";
         case Sezione::Logica: return selRegola < (int)progetto.regole.size() ? "regola " + std::to_string(selRegola) : "";
+        case Sezione::Comportamenti:
+            if (schedaComp == 4) return selOggettoInd < (int)progetto.oggetti.size() ? progetto.oggetti[selOggettoInd].nome : "";
+            return selProfilo < (int)progetto.profili.size() ? "profilo " + progetto.profili[selProfilo].nome : "";
         case Sezione::Mondi: { int m = editorMondo.MappaAperta(); return m < (int)progetto.mondo.mappe.size() ? "mappa " + progetto.mondo.mappe[m].nome : ""; }
         default: return "";
     }
@@ -914,6 +934,9 @@ std::vector<std::string> Officina::SuggerimentiClaude() const {
                                        "Ogni 5 secondi crea un pipistrello vicino all'eroe", "Quando il boss e' sconfitto, vittoria" };
         case Sezione::Librerie: return { "Aggiungi la raccolta Fantasy e metti il drago nella mappa", "Che personaggi ci sono nel gioco?",
                                          "Crea tre nemici diversi per un livello di ghiaccio" };
+        case Sezione::Comportamenti: return { "Crea un profilo per lupi che cacciano in branco e dallo ai lupi",
+                                              "Rendi il mercante diffidente: si fida solo se lo aiuti",
+                                              "Fai che ogni partita abbia la nebbia o la luna rossa, mai la calma" };
         case Sezione::Mondi: return { "Aggiungi piattaforme e 10 monete fino alla bandiera", "Metti il drago della libreria alla fine del livello",
                                       "Crea una seconda mappa nel castello collegata con una porta" };
         default: return { "Fammi un platform completo con un drago come boss finale", "Come si crea un personaggio animato?",
@@ -963,6 +986,7 @@ void Officina::ControllaChat() {
         if (e.sezione == "personaggi") { int i = Indice(progetto.personaggi, e.nome); if (i >= 0) selPersonaggio = i; if (sezione != Sezione::Mondi) Vai(Sezione::Personaggi); }
         else if (e.sezione == "oggetti") { int i = Indice(progetto.oggetti, e.nome); if (i >= 0) selOggetto = i; if (sezione != Sezione::Mondi) Vai(Sezione::Oggetti); }
         else if (e.sezione == "scenari") { int i = Indice(progetto.scenari, e.nome); if (i >= 0) selScenario = i; }
+        else if (e.sezione == "comportamenti") { int i = Indice(progetto.profili, e.nome); if (i >= 0) { selProfilo = i; if (schedaComp > 3) schedaComp = 0; } if (sezione != Sezione::Mondi) Vai(Sezione::Comportamenti); }
         else if (e.sezione == "audio") {
             int i = Indice(progetto.brani, e.nome); if (i >= 0) { selBrano = i; schedaAudio = 0; }
             int k = Indice(progetto.effetti, e.nome); if (k >= 0) { selEffetto = k; schedaAudio = 1; }
@@ -1099,6 +1123,7 @@ std::string Officina::ElementoJson() const {
             else if (selEffetto < (int)progetto.effetti.size()) j = { { "effetto", EffettoJson(progetto.effetti[selEffetto]) } };
             break;
         case Sezione::Logica: if (selRegola < (int)progetto.regole.size()) j = { { "regola", RegolaJson(progetto.regole[selRegola]) } }; break;
+        case Sezione::Comportamenti: if (selProfilo < (int)progetto.profili.size()) j = { { "profilo", ProfiloJson(progetto.profili[selProfilo]) } }; break;
         default: break;
     }
     if (j.is_null()) return "";
@@ -1158,6 +1183,14 @@ bool Officina::ImportaElemento(const std::string& testo, std::string& msg) {
         selRegola = (int)progetto.regole.size() - 1;
         Vai(Sezione::Logica);
         msg = "Importata una regola";
+    } else if (j.contains("profilo")) {
+        ProfiloComportamento p;
+        if (!ProfiloDaJson(j["profilo"], p, errore)) { msg = errore; annulla.pop_back(); return false; }
+        while (progetto.Profilo(p.nome)) p.nome += " (2)";
+        progetto.profili.push_back(p);
+        selProfilo = (int)progetto.profili.size() - 1;
+        Vai(Sezione::Comportamenti);
+        msg = "Importato il profilo di comportamento " + p.nome;
     } else if (j.contains("fotogrammi") || j.contains("animazioni")) {
         // Uno sprite fatto con Claude (vecchio formato: palette e righe): diventa un personaggio.
         PersonaggioDef p;
