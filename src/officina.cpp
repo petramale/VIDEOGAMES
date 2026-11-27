@@ -665,43 +665,56 @@ void Officina::Finestre() {
             y += h + 18 * s;
             std::vector<std::string> generi;
             for (int i = 0; i < (int)Genere::Totale; i++) generi.push_back(NomeGenere((Genere)i));
+            generi.push_back("Arcade");   // i quattro giochi arcade completi
+            const int ARC = (int)Genere::Totale;
             Ui::Testo("Genere", x, y, Ui::TestoSpento(), Ui::TP());
             y += 24 * s;
-            float bw = (w - 5 * 8 * s) / 6;
+            float bw = (w - (generi.size() - 1) * 8 * s) / generi.size();
             for (int i = 0; i < (int)generi.size(); i++)
                 if (Ui::Pulsante({ x + i * (bw + 8 * s), y, bw, 46 * s }, generi[i], genereNuovo == i)) genereNuovo = i;
             y += 64 * s;
-            Ui::Testo("Stile grafico", x, y, Ui::TestoSpento(), Ui::TP());
-            y += 24 * s;
-            const char* stili[] = { "Pixel art fine", "Disegnato in alta definizione" };
-            const char* desc[] = { "Pixel netti, il doppio dei dettagli di prima: personaggi 32x32 in una casella.",
-                                   "Disegni morbidi con sfumature e contorni lisci, a quattro volte la risoluzione." };
-            for (int i = 0; i < 2; i++) {
-                Rectangle b = { x + i * (w / 2 + 4 * s), y, w / 2 - 4 * s, 90 * s };
-                if (Ui::Pulsante(b, "", stileNuovo == i)) stileNuovo = i;
-                Ui::Testo(stili[i], b.x + 14 * s, b.y + 12 * s, stileNuovo == i ? Ui::Accento() : WHITE, Ui::T());
-                Ui::TestoACapo(desc[i], b.x + 14 * s, b.y + 40 * s, b.width - 28 * s, Ui::TestoSpento(), Ui::TP());
-            }
-            y += 110 * s;
-            {
-                Ui::Testo("Oppure parti da un gioco arcade completo (ondate, nemici e boss gia' pronti, tutti modificabili)", x, y, Ui::TestoSpento(), Ui::TP());
+            const auto& nomi = arcade::Nomi();
+            if (genereNuovo == ARC) {
+                Ui::Testo("Scegli il gioco arcade (ogni livello, nemico, boss, musica e suono si cambia nello Studio)", x, y, Ui::TestoSpento(), Ui::TP());
                 y += 24 * s;
-                const auto& nomi = arcade::Nomi();
-                float aw = (w - 3 * 8 * s) / 4;
-                for (int i = 0; i < (int)nomi.size(); i++) {
-                    bool pronto = (bool)arcade::Crea(nomi[i]);
-                    std::string t = arcade::TitoloDi(nomi[i]);
-                    if (t.find(':') != std::string::npos) t = t.substr(0, t.find(':'));
-                    if (Ui::Pulsante({ x + i * (aw + 8 * s), y, aw, 40 * s }, pronto ? t : t + " (presto)") && pronto) { ApriArcade(nomi[i]); finestra = 0; }
+                const char* desc[] = { "Sparatutto a ondate: 30 ondate in 6 cieli, alieni di cristallo, disco bonus e potenziamenti. Disegnato HD.",
+                                       "Sparatutto a formazioni: 15 livelli in 5 settori, insetti in picchiata, un boss ogni 3 livelli. Disegnato HD.",
+                                       "Run-and-gun nel West: 10 missioni con boss, ostaggi, dinamite e il carro Bisonte. Pixel art fine.",
+                                       "Avventura isometrica dipinta: 12 capitoli, missioni, mercato, ricette, combattimenti e mappa." };
+                float cw = w / 2 - 4 * s, ch = 104 * s;
+                for (int i = 0; i < (int)nomi.size() && i < 4; i++) {
+                    Rectangle b = { x + (i % 2) * (cw + 8 * s), y + (i / 2) * (ch + 8 * s), cw, ch };
+                    if (Ui::Pulsante(b, "", arcadeNuovo == i)) arcadeNuovo = i;
+                    Ui::Testo(arcade::TitoloDi(nomi[i]), b.x + 14 * s, b.y + 12 * s, arcadeNuovo == i ? Ui::Accento() : WHITE, Ui::T());
+                    Ui::TestoACapo(desc[i], b.x + 14 * s, b.y + 42 * s, b.width - 28 * s, Ui::TestoSpento(), Ui::TP());
                 }
-                y += 56 * s;
+                y += 2 * (ch + 8 * s) + 10 * s;
+                Ui::TestoACapo("Il gioco si apre nella sezione Gioco arcade: F5 per giocare, Ctrl+S per salvarlo, Crea .exe per l'eseguibile.",
+                               x, y, w, Ui::TestoSpento(), Ui::TP());
+            } else {
+                Ui::Testo("Stile grafico", x, y, Ui::TestoSpento(), Ui::TP());
+                y += 24 * s;
+                const char* stili[] = { "Pixel art fine", "Disegnato in alta definizione" };
+                const char* desc[] = { "Pixel netti, il doppio dei dettagli di prima: personaggi 32x32 in una casella.",
+                                       "Disegni morbidi con sfumature e contorni lisci, a quattro volte la risoluzione." };
+                for (int i = 0; i < 2; i++) {
+                    Rectangle b = { x + i * (w / 2 + 4 * s), y, w / 2 - 4 * s, 90 * s };
+                    if (Ui::Pulsante(b, "", stileNuovo == i)) stileNuovo = i;
+                    Ui::Testo(stili[i], b.x + 14 * s, b.y + 12 * s, stileNuovo == i ? Ui::Accento() : WHITE, Ui::T());
+                    Ui::TestoACapo(desc[i], b.x + 14 * s, b.y + 40 * s, b.width - 28 * s, Ui::TestoSpento(), Ui::TP());
+                }
+                y += 110 * s;
+                Ui::TestoACapo("Il gioco nuovo parte con la raccolta Base (eroe, nemici, oggetti, scenario, musica e suoni). "
+                               "Dopo puoi aggiungere altre raccolte dalla sezione Librerie o chiedere a Claude di creare tutto quello che vuoi. "
+                               "Per i quattro giochi arcade completi scegli il genere Arcade.",
+                               x, y, w, Ui::TestoSpento(), Ui::TP());
             }
-            Ui::TestoACapo("Il gioco nuovo parte con la raccolta Base (eroe, nemici, oggetti, scenario, musica e suoni). "
-                           "Dopo puoi aggiungere altre raccolte dalla sezione Librerie o chiedere a Claude di creare tutto quello che vuoi.",
-                           x, y, w, Ui::TestoSpento(), Ui::TP());
-            if (Ui::Pulsante({ f.x + f.width - pad - 200 * s, f.y + f.height - pad - 44 * s, 200 * s, 44 * s }, "Crea il gioco", true)) {
-                NuovoGioco((Genere)genereNuovo, stileNuovo ? StileGrafico::Disegnato : StileGrafico::PixelFine, titoloNuovo);
-                Vai(Sezione::Mondi);
+            if (Ui::Pulsante({ f.x + f.width - pad - 200 * s, f.y + f.height - pad - 44 * s, 200 * s, 44 * s }, genereNuovo == ARC ? "Apri il gioco arcade" : "Crea il gioco", true)) {
+                if (genereNuovo == ARC) { if (arcadeNuovo >= 0 && arcadeNuovo < (int)nomi.size()) ApriArcade(nomi[arcadeNuovo]); }
+                else {
+                    NuovoGioco((Genere)genereNuovo, stileNuovo ? StileGrafico::Disegnato : StileGrafico::PixelFine, titoloNuovo);
+                    Vai(Sezione::Mondi);
+                }
                 finestra = 0;
             }
             break;

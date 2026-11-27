@@ -274,7 +274,7 @@ Gli stessi giochi si possono creare anche da riga di comando:
 ## 15. I quattro giochi arcade
 
 Sono quattro giochi completi, scritti per lo Studio e modificabili in ogni parte. Si aprono da
-**Gioco → Nuovo gioco** (riga "Oppure parti da un gioco arcade completo") o da **Gioco → Apri** (elenco
+**Gioco → Nuovo gioco** (genere **Arcade**, poi "Apri il gioco arcade") o da **Gioco → Apri** (elenco
 **Giochi arcade**). Hanno lo stesso flusso dei giochi creati: intro Elvantis, menu con 1 o 2 giocatori (a turni),
 opzioni, crediti, salvataggi; si giocano con tastiera, mouse o joypad.
 

@@ -90,7 +90,7 @@ private:
 
     // --- Home ---
     Sfondo sfondoHome;
-    int genereNuovo = 0, stileNuovo = 0;
+    int genereNuovo = 0, stileNuovo = 0, arcadeNuovo = 0;   // genereNuovo == Genere::Totale: gioco arcade
     std::string titoloNuovo = "Il mio gioco";
     std::vector<std::string> elencoGiochi;
     float scorriElenco = 0;
