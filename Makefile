@@ -43,7 +43,7 @@ $(ESEGUIBILE): $(RAYLIB_OBJ) $(STUDIO_OBJ) $(RISORSE)
 	@mkdir -p $(BIN_DIR)
 	$(CXX) -o $@ $^ $(LDFLAGS)
 
-$(OBJ_DIR)/raylib/%.o: $(RAYLIB)/%.c
+$(OBJ_DIR)/raylib/%.o: $(RAYLIB)/%.c $(RAYLIB)/config.h
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
