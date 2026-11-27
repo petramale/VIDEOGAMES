@@ -24,7 +24,7 @@ disegnata in alta definizione.
 - **In alto** il menu di sistema **Gioco** (Nuovo, Apri, **Salva gioco**, Salva con nome, Prova, Crea .exe,
   Stile grafico, Annulla, Ripeti, Musica dello studio, Chiave di Claude, Esci) e i menu della sezione aperta. La musica dello studio
   è spenta di serie (F7 o la nota in alto la accendono): gli effetti sonori restano sempre attivi.
-- **Sotto** le schede delle sezioni (Alt+1 … Alt+8) e i pulsanti **Prova F5** e **Crea .exe**.
+- **Sotto** le schede delle sezioni (Alt+1 … Alt+9) e i pulsanti **Prova F5** e **Crea .exe**.
 - **A destra** la chat con **Claude**, presente in ogni sezione: sa dove sei e cosa hai selezionato.
 - **Aiuto sui pulsanti**: fermandosi con il mouse su un pulsante compare un riquadro che ne spiega la funzione.
 
@@ -38,6 +38,7 @@ disegnata in alta definizione.
 | Logica | Regole "QUANDO … SE … ALLORA …": tocchi, raccolte, colpi, tasti, timer, variabili; azioni come suonare, mostrare un messaggio, cambiare mappa, dare punti. |
 | Librerie | La libreria del gioco e 22 raccolte pronte (personaggi, oggetti, scenari, caselle, musiche, effetti) in pixel art fine o disegnate in HD. |
 | Comandi | Tastiera, mouse e joypad: tasti da cambiare con un clic, zona morta, comandi extra legati alle regole, prova dal vivo. |
+| Comportamenti | La mente delle creature: profili di carattere (coraggio, aggressività, prudenza, rancore…), quanto preferiscono ogni azione, reazioni e frasi secondo l'umore, a chi si applicano; l'indole degli oggetti; come cambia ogni partita (evento speciale, alleanze, veterani, meteo). Con il simulatore delle decisioni. |
 
 Un gioco intero (mondo, libreria, regole, musica, immagini) è **un solo file `.gioco`** nella cartella `giochi`
 accanto allo studio. Lo studio riapre da solo l'ultimo gioco e, se chiudi la finestra, salva il lavoro non salvato.
@@ -86,6 +87,7 @@ src/
   officina_sezioni.cpp  sezioni Mondi, Personaggi, Oggetti, Scenari
   officina_audio.cpp    sezione Audio (musica, effetti, suoni degli eventi)
   officina_logica.cpp   sezioni Logica, Librerie, Comandi
+  officina_comportamenti.cpp  sezione Comportamenti (profili, indole, partita unica, simulatore)
   editor_disegno.*      editor di disegno e animazione (personaggi, oggetti, caselle)
   editor_mondo.*        editor delle mappe (dentro la sezione Mondi)
   progetto_gioco.*      il file .gioco: libreria, regole, stile grafico
@@ -93,6 +95,10 @@ src/
   claude_progetto.*     Claude sull'intero gioco (personaggi, oggetti, brani, regole…)
   claude_mondo.*        Claude sulle mappe
   gioco*.cpp, gioco.h   motore: fisica, collisioni, telecamera, libreria, regole, disegno HD
+  mente.*               la mente delle creature (utility AI, emozioni, memoria, apprendimento), generatore deterministico
+  gioco_mente.cpp       mente e indole nel motore, destino della partita (seme, eventi, relazioni)
+  salvataggio.*         salvataggi dei giochi creati: CRC, scrittura atomica, versioni, ripristino
+  verifica_salvataggi.cpp  prova automatica dei salvataggi (--verifica-salvataggi)
   mondo.*               mondi e mappe in JSON
   ui.*                  controlli dell'interfaccia (pulsanti, campi, scelte, colori)
   aiuto.cpp             le spiegazioni dei pulsanti (aiuto che compare fermandosi col mouse)
