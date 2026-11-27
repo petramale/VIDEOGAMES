@@ -1,7 +1,7 @@
 // Elenco dei giochi arcade e riga di comando per crearli e provarli:
 //   StudioVideogiochi --crea-arcade nome Gioco.exe [base.exe]    crea l'eseguibile del gioco
-//   StudioVideogiochi --foto-arcade nome cartella [secondi]        foto di controllo (pilota automatico)
-//   StudioVideogiochi --prova-arcade nome [secondi]                prova veloce: partita automatica + salvataggio
+//   StudioVideogiochi --foto-arcade nome cartella [secondi [foto [seme [tappa [dati.json]]]]]   foto di controllo (pilota automatico)
+//   StudioVideogiochi --prova-arcade nome [secondi [tappa [dati.json]]]   prova veloce: partita automatica + salvataggio
 #include "arcade.h"
 #include "pacchetto.h"
 #include "audio.h"
@@ -56,6 +56,12 @@ static bool LeggiFile(const std::string& f, std::string& s) {
     std::ifstream in(f, std::ios::binary); if (!in) return false;
     std::stringstream ss; ss << in.rdbuf(); s = ss.str(); return true;
 }
+// dati di prova facoltativi (per esempio missioni corte per arrivare subito ai boss)
+static nlohmann::json DatiProva(int argc, char** argv, int i) {
+    std::string t;
+    if (argc > i && LeggiFile(argv[i], t)) { auto j = nlohmann::json::parse(t, nullptr, false); if (j.is_object()) return j; }
+    return nlohmann::json::object();
+}
 
 int CreaArcadeDaRigaDiComando(int argc, char** argv) {
     if (argc < 4) { std::fprintf(stderr, "Uso: --crea-arcade nome Gioco.exe [base.exe [progetto.gioco]]\n"); return 1; }
@@ -85,7 +91,8 @@ int FotoArcadeDaRigaDiComando(int argc, char** argv) {
     if (argc < 4) return 1;
     auto g = Crea(argv[2]);
     if (!g) return 1;
-    g->Configura(nlohmann::json::object(), nullptr);
+    g->Configura(DatiProva(argc, argv, 8), nullptr);
+    int tappa = argc > 7 ? std::atoi(argv[7]) : 0;
     float secondi = argc > 4 ? (float)std::atof(argv[4]) : 60;
     int foto = argc > 5 ? std::atoi(argv[5]) : 6;
     uint64_t seme = argc > 6 ? std::strtoull(argv[6], nullptr, 10) : 777;
@@ -94,6 +101,7 @@ int FotoArcadeDaRigaDiComando(int argc, char** argv) {
     InitWindow(640, 360, "foto");
     g->Prepara();
     g->Nuova(seme, 0);
+    if (tappa > 0) g->IniziaDa(tappa);
     MakeDirectory(argv[3]);
     RenderTexture2D rt = LoadRenderTexture(g->L(), g->A());
     int passi = (int)(secondi * 60), ogni = std::max(1, passi / foto), n = 0;
@@ -122,7 +130,9 @@ int ProvaArcadeDaRigaDiComando(int argc, char** argv) {
     if (argc < 3) return 1;
     auto g = Crea(argv[2]);
     if (!g) return 1;
-    g->Configura(nlohmann::json::object(), nullptr);
+    nlohmann::json dati = DatiProva(argc, argv, 5);
+    int tappa = argc > 4 ? std::atoi(argv[4]) : 0;
+    g->Configura(dati, nullptr);
     float secondi = argc > 3 ? (float)std::atof(argv[3]) : 300;
     SetTraceLogLevel(LOG_WARNING);
     SetConfigFlags(FLAG_WINDOW_HIDDEN);
@@ -131,6 +141,7 @@ int ProvaArcadeDaRigaDiComando(int argc, char** argv) {
     int problemi = 0;
     for (uint64_t seme = 1; seme <= 3; seme++) {
         g->Nuova(seme * 1000003, 0);
+        if (tappa > 0) g->IniziaDa(tappa);
         int pc = g->puntiDiControllo, tappe = 0;
         int passi = (int)(secondi * 60);
         int i = 0;
@@ -141,7 +152,7 @@ int ProvaArcadeDaRigaDiComando(int argc, char** argv) {
                 // salva e ricarica in un'altra istanza: lo stato deve tornare identico
                 std::string s = g->Stato(), errore;
                 auto h = Crea(argv[2]);
-                h->Configura(nlohmann::json::object(), nullptr);
+                h->Configura(dati, nullptr);
                 if (!h->Ripristina(s, errore)) { std::printf("  ripristino fallito: %s\n", errore.c_str()); problemi++; }
                 else if (h->Stato() != s) {
                     auto a = nlohmann::json::parse(s), b = nlohmann::json::parse(h->Stato());

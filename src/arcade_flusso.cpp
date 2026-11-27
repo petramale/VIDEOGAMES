@@ -48,8 +48,9 @@ Pad LeggiPad(Rectangle area, int L, int A) {
     p.bomba = IsKeyDown(KEY_Z) || IsKeyDown(KEY_X) || IsKeyDown(KEY_K) || IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL) ||
               IsMouseButtonDown(MOUSE_BUTTON_RIGHT) ||
               (jp >= 0 && (IsGamepadButtonDown(jp, GAMEPAD_BUTTON_RIGHT_FACE_RIGHT) || IsGamepadButtonDown(jp, GAMEPAD_BUTTON_RIGHT_TRIGGER_1)));
-    p.salto = IsKeyDown(KEY_UP) || IsKeyDown(KEY_W) || IsKeyDown(KEY_L) || IsKeyDown(KEY_C) ||
-              (jp >= 0 && IsGamepadButtonDown(jp, GAMEPAD_BUTTON_RIGHT_FACE_LEFT));
+    // salto (Polvere da Sparo): le frecce servono a mirare, quindi si salta con C, L o Maiuscolo
+    p.salto = IsKeyDown(KEY_C) || IsKeyDown(KEY_L) || IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT) ||
+              (jp >= 0 && (IsGamepadButtonDown(jp, GAMEPAD_BUTTON_RIGHT_FACE_LEFT) || IsGamepadButtonDown(jp, GAMEPAD_BUTTON_RIGHT_FACE_UP)));
     p.conferma = IsKeyDown(KEY_ENTER) || IsKeyDown(KEY_KP_ENTER) || (jp >= 0 && IsGamepadButtonDown(jp, GAMEPAD_BUTTON_RIGHT_FACE_DOWN));
     float s = area.width / L;
     Vector2 m = GetMousePosition();

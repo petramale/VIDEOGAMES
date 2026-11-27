@@ -34,7 +34,7 @@ struct Pad {
     float x = 0, y = 0;                 // -1..1
     bool fuoco = false, fuocoP = false; // Spazio / A / clic sinistro (P = appena premuto)
     bool bomba = false, bombaP = false; // Z, X, Ctrl / B / clic destro
-    bool salto = false, saltoP = false; // Su / Spazio nei giochi a piattaforme (Polvere)
+    bool salto = false, saltoP = false; // C, L, Maiuscolo / X o Y del joypad (Polvere)
     bool su = false, suP = false, giu = false, giuP = false, sx = false, sxP = false, dx = false, dxP = false;
     bool conferma = false;              // Invio
     Vector2 mouse{ 0, 0 };              // nelle coordinate virtuali del gioco
