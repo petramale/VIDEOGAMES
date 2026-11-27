@@ -33,14 +33,13 @@
 #include <fstream>
 #include <iterator>
 
-namespace {
+#include "flusso.h"
 
 const char* SVILUPPATORE = "Mario Petramale";
-constexpr int BRANO_INTRO = 9;   // la musica fissa dell'intro e del menu dei giochi creati
 Texture2D gLogo{};   // logo Elvantis, disegnato a risoluzione piena
 
 // Disegna il logo dentro un rettangolo della finestra, mantenendo le proporzioni.
-void DisegnaLogo(Rectangle r, float alfa = 1) {
+void DisegnaLogo(Rectangle r, float alfa) {
     if (gLogo.id == 0) return;
     float s = std::min(r.width / gLogo.width, r.height / gLogo.height);
     float w = gLogo.width * s, h = gLogo.height * s;
@@ -82,7 +81,7 @@ std::string FileAccanto(const std::string& estensione) {
 }
 
 // Scritta con ombra, centrata in x se 'centro' (carattere Outfit; grassetto per i titoli).
-void Scritta2(const std::string& t, float x, float y, int dim, Color c, bool centro = true) {
+void Scritta2(const std::string& t, float x, float y, int dim, Color c, bool centro) {
     bool forte = dim >= 24;
     int w = forte ? Ui::LarghezzaForte(t, dim) : Ui::Larghezza(t, dim);
     float px = centro ? x - w / 2.0f : x;
@@ -168,35 +167,34 @@ bool Intro(const std::string& titolo, const std::string& sotto, bool aspettaTast
 
 // --- Il gioco creato ---------------------------------------------------------------------------
 
-// Una voce di menu grande, con mouse, tastiera e joypad. Ritorna true se scelta.
-struct MenuGioco {
-    int scelta = 0;
-    int Frame(const std::vector<std::string>& voci, float cx, float y, float passo, int dim) {
-        if (gInput.Premuto(Azione::Su)) { scelta = (scelta + (int)voci.size() - 1) % (int)voci.size(); gAudio.Suona(Effetto::Menu, 0.6f); }
-        if (gInput.Premuto(Azione::Giu)) { scelta = (scelta + 1) % (int)voci.size(); gAudio.Suona(Effetto::Menu, 0.6f); }
-        int premuta = -1;
-        for (int i = 0; i < (int)voci.size(); i++) {
-            int w = Ui::LarghezzaForte(voci[i], dim);
-            Rectangle r = { cx - w / 2.0f - dim, y + i * passo - dim * 0.3f, w + dim * 2.0f, dim * 1.6f };
-            bool sopra = CheckCollisionPointRec(GetMousePosition(), r);
-            if (sopra && (GetMouseDelta().x != 0 || GetMouseDelta().y != 0) && scelta != i) scelta = i;
-            if (sopra && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) premuta = i;
-            bool sel = scelta == i;
-            if (sel) {
-                DrawRectangleRounded(r, 0.5f, 8, Hex(0x2a3a8a, 200));
-                DrawRectangleRoundedLinesEx(r, 0.5f, 8, 3, Hex(0xffe066));
-            }
-            Scritta2(voci[i], cx, y + i * passo, dim, sel ? Hex(0xffe066) : Hex(0xe8ecff));
+int MenuGioco::Frame(const std::vector<std::string>& voci, float cx, float y, float passo, int dim) {
+    if (gInput.Premuto(Azione::Su)) { scelta = (scelta + (int)voci.size() - 1) % (int)voci.size(); gAudio.Suona(Effetto::Menu, 0.6f); }
+    if (gInput.Premuto(Azione::Giu)) { scelta = (scelta + 1) % (int)voci.size(); gAudio.Suona(Effetto::Menu, 0.6f); }
+    int premuta = -1;
+    for (int i = 0; i < (int)voci.size(); i++) {
+        int w = Ui::LarghezzaForte(voci[i], dim);
+        Rectangle r = { cx - w / 2.0f - dim, y + i * passo - dim * 0.3f, w + dim * 2.0f, dim * 1.6f };
+        bool sopra = CheckCollisionPointRec(GetMousePosition(), r);
+        if (sopra && (GetMouseDelta().x != 0 || GetMouseDelta().y != 0) && scelta != i) scelta = i;
+        if (sopra && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) premuta = i;
+        bool sel = scelta == i;
+        if (sel) {
+            DrawRectangleRounded(r, 0.5f, 8, Hex(0x2a3a8a, 200));
+            DrawRectangleRoundedLinesEx(r, 0.5f, 8, 3, Hex(0xffe066));
         }
-        if (gInput.Premuto(Azione::Conferma) || gInput.Premuto(Azione::Salto)) premuta = scelta;
-        if (premuta >= 0) { scelta = premuta; gAudio.Suona(Effetto::Conferma); }
-        return premuta;
+        Scritta2(voci[i], cx, y + i * passo, dim, sel ? Hex(0xffe066) : Hex(0xe8ecff));
     }
-};
+    if (gInput.Premuto(Azione::Conferma) || gInput.Premuto(Azione::Salto)) premuta = scelta;
+    if (premuta >= 0) { scelta = premuta; gAudio.Suona(Effetto::Conferma); }
+    return premuta;
+}
+
+namespace {
 
 bool EProgetto(const std::string& testo) { return testo.find("studio-videogiochi/gioco-1") != std::string::npos; }
 
 int GiocaPacchetto(const DatiGioco& dati) {
+    if (EArcade(dati.livello)) return GiocaArcade(dati);
     SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT);
     InitWindow(VW * 2, VH * 2, dati.titolo.c_str());
     FinestraGrande();
@@ -911,6 +909,9 @@ int main(int argc, char** argv) {
     if (argc > 2 && std::string(argv[1]) == "--prova-arte") { extern int ProvaArte(const char*); extern int ProvaPaesaggio(const char*); ProvaPaesaggio(argv[2]); return ProvaArte(argv[2]); }
     if (argc > 3 && std::string(argv[1]) == "--crea-platform") { extern int CreaPlatformDaRigaDiComando(int, char**); return CreaPlatformDaRigaDiComando(argc, argv); }
     if (argc > 2 && std::string(argv[1]) == "--prova-livelli") { extern int ProvaLivelliDaRigaDiComando(int, char**); return ProvaLivelliDaRigaDiComando(argc, argv); }
+    if (argc > 3 && std::string(argv[1]) == "--crea-arcade") { extern int CreaArcadeDaRigaDiComando(int, char**); return CreaArcadeDaRigaDiComando(argc, argv); }
+    if (argc > 3 && std::string(argv[1]) == "--foto-arcade") { extern int FotoArcadeDaRigaDiComando(int, char**); return FotoArcadeDaRigaDiComando(argc, argv); }
+    if (argc > 2 && std::string(argv[1]) == "--prova-arcade") { extern int ProvaArcadeDaRigaDiComando(int, char**); return ProvaArcadeDaRigaDiComando(argc, argv); }
     if (argc > 3 && std::string(argv[1]) == "--foto-gioco") { extern int FotoGiocoDaRigaDiComando(int, char**); return FotoGiocoDaRigaDiComando(argc, argv); }
     if (argc > 1 && std::string(argv[1]) == "--crea") return CreaDaRigaDiComando(argc, argv);
     if (argc > 1 && std::string(argv[1]) == "--verifica-salvataggi") { extern int VerificaSalvataggi(); return VerificaSalvataggi() ? 1 : 0; }
