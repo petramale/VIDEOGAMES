@@ -31,7 +31,7 @@ std::string Pacchetto(const std::string& nome) {
 
 // Comandi dalle periferiche (tastiera, mouse, joypad), con il mouse riportato nelle coordinate del gioco.
 static Pad gPrecedente;
-static Pad LeggiPad(Rectangle area, int L, int A) {
+Pad LeggiPad(Rectangle area, int L, int A) {
     Pad p;
     int jp = gInput.Joypad();
     float lx = gInput.LevettaX(), ly = gInput.LevettaY();

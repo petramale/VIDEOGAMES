@@ -14,11 +14,14 @@
 #include "gioco.h"
 #include "progetto_gioco.h"
 #include "sfondo.h"
+#include "json.hpp"
 #include <functional>
 #include <string>
 #include <vector>
 
-enum class Sezione { Home, Mondi, Personaggi, Oggetti, Scenari, Audio, Logica, Librerie, Comandi, Comportamenti, Totale };
+enum class Sezione { Home, Mondi, Personaggi, Oggetti, Scenari, Audio, Logica, Librerie, Comandi, Comportamenti, Arcade, Totale };
+
+namespace arcade { class GiocoArcade; }
 
 class Officina {
 public:
@@ -26,7 +29,7 @@ public:
     void Frame(float dt);                 // fra BeginDrawing ed EndDrawing
     bool esci = false;
     Rectangle PostoAudio() const { return postoAudio; }
-    bool Provando() const { return provando || editorMondo.Provando(); }
+    bool Provando() const { return provando || provaArcade || editorMondo.Provando(); }
     // Per le prove automatiche: apre un gioco, sceglie la sezione.
     bool ApriFile(const std::string& percorso);
     void Vai(Sezione s);
@@ -156,6 +159,24 @@ private:
     Contesto simContesto = [] { Contesto c; c.vede = 1; c.distanza = 0.6f; return c; }();
     float simMinaccia = 0.4f, simPaura = 0.1f, simFiducia = 0;
     bool simAbitante = false;
+
+    // --- Gioco arcade (nuovi tipi di gioco: officina_arcade.cpp) ---
+    int catArcade = 0, selArcade = 0, tappaAnteprima = -1, tappaProvaArcade = 0;
+    float scorriCampiArcade = 0, tAnteprimaArcade = 0;
+    nlohmann::json datiArcade, schemaArcade, predefinitiArcade;
+    std::string datiArcadeTesto, tipoSchemaArcade, datiAnteprima;
+    arcade::GiocoArcade* provaArcade = nullptr;      // la prova F5
+    arcade::GiocoArcade* anteprimaArcade = nullptr;  // l'anteprima dal vivo nella sezione
+    RenderTexture2D rtArcade{};
+    bool SezioneVisibile(int i) const;
+    void Arcade(Rectangle r, float dt);
+    void AnteprimaArcade(Rectangle r, float dt, int tappa);
+    void SincronizzaArcade();
+    void ArcadeCambiato();
+    void AzioneArcade(const std::string& codice);
+    void AvviaProvaArcade(int tappa);
+    void FrameProvaArcade(float dt);
+    void ApriArcade(const std::string& nome);
 
     // --- Claude ---
     ChatClaude chat;

@@ -42,6 +42,9 @@ struct Pad {
     float rotella = 0;
 };
 
+// Legge tastiera, mouse e joypad; il mouse in coordinate del gioco (area = dove si vede il gioco sullo schermo).
+Pad LeggiPad(Rectangle area, int L, int A);
+
 // --- Numeri casuali con stato salvabile (xorshift64*) -----------------------------------------
 struct Caso {
     uint64_t s = 88172645463325252ull;
