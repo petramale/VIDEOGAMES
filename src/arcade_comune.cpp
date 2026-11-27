@@ -262,3 +262,110 @@ void SuonaMusica(const Brano& b) {
 void FermaMusica() { gBranoAttuale.clear(); gAudio.FermaBranoPersonale(); }
 
 }  // namespace arcade
+
+// --- Controllo dei dati e modifiche di Claude ------------------------------------------------------
+
+namespace arcade {
+
+void Sistema(const nlohmann::json& schema, nlohmann::json& dati) {
+    using nlohmann::json;
+    if (!dati.is_object()) dati = json::object();
+    auto SistemaElemento = [&](const json& cat, json& e) {
+        if (!e.is_object()) e = json::object();
+        for (auto& c : cat["campi"]) {
+            std::string k = c.value("chiave", ""), tipo = c.value("tipo", "");
+            if (!e.contains(k)) continue;
+            json& v = e[k];
+            if (tipo == "numero") {
+                if (!v.is_number()) { e.erase(k); continue; }
+                double x = v.get<double>(), mi = c.value("min", -1e9), ma = c.value("max", 1e9);
+                v = std::max(mi, std::min(ma, x));
+            } else if (tipo == "scelta" || tipo == "rif") {
+                json voci = json::array();
+                if (tipo == "scelta") voci = c["voci"];
+                else if (dati.contains(c.value("da", "")) && dati[c.value("da", "")].is_array())
+                    for (auto& t : dati[c.value("da", "")]) voci.push_back(t.is_object() && t.contains("nome") ? t["nome"] : json(""));
+                bool vuoto = tipo == "rif" && c.contains("vuoto");
+                if (v.is_string()) {
+                    int trovato = vuoto ? -1 : 0;
+                    for (int i = 0; i < (int)voci.size(); i++) if (voci[i].is_string() && voci[i].get<std::string>() == v.get<std::string>()) trovato = i;
+                    v = trovato;
+                } else if (!v.is_number()) v = vuoto ? -1 : 0;
+                int i = v.get<int>(), n = (int)voci.size();
+                if (i < 0) v = vuoto ? -1 : 0; else if (i >= n) v = std::max(0, n - 1);
+            } else if (tipo == "vero") { if (!v.is_boolean()) v = v.is_number() ? v.get<double>() != 0 : false; }
+            else if (!v.is_string()) e.erase(k);
+        }
+    };
+    // prima gli elenchi (i rimandi dipendono dalla loro lunghezza), poi i campi
+    for (auto& cat : schema) {
+        std::string k = cat.value("chiave", "");
+        if (!dati.contains(k)) continue;
+        if (cat.value("lista", false)) {
+            if (!dati[k].is_array()) { dati.erase(k); continue; }
+            int mn = cat.value("min", 0), mx = cat.value("max", 999);
+            json& a = dati[k];
+            while ((int)a.size() > mx) a.erase(a.end() - 1);
+            while ((int)a.size() < mn && !a.empty()) a.push_back(a.back());
+        }
+    }
+    for (auto& cat : schema) {
+        std::string k = cat.value("chiave", "");
+        if (!dati.contains(k)) continue;
+        if (cat.value("lista", false)) { for (auto& e : dati[k]) SistemaElemento(cat, e); }
+        else SistemaElemento(cat, dati[k]);
+    }
+}
+
+bool ModificaArcade(ProgettoGioco& p, const nlohmann::json& a, std::string& esito) {
+    using nlohmann::json;
+    if (!p.EArcade()) { esito = "questo non e' un gioco arcade"; return false; }
+    auto g = Crea(p.arcade);
+    if (!g) { esito = "tipo di gioco sconosciuto"; return false; }
+    json schema = g->Schema(), predef = g->Predefiniti();
+    json d = json::parse(p.arcadeDati.empty() ? std::string("{}") : p.arcadeDati, nullptr, false);
+    if (!d.is_object()) d = json::object();
+    d = Unisci(predef, d);
+    std::string tipo = a.value("tipo", "");
+    if (tipo == "arcade") {
+        if (!a.contains("dati") || !a["dati"].is_object()) { esito = "mancano i dati"; return false; }
+        d = Unisci(d, a["dati"]);
+        esito = "gioco arcade modificato";
+    } else {
+        std::string k = a.value("categoria", "");
+        const json* cat = nullptr;
+        for (auto& c : schema) if (c.value("chiave", "") == k) cat = &c;
+        if (!cat) { esito = "categoria sconosciuta: " + k; return false; }
+        if (!cat->value("lista", false)) {
+            if (!a.contains("elemento") || !a["elemento"].is_object()) { esito = "manca l'elemento"; return false; }
+            d[k] = Unisci(d[k], a["elemento"]);
+            esito = cat->value("nome", k) + " modificato";
+        } else {
+            json& arr = d[k];
+            int n = (int)arr.size(), i = a.contains("indice") && a["indice"].is_number() ? a["indice"].get<int>() : -1;
+            int mn = cat->value("min", 0), mx = cat->value("max", 999);
+            std::string el = cat->value("elemento", std::string("elemento"));
+            if (a.value("elimina", false)) {
+                if (i < 0 || i >= n) { esito = el + " da eliminare inesistente"; return false; }
+                if (n <= mn) { esito = "ne servono almeno " + std::to_string(mn); return false; }
+                arr.erase(arr.begin() + i);
+                esito = el + " " + std::to_string(i + 1) + " eliminato";
+            } else if (i >= 0 && i < n) {
+                arr[i] = Unisci(arr[i], a.value("elemento", json::object()));
+                esito = el + " " + std::to_string(i + 1) + " modificato";
+            } else {
+                if (n >= mx) { esito = "al massimo " + std::to_string(mx); return false; }
+                json base = n ? arr[n - 1] : json::object();
+                json nuovo = Unisci(base, a.value("elemento", json::object()));
+                int dove = a.contains("prima") && a["prima"].is_number() ? std::max(0, std::min(n, a["prima"].get<int>())) : n;
+                arr.insert(arr.begin() + dove, nuovo);
+                esito = "nuovo " + el + " " + std::to_string(dove + 1);
+            }
+        }
+    }
+    Sistema(schema, d);
+    p.arcadeDati = d.dump();
+    return true;
+}
+
+}  // namespace arcade

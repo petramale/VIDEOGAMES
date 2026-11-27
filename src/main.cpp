@@ -8,6 +8,7 @@
 // Un eseguibile creato dallo studio contiene il gioco in coda (vedi pacchetto.h) e parte
 // con il suo flusso: intro con il logo Elvantis e "Mario Petramale", musica, "premi un tasto",
 // menu (1 giocatore, 2 giocatori a turni, opzioni, crediti, esci) e poi il gioco.
+#include "arcade.h"
 #include "comune.h"
 #include "audio.h"
 #include "claude_mondo.h"
@@ -827,6 +828,24 @@ int VerificaProgetti() {
         DatiGioco dg{ "Il drago", q.Json(true), {} };
         DatiGioco letto;
         Prova("pacchetto del gioco", DeserializzaGioco(SerializzaGioco(dg), letto) && EProgetto(letto.livello) && letto.livello == dg.livello);
+    }
+    // Un gioco arcade: Claude cambia un'ondata, ne aggiunge una, i limiti tengono e il progetto si riapre uguale.
+    for (auto& nome : arcade::Nomi()) {
+        if (!arcade::Crea(nome)) continue;
+        ProgettoGioco p = arcade::ProgettoArcade(nome);
+        auto g = arcade::Crea(nome);
+        nlohmann::json schema = g->Schema();
+        std::string lista = schema[0]["chiave"];
+        int prima = (int)g->Predefiniti()[lista].size();
+        std::string risposta = R"({"risposta":"ok","azioni":[{"tipo":"arcadeElemento","categoria":")" + lista + R"(","indice":0,"elemento":{"velocita":99}},
+            {"tipo":"arcadeElemento","categoria":")" + lista + R"("}]})";
+        EsitoProgetto e = ApplicaRispostaProgetto(p, 0, risposta);
+        nlohmann::json d = nlohmann::json::parse(p.arcadeDati);
+        bool limiti = true;
+        for (auto& c : schema[0]["campi"]) if (c["chiave"] == "velocita") limiti = d[lista][0]["velocita"].get<double>() <= c["max"].get<double>();
+        Prova(nome + ": Claude modifica il gioco arcade", e.modificato && (int)d[lista].size() == prima + 1 && limiti, e.scartate.empty() ? "" : e.scartate[0]);
+        ProgettoGioco q; std::string errore;
+        Prova(nome + ": progetto arcade riaperto", q.DaJson(p.Json(), errore) && q.arcade == nome && q.arcadeDati == p.arcadeDati, errore);
     }
     // Un gioco con tutto: un personaggio per ogni comportamento, un oggetto per ogni funzione,
     // una regola per ogni evento con tutte le azioni, caselle, brano ed effetto disegnati.

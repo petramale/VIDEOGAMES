@@ -1,4 +1,5 @@
 #include "claude_progetto.h"
+#include "arcade.h"
 #include "audio.h"
 #include "claude.h"
 #include "claude_mondo.h"
@@ -188,7 +189,18 @@ std::string PromptProgetto() {
         "e guarda a DESTRA (il motore specchia il disegno). Animazioni che il motore usa: personaggi \"fermo\", \"corsa\", \"salto\", \"caduta\", \"colpito\", "
         "\"attacco\", \"vittoria\"; oggetti \"fermo\" (la prima animazione), porte \"chiusa\" e \"aperta\", interruttori \"spenta\" e \"accesa\", molle \"scatta\". Al massimo 4 animazioni con 2-4 fotogrammi ciascuna: "
         "la risposta deve restare sotto i 40.000 caratteri. Se lo stile del gioco e' \"disegnato\" lo studio ingrandisce e ammorbidisce da solo i tuoi disegni.\n"
-        "Se l'utente chiede di modificare il disegno dell'elemento aperto, ricevi il suo disegno attuale nello stato: rimandalo completo con le modifiche.";
+        "Se l'utente chiede di modificare il disegno dell'elemento aperto, ricevi il suo disegno attuale nello stato: rimandalo completo con le modifiche.\n\n"
+        "GIOCHI ARCADE\n"
+        "Se nello stato c'e' \"giocoArcade\" il progetto e' un gioco arcade completo (sparatutto a ondate, a sciami, run and gun o avventura): "
+        "il motore e' gia' pronto e TUTTO il contenuto sta nei suoi dati (\"dati\"), descritti dallo \"schema\" (categorie; elenchi con min e max elementi; "
+        "campi numero con min/max, testo, colore \"#rrggbb\", vero, scelta = indice nelle voci, rif = indice in un altro elenco (-1 = vuoto se ammesso), "
+        "brano = nome di un brano della libreria, effetto = nome di un effetto della libreria). In un gioco arcade NON servono mappe, personaggi o regole: "
+        "si cambiano solo i dati, la musica (azione brano, poi il suo nome nel campo musica) e gli effetti (azione effetto, poi il suo nome nel campo del suono).\n"
+        "- {\"tipo\":\"arcadeElemento\",\"categoria\":\"chiave della categoria\",\"indice\":N,\"elemento\":{solo i campi da cambiare}}: modifica l'elemento N (da 0) di un elenco, "
+        "o i campi di una categoria che non e' un elenco. Senza indice (o con indice oltre la fine) AGGIUNGE un elemento in fondo, copiando l'ultimo; con \"prima\":N lo inserisce in posizione N. "
+        "Con \"elimina\":true toglie l'elemento N.\n"
+        "- {\"tipo\":\"arcade\",\"dati\":{...}}: cambia piu' cose insieme (gli oggetti si fondono, un elenco mandato sostituisce tutto l'elenco: mandalo completo).\n"
+        "I numeri fuori dai limiti vengono riportati nei limiti. Per i livelli difficili aumenta velocita', fuoco e aggressivita' con giudizio e alterna i livelli duri a quelli piu' calmi.";
 }
 
 std::string StatoProgettoPerClaude(const ProgettoGioco& p, int mappaAperta, const std::string& sezione, const std::string& selezionato) {
@@ -239,6 +251,15 @@ std::string StatoProgettoPerClaude(const ProgettoGioco& p, int mappaAperta, cons
     for (auto& x : p.profili) prof.push_back(ProfiloJson(x));
     j["profili"] = prof;
     j["varieta"] = VarietaJson(p.varieta);
+    if (p.EArcade()) {
+        auto g = arcade::Crea(p.arcade);
+        if (g) {
+            json d = json::parse(p.arcadeDati.empty() ? std::string("{}") : p.arcadeDati, nullptr, false);
+            j["giocoArcade"] = { { "tipo", p.arcade }, { "titolo", arcade::TitoloDi(p.arcade) },
+                                 { "dati", arcade::Unisci(g->Predefiniti(), d.is_object() ? d : json::object()) }, { "schema", g->Schema() } };
+            return "Gioco arcade, libreria e sezione aperta:\n" + j.dump();
+        }
+    }
     return "Libreria, regole e sezione aperta:\n" + j.dump() + "\n\n" + StatoMondoPerClaude(p.mondo, mappaAperta);
 }
 
@@ -342,6 +363,10 @@ EsitoProgetto ApplicaRispostaProgetto(ProgettoGioco& p, int mappaAperta, const s
                 if (i >= 0 && i < (int)copia.regole.size()) { copia.regole[i] = r; e.fatte.push_back("regola " + std::to_string(i + 1) + " cambiata"); }
                 else { copia.regole.push_back(r); e.fatte.push_back("nuova regola: quando " + r.chi + " " + r.evento + (r.conChi.empty() ? "" : " " + r.conChi)); }
                 e.sezione = "logica";
+            } else if (tipo == "arcade" || tipo == "arcadeElemento") {
+                std::string esito;
+                if (arcade::ModificaArcade(copia, a, esito)) { e.fatte.push_back(esito); e.sezione = "arcade"; e.nome = Testo(a, "categoria"); }
+                else e.scartate.push_back(esito);
             } else if (tipo == "togliRegola") {
                 int i = a.contains("indice") && a["indice"].is_number() ? a["indice"].get<int>() : -1;
                 if (i < 0 || i >= (int)copia.regole.size()) { e.scartate.push_back("togliRegola: indice non valido"); continue; }

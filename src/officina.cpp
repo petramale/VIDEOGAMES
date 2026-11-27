@@ -1058,6 +1058,11 @@ void Officina::ControllaChat() {
             int i = Indice(progetto.brani, e.nome); if (i >= 0) { selBrano = i; schedaAudio = 0; }
             int k = Indice(progetto.effetti, e.nome); if (k >= 0) { selEffetto = k; schedaAudio = 1; }
         }
+        else if (e.sezione == "arcade") {
+            SincronizzaArcade();
+            for (int i = 0; i < (int)schemaArcade.size(); i++) if (schemaArcade[i].value("chiave", "") == e.nome) { catArcade = i; selArcade = 0; }
+            Vai(Sezione::Arcade);
+        }
         if (e.apriMappa >= 0) { Vai(Sezione::Mondi); editorMondo.MostraMappa(e.apriMappa); }
     }
     if (!e.scartate.empty()) {

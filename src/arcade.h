@@ -127,6 +127,12 @@ std::unique_ptr<GiocoArcade> Crea(const std::string& nome);
 ProgettoGioco ProgettoArcade(const std::string& nome);
 // Fonde i dati salvati con quelli predefiniti (le chiavi mancanti prendono il valore predefinito).
 nlohmann::json Unisci(const nlohmann::json& predefinito, const nlohmann::json& dati);
+// Rimette i dati nei limiti dello schema: quanti elementi negli elenchi, numeri fra min e max,
+// scelte e rimandi validi (accetta anche il nome al posto del numero).
+void Sistema(const nlohmann::json& schema, nlohmann::json& dati);
+// Applica una modifica chiesta a Claude al gioco arcade del progetto:
+//   {"tipo":"arcade","dati":{...}}  oppure  {"tipo":"arcadeElemento","categoria":"ondate","indice":3,"elemento":{...},"elimina":false}
+bool ModificaArcade(ProgettoGioco& p, const nlohmann::json& azione, std::string& esito);
 // Gli effetti sonori sostituiti nel progetto: evento del gioco -> effetto della sezione Audio.
 void ImpostaSuoni(const nlohmann::json& suoni, const ProgettoGioco* p);
 const std::vector<std::string>& Nomi();
